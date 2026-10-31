@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phantom Viewer</title>
+<link rel="stylesheet" href="../shared/style.css">
+<style>
+  .views { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 1000px) { .views { grid-template-columns: 1fr; } }
+  canvas { width: 100%; aspect-ratio: 1; background: #000; border-radius: 4px; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .85rem; margin: 8px 0; }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .viewhead { display: flex; justify-content: space-between; font-size: .9rem; margin-bottom: 6px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
+  <h1>Procedural head phantom</h1>
+  <p class="sub">A generated, labeled head with no stored data. For judging the phantom itself; it will feed the contrast simulator later.</p>
+
+  <div class="panel">
+    <div class="controls">
+      <div><label for="mode">Display</label>
+        <select id="mode">
+          <option value="labels">Tissue labels</option>
+          <option value="T1w">T1-weighted (SE, TR 500 / TE 15)</option>
+          <option value="T2w">T2-weighted (SE, TR 4000 / TE 100)</option>
+          <option value="PD">PD-weighted (SE, TR 4000 / TE 15)</option>
+          <option value="FLAIR">FLAIR (TR 9000 / TI 2500 / TE 100)</option>
+        </select></div>
+      <div><label for="res">Image matrix</label>
+        <select id="res"><option value="128">128 × 128</option><option value="256" selected>256 × 256</option><option value="384">384 × 384</option></select></div>
+      <div><label for="sulcal">Sulcal depth (mm) <span class="v" id="sulcalV"></span></label>
+        <input id="sulcal" type="range" min="0" max="20" step="1" value="14"></div>
+      <div><label for="seed">Anatomy seed <span class="v" id="seedV"></span></label>
+        <input id="seed" type="range" min="1" max="20" step="1" value="1"></div>
+      <div class="check" style="align-self:end"><input type="checkbox" id="lesions"><label for="lesions">Show example lesions</label></div>
+    </div>
+    <div class="controls">
+      <div><label for="zpos">Axial slice (z, mm) <span class="v" id="zposV"></span></label>
+        <input id="zpos" type="range" min="-85" max="85" step="1" value="12"></div>
+      <div><label for="ypos">Coronal slice (y, mm) <span class="v" id="yposV"></span></label>
+        <input id="ypos" type="range" min="-90" max="90" step="1" value="0"></div>
+      <div><label for="xpos">Sagittal slice (x, mm) <span class="v" id="xposV"></span></label>
+        <input id="xpos" type="range" min="-70" max="70" step="1" value="0"></div>
+    </div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="views" style="margin-top:12px">
+    <div class="panel"><div class="viewhead"><span>Axial</span><span>R &larr; &rarr; L</span></div><canvas id="axial" width="256" height="256"></canvas></div>
+    <div class="panel"><div class="viewhead"><span>Coronal</span><span>R &larr; &rarr; L</span></div><canvas id="coronal" width="256" height="256"></canvas></div>
+    <div class="panel"><div class="viewhead"><span>Sagittal</span><span>anterior &larr; &rarr; posterior</span></div><canvas id="sagittal" width="256" height="256"></canvas></div>
+  </div>
+  <p class="caption" id="stats"></p>
+  <p class="caption">Stylised anatomy, not a segmentation of a real person: scalp fat, a three-layer skull (cortical bone around
+    fatty marrow), CSF, a folded cortex with slit-like sulci, white matter, deep gray nuclei, lateral and third ventricles,
+    cerebellum and brainstem. Tissue values are the 3 T values used by the contrast simulator; the skull's cortical bone is
+    treated as signal void. Weighted images are ideal spin-echo signal equations, not a full simulation.</p>
+</main>
+<script type="module" src="ui.js"></script>
+</body>
+</html>
