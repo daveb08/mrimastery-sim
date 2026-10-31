@@ -156,7 +156,7 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
 
   // Air spaces: nasal passage, sinuses, oral cavity, pharynx and trachea.
   function isAirSpace(x, y, z) {
-    if (sdCapsule(x, y, z, 0, 100, -18, 0, 14, -24, 4.5) < 0) return true;
+    if (sdCapsule(x, y, z, 0, 112, -18, 0, 14, -24, 4.5) < 0) return true;
     if (sdEllipsoid(Math.abs(x) - 27, y - 56, z + 16, 11, 12, 7) < 0) return true; // maxillary sinus
     if (sdEllipsoid(x, y - 84, z - 30, 8, 5, 9) < 0) return true;
     if (sdEllipsoid(x, y - 66, z + 32, 13, 18, 4) < 0) return true;
@@ -170,6 +170,13 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
     if (sdEllipsoid(ax - 32, y - 76, z + 4, 12, 12, 12) < 0) return CSF; // vitreous
     if (sdEllipsoid(ax - 32, y - 68, z + 4, 17, 22, 17) < 0) return FAT; // orbital fat
     if (z > -24 && z < -20 && ax < 22 && y > 40 && y < 80) return BONE;   // hard palate
+    const mandible = Math.min(
+      sdCapsule(ax, y, z, 46, 0, -10, 44, -6, -52, 6),   // ramus
+      sdCapsule(ax, y, z, 44, -6, -52, 22, 62, -72, 6),  // body
+      sdCapsule(ax, y, z, 22, 62, -72, 0, 74, -74, 6));  // chin
+    if (mandible < -2) return FAT; // marrow
+    if (mandible < 0) return BONE;
+    if (sdCapsule(ax, y, z, 46, 56, -8, 70, 8, -8, 4) < 0) return BONE; // zygomatic arch
     if (z < -28) {
       const canal = Math.hypot(x / 8.5, (y + 26) / 8.5);
       if (canal < 1) return Math.hypot(x / 5, (y + 26) / 4.5) < 1 ? WM : CSF; // cord in CSF
@@ -188,8 +195,17 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
     // Outer surface: cranial vault (flatter below), face, nose and neck.
     const zh = z - 8 < 0 ? (z - 8) * 1.3 : z - 8;
     const sdVault = sdEllipsoid(x, y, zh, 76, 96, 84);
-    const sdOuter = Math.min(sdVault, sdEllipsoid(x, y - 58, z + 34, 60, 40, 50),
-      sdEllipsoid(x, y - 96, z + 18, 11, 16, 26), sdEllipsoid(x, y - 70, z + 74, 30, 24, 17), sdEllipsoid(x, y + 10, z + 120, 52, 58, 100));
+    const sdFace = Math.min(
+      sdEllipsoid(x, y - 58, z + 34, 60, 40, 50),   // face
+      sdEllipsoid(x, y - 70, z + 74, 28, 22, 16),   // chin
+      sdEllipsoid(x, y - 88, z - 6, 6, 13, 20),     // nasal bridge
+      sdEllipsoid(x, y - 104, z + 14, 9, 9, 8),     // nasal tip
+      sdEllipsoid(Math.abs(x) - 8, y - 99, z + 18, 5, 6, 6), // nostril wings
+      sdEllipsoid(x, y - 92, z + 40, 15, 7, 5),     // lips
+      sdEllipsoid(Math.abs(x) - 78, y + 4, z + 6, 5, 11, 16)); // ears
+    // Short neck, cut flat 6 cm below the chin.
+    const sdNeck = Math.max(sdEllipsoid(x, y + 6, z + 70, 46, 56, 60), -92 - z);
+    const sdOuter = Math.min(sdVault, sdFace, sdNeck);
     if (sdOuter > 0) return AIR;
     if (isAirSpace(x, y, z)) return AIR;
 

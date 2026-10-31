@@ -3,7 +3,7 @@ import { createPhantom, sliceLabels, LABELS } from "./phantom.js";
 const $ = (id) => document.getElementById(id);
 const FOV = 250;
 // View centre [screen-right, screen-up] in mm: shifts the frame to include the face and neck.
-const CENTER = { axial: [0, 8], coronal: [0, -14], sagittal: [-8, -14] };
+const CENTER = { axial: [0, 8], coronal: [0, -2], sagittal: [-8, -2] };
 
 // 3 T tissue values as used by the contrast simulator (T1/T2 in ms, PD 0-1).
 // Bone is treated as signal void; the lesion row is illustrative (long T1/T2).
