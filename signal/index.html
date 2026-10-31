@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signal Processing Simulator</title>
+<link rel="stylesheet" href="../shared/style.css">
+</head>
+<body>
+<main>
+  <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
+  <h1>Signal Processing</h1>
+  <p class="sub">Fourier transforms, sampling and aliasing, and RF slice profiles.</p>
+
+  <section class="panel" aria-label="Field strength">
+    <div class="controls">
+      <div>
+        <label for="field">Field strength</label>
+        <select id="field"></select>
+      </div>
+      <div class="metric"><div class="label">Larmor frequency</div><div class="value" id="larmor"></div></div>
+    </div>
+    <p class="caption">The Carrier Frequency slider below simulates the role of the Larmor frequency in MRI &mdash;
+      the frequency at which protons precess in a magnetic field B0, given by f&#8320; = &gamma; &times; B0 where
+      &gamma; = 42.577 MHz/T is the proton gyromagnetic ratio. The actual NMR signal consists of tissue contrast
+      information (T1, T2, proton density) amplitude- and phase-modulated onto this carrier frequency &mdash;
+      analogous to AM radio where audio is modulated onto a radio carrier. The MRI receiver uses quadrature
+      detection to demodulate back to baseband before sampling, which also allows it to distinguish positive
+      from negative frequencies.</p>
+  </section>
+
+  <h2>1D and 2D Fourier Transform Visualizer</h2>
+  <div class="check"><input type="checkbox" id="auto"><label for="auto">Auto Nyquist</label></div>
+  <div class="controls">
+    <div><label for="kind">Signal type</label>
+      <select id="kind"><option>Sinc</option><option>Rectangular</option><option>Gaussian</option></select></div>
+    <div><label for="width">Signal width (s) <span class="v" id="widthV"></span></label>
+      <input id="width" type="range" min="0.01" max="0.5" step="0.01" value="0.12"></div>
+    <div><label for="freq">Carrier Frequency (Hz) <span class="v" id="freqV"></span></label>
+      <input id="freq" type="range" min="0" max="100" step="1" value="0"></div>
+    <div><label for="rate">Sampling rate (Hz) <span class="v" id="rateV"></span></label>
+      <input id="rate" type="range" min="1" max="1024" step="1" value="256"></div>
+    <div><label for="samples">Number of samples <span class="v" id="samplesV"></span></label>
+      <input id="samples" type="range" min="64" max="2048" step="64" value="256"></div>
+  </div>
+  <p class="caption">Signal Width: for Sinc pulses, width controls the time-bandwidth product &mdash; a narrower
+    sinc pulse produces a wider frequency spectrum and vice versa, directly analogous to how a shorter RF pulse
+    excites a broader range of frequencies in MRI. For Rectangular pulses, width is the full pulse duration. For
+    Gaussian pulses, width is the standard deviation. Carrier Frequency (Hz): applies cosine modulation to shift
+    the signal center frequency, analogous to off-resonance RF excitation in MRI. Sampling Rate: controls how
+    many times per unit time the signal is sampled &mdash; must be at least 2x the highest signal frequency to
+    satisfy the Nyquist criterion and avoid aliasing.</p>
+  <div class="metrics">
+    <div class="metric panel"><div class="label">Nyquist frequency (fs/2)</div><div class="value" id="mNyq"></div></div>
+    <div class="metric panel"><div class="label">Carrier Frequency (Hz)</div><div class="value" id="mCar"></div></div>
+    <div class="metric panel"><div class="label">Aliasing (carrier criterion)</div><div class="value" id="mAlias"></div></div>
+  </div>
+  <div class="alert" id="aliasAlert" role="alert" hidden>Aliasing detected: sampling rate below Nyquist criterion</div>
+  <p class="caption">Auto Nyquist sets fs to exactly twice the selected carrier frequency. The envelope also has
+    bandwidth, so this carrier criterion does not guarantee alias-free sampling of the entire signal.</p>
+  <div class="info" id="zeroRate" hidden>Auto Nyquist gives 0 Hz for a 0 Hz carrier. Select a positive carrier
+    frequency or uncheck Auto Nyquist to compute the sampled spectrum.</div>
+
+  <div id="fourier">
+    <div class="grid2">
+      <div class="panel"><div id="time1d" class="plot tall"></div></div>
+      <div class="panel"><div id="time2d" class="plot tall"></div></div>
+      <div class="panel"><div id="spec1d" class="plot tall"></div>
+        <div class="note caption" id="hermitian" hidden>The two symmetric peaks reflect Hermitian symmetry &mdash; a
+          fundamental property of the Fourier transform of any real-valued signal. Every positive frequency
+          component has a mirror image at the corresponding negative frequency. In MRI this symmetry underlies
+          k-space conjugate symmetry and explains why quadrature detection is needed to distinguish positive from
+          negative frequencies.</div></div>
+      <div class="panel"><div id="spec2d" class="plot tall"></div></div>
+    </div>
+    <p class="caption" id="aliasNote" hidden></p>
+    <p class="caption">Wider signals have narrower bandwidth; shorter signals spread energy over a wider frequency
+      range. Cosine modulation shifts the spectrum toward &plusmn; the selected frequency.</p>
+    <p class="caption" id="obsNote"></p>
+    <p class="caption">The selected waveform is applied along both axes: image(x, y) = signal(x) &times; signal(y).
+      All controls above also apply to the 2D panels; the sample count is per axis. Panels show at most 512
+      samples per axis; larger counts are subsampled for display only.</p>
+    <p class="caption">In MRI, the 2D Fourier transform of the imaging object produces k-space. The shape of the
+      object in image space determines the distribution of energy in k-space: broad, smooth structures concentrate
+      energy near the center, while sharp edges and fine detail extend energy toward higher spatial frequencies.
+      Here the time/frequency axes provide a mathematical analogue of image position and spatial frequency in MRI.</p>
+  </div>
+
+  <hr>
+  <h2>RF Pulse &amp; Slice Profile Simulator</h2>
+  <p class="caption">The RF envelope follows the Signal type selected above.</p>
+  <div class="controls">
+    <div><label for="thick">Desired slice thickness (mm) <span class="v" id="thickV"></span></label>
+      <input id="thick" type="range" min="1" max="20" step="0.5" value="5"></div>
+    <div><label for="grad">Slice select gradient amplitude (mT/m) <span class="v" id="gradV"></span></label>
+      <input id="grad" type="range" min="1" max="40" step="0.5" value="10"></div>
+    <div><label for="tbw">Time-bandwidth product <span class="v" id="tbwV"></span></label>
+      <input id="tbw" type="range" min="2" max="12" step="0.5" value="4"></div>
+  </div>
+  <div class="metrics">
+    <div class="metric panel"><div class="label">Required RF bandwidth (Hz)</div><div class="value" id="rBw"></div></div>
+    <div class="metric panel"><div class="label">Required pulse duration (ms)</div><div class="value" id="rDur"></div></div>
+    <div class="metric panel"><div class="label">Time-bandwidth product</div><div class="value" id="rTbw"></div></div>
+    <div class="metric panel"><div class="label">Achieved slice thickness (mm, FWHM)</div><div class="value" id="rAch"></div></div>
+  </div>
+  <p class="caption">BW = &gamma; &times; Gss &times; thickness; &gamma; = 42.577 MHz/T. Duration = TBW / BW. The
+    selected signal type sets the RF envelope. Profiles use the small-tip approximation |FT(RF)|, with frequency
+    mapped to position by the slice-select gradient. These are baseband envelopes.</p>
+  <p class="caption">Achieved thickness is the central-lobe full width at half the on-resonance magnitude. TBW uses
+    the requested bandwidth: the actual bandwidth can differ, especially for a rectangular pulse, whose duration
+    alone determines its sinc-shaped spectrum.</p>
+  <div class="grid3">
+    <div class="panel"><div id="rfPulse" class="plot"></div></div>
+    <div class="panel"><div id="rfProfile" class="plot"></div></div>
+    <div class="panel"><div id="rfSpectrum" class="plot"></div></div>
+  </div>
+  <p class="caption">Slice thickness is determined by RF pulse bandwidth and slice select gradient strength. Higher
+    time-bandwidth product improves slice profile quality but requires longer pulse duration, increasing minimum TE.</p>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script type="module" src="ui.js"></script>
+</body>
+</html>

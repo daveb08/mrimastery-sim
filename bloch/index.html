@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bloch Simulator</title>
+<style>
+  :root {
+    --bg: #1a1a1a; --panel: #242424; --border: #444; --text: #e6e6e6; --muted: #aaa;
+    --accent: #FFD700; --x: #ff6b6b; --y: #6bd66b; --z: #6ba6ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 14px; }
+  .layout { display: grid; grid-template-columns: 300px 1fr; gap: 16px; }
+  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin-top: 10px; }
+  label span.v { float: right; color: var(--text); }
+  select, input[type=range] { width: 100%; }
+  select { background: var(--bg); color: var(--text); border: 1px solid var(--border);
+           border-radius: 4px; padding: 5px; font-size: .95rem; }
+  button { background: var(--accent); color: #111; border: 0; border-radius: 4px;
+           padding: 7px 14px; font-weight: 600; cursor: pointer; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .transport { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+  .transport input { flex: 1; }
+  #readout { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .85rem; min-width: 22ch; }
+  #scene { height: 520px; }
+  #traces { height: 260px; margin-top: 8px; }
+  .note { color: var(--muted); font-size: .8rem; margin-top: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <nav style="font-size:.85rem;margin-bottom:8px"><a href="../" style="color:#6699FF">&larr; All simulators</a></nav>
+  <h1>Bloch Simulator</h1>
+  <p class="sub">Magnetization in the rotating frame, integrated from the Bloch equations.</p>
+  <div class="layout">
+    <section class="panel" aria-label="Controls">
+      <label for="program">Experiment</label>
+      <select id="program">
+        <option value="pulse">Pulse, then free precession</option>
+        <option value="se">Spin echo (90x, τ, 180y, τ)</option>
+        <option value="ir">Inversion recovery (180, TI, 90)</option>
+      </select>
+      <label for="flip">Flip angle <span class="v" id="flipV"></span></label>
+      <input id="flip" type="range" min="1" max="360" step="1" value="90">
+      <label for="phase">RF phase <span class="v" id="phaseV"></span></label>
+      <input id="phase" type="range" min="0" max="360" step="5" value="0">
+      <label for="shape">Pulse shape</label>
+      <select id="shape"><option value="rect">Rectangular</option><option value="sinc">Sinc</option><option value="gaussian">Gaussian</option></select>
+      <label for="pdur">Pulse duration <span class="v" id="pdurV"></span></label>
+      <input id="pdur" type="range" min="0.05" max="3" step="0.05" value="0.5">
+      <label for="delay">Delay / τ / TI <span class="v" id="delayV"></span></label>
+      <input id="delay" type="range" min="1" max="200" step="1" value="20">
+      <label for="off">Center off-resonance <span class="v" id="offV"></span></label>
+      <input id="off" type="range" min="-300" max="300" step="5" value="0">
+      <label for="spread">Isochromat spread (±) <span class="v" id="spreadV"></span></label>
+      <input id="spread" type="range" min="0" max="200" step="5" value="0">
+      <label for="t1">T1 <span class="v" id="t1V"></span></label>
+      <input id="t1" type="range" min="50" max="4000" step="10" value="1000">
+      <label for="t2">T2 <span class="v" id="t2V"></span></label>
+      <input id="t2" type="range" min="10" max="2000" step="5" value="100">
+      <p class="note">Positive off-resonance precesses clockwise seen from +z.
+      A spread of 0 shows a single spin; otherwise the signal averages 113 spins across the range and 15 of them are drawn.
+      The yellow arrow is the mean magnetization.</p>
+    </section>
+    <section>
+      <div class="transport">
+        <button id="play" type="button">Play</button>
+        <input id="time" type="range" min="0" max="1000" value="0" step="any" aria-label="Time">
+        <span id="readout"></span>
+      </div>
+      <div id="scene" class="panel"></div>
+      <div id="traces" class="panel"></div>
+    </section>
+  </div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script type="module" src="ui.js"></script>
+</body>
+</html>

@@ -1,11 +1,22 @@
 # MRI Mastery simulators
 
-Free, browser-based MRI physics simulators. Static HTML/JS; no build step.
+Free, browser-based MRI physics simulators. Static HTML/JS; no build step, no framework.
+Plotly (pinned, from jsDelivr) draws the plots.
 
-- `index.html`, `ui.js` — Bloch-equation magnetization simulator (Plotly 3D, loaded from jsDelivr)
-- `bloch.js` — DOM-free Bloch engine (ms, Hz, mT/m, mm)
-- `bloch.test.js` — analytic checks: `node --test bloch.test.js`
+| Path | Simulator |
+|---|---|
+| `/` | Landing page linking to each simulator |
+| `bloch/` | Bloch-equation magnetization simulator (3D vector, spin echo, inversion recovery) |
+| `signal/` | Fourier transforms, sampling/aliasing, RF pulse and slice profile |
+| `shared/` | Common stylesheet, Plotly dark-theme helpers, FFT |
 
-Run locally: `python -m http.server 8000`, then open http://localhost:8000/.
+Each simulator keeps its numerics in DOM-free modules (`bloch/bloch.js`, `signal/fourier.js`,
+`signal/rfslice.js`) with tests beside them. The signal tests check against values computed
+with the original Python implementation.
+
+```
+node --test bloch/bloch.test.js signal/signal.test.js   # pass files, not directories (Node 24)
+python -m http.server 8000                              # then open http://localhost:8000/
+```
 
 Hosted with GitHub Pages at the domain in `CNAME`.
