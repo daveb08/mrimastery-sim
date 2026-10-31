@@ -18,7 +18,7 @@
 <main>
   <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
   <h1>Procedural head phantom</h1>
-  <p class="sub">A generated, labeled head with no stored data. For judging the phantom itself; it will feed the contrast simulator later.</p>
+  <p class="sub">A generated, labeled head and neck with no stored data. For judging the phantom itself; it will feed the contrast simulator later.</p>
 
   <div class="panel">
     <div class="controls">
@@ -30,6 +30,8 @@
           <option value="PD">PD-weighted (SE, TR 4000 / TE 15)</option>
           <option value="FLAIR">FLAIR (TR 9000 / TI 2500 / TE 100)</option>
         </select></div>
+      <div><label for="window">Brightness window</label>
+        <select id="window"><option value="brain" selected>Brain tissue (shows GM/WM contrast)</option><option value="full">Full range (brightest tissue = white)</option></select></div>
       <div><label for="res">Image matrix</label>
         <select id="res"><option value="128">128 × 128</option><option value="256" selected>256 × 256</option><option value="384">384 × 384</option></select></div>
       <div><label for="sulcal">Sulcal depth (mm) <span class="v" id="sulcalV"></span></label>
@@ -40,11 +42,11 @@
     </div>
     <div class="controls">
       <div><label for="zpos">Axial slice (z, mm) <span class="v" id="zposV"></span></label>
-        <input id="zpos" type="range" min="-85" max="85" step="1" value="12"></div>
+        <input id="zpos" type="range" min="-125" max="95" step="1" value="14"></div>
       <div><label for="ypos">Coronal slice (y, mm) <span class="v" id="yposV"></span></label>
-        <input id="ypos" type="range" min="-90" max="90" step="1" value="0"></div>
+        <input id="ypos" type="range" min="-105" max="115" step="1" value="0"></div>
       <div><label for="xpos">Sagittal slice (x, mm) <span class="v" id="xposV"></span></label>
-        <input id="xpos" type="range" min="-70" max="70" step="1" value="0"></div>
+        <input id="xpos" type="range" min="-70" max="70" step="1" value="5"></div>
     </div>
     <div class="legend" id="legend"></div>
   </div>
@@ -56,8 +58,9 @@
   </div>
   <p class="caption" id="stats"></p>
   <p class="caption">Stylised anatomy, not a segmentation of a real person: scalp fat, a three-layer skull (cortical bone around
-    fatty marrow), CSF, a folded cortex with slit-like sulci, white matter, deep gray nuclei, lateral and third ventricles,
-    cerebellum and brainstem. Tissue values are the 3 T values used by the contrast simulator; the skull's cortical bone is
+    fatty marrow), CSF, a folded cortex with radial sulci, an interhemispheric fissure, temporal lobes, white matter, deep gray
+    nuclei, ventricles, cerebellum and brainstem; and a face and neck with eyes, orbital fat, nasal passage, sinuses, oral
+    cavity, cervical vertebrae, spinal cord and airway. Tissue values are the 3 T values used by the contrast simulator, plus illustrative muscle; the skull's cortical bone is
     treated as signal void. Weighted images are ideal spin-echo signal equations, not a full simulation.</p>
 </main>
 <script type="module" src="ui.js"></script>

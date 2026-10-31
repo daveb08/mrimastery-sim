@@ -1,7 +1,9 @@
 import { createPhantom, sliceLabels, LABELS } from "./phantom.js";
 
 const $ = (id) => document.getElementById(id);
-const FOV = 240;
+const FOV = 250;
+// View centre [screen-right, screen-up] in mm: shifts the frame to include the face and neck.
+const CENTER = { axial: [0, 8], coronal: [0, -14], sagittal: [-8, -14] };
 
 // 3 T tissue values as used by the contrast simulator (T1/T2 in ms, PD 0-1).
 // Bone is treated as signal void; the lesion row is illustrative (long T1/T2).
@@ -13,6 +15,8 @@ const TISSUE = {
   [LABELS.FAT]:    { name: "Fat",          color: [255, 217, 102], PD: 1.0,  T1: 371,  T2: 133 },
   [LABELS.BONE]:   { name: "Cortical bone", color: [140, 140, 140], PD: 0.0, T1: 300,  T2: 1 },
   [LABELS.LESION]: { name: "Lesion",       color: [235, 70, 70],   PD: 0.85, T1: 1400, T2: 140 },
+  // Illustrative skeletal-muscle values at 3 T (not in the contrast simulator's tissue table).
+  [LABELS.MUSCLE]: { name: "Muscle / soft tissue", color: [176, 112, 128], PD: 0.80, T1: 1420, T2: 32 },
 };
 const PROTOCOL = {
   T1w: { TR: 500, TE: 15 }, T2w: { TR: 4000, TE: 100 }, PD: { TR: 4000, TE: 15 },
@@ -31,10 +35,15 @@ function signal(label, mode) {
   return t.PD * (1 - e1) * e2;
 }
 
-function lookup(mode) {
+// "brain" windows on the parenchyma (WM sits at 60% brightness; fat and CSF may saturate), which
+// shows the GM/WM contrast. "full" maps the brightest tissue to white.
+function lookup(mode, windowMode) {
   const lut = new Uint8ClampedArray(8 * 3);
   const values = Object.keys(TISSUE).map((k) => (mode === "labels" ? 0 : signal(+k, mode)));
-  const top = Math.max(...values, 1e-9);
+  let top = Math.max(...values, 1e-9);
+  if (mode !== "labels" && windowMode === "brain") {
+    top = Math.max(signal(LABELS.WM, mode), signal(LABELS.GM, mode)) / 0.6;
+  }
   for (const k of Object.keys(TISSUE)) {
     const c = mode === "labels" ? TISSUE[k].color : Array(3).fill(255 * Math.min(1, signal(+k, mode) / top));
     lut.set(c, 3 * +k);
@@ -51,13 +60,13 @@ function draw() {
   $("zposV").textContent = pos.axial; $("yposV").textContent = pos.coronal; $("xposV").textContent = pos.sagittal;
   const k = `${sulcal}|${seed}|${lesions}`;
   if (k !== key) { phantom = createPhantom({ seed, sulcalDepthMm: sulcal, lesions }); key = k; }
-  const lut = lookup(mode);
+  const lut = lookup(mode, $("window").value);
   const t0 = performance.now();
   for (const plane of ["axial", "coronal", "sagittal"]) {
     const canvas = $(plane);
     canvas.width = canvas.height = size;
     const ctx = canvas.getContext("2d");
-    const labels = sliceLabels(phantom, plane, pos[plane], size, FOV);
+    const labels = sliceLabels(phantom, plane, pos[plane], size, FOV, CENTER[plane]);
     const img = ctx.createImageData(size, size);
     for (let i = 0; i < labels.length; i++) {
       img.data[4 * i] = lut[3 * labels[i]]; img.data[4 * i + 1] = lut[3 * labels[i] + 1];
@@ -70,12 +79,12 @@ function draw() {
 
 // Optional URL settings, e.g. ?mode=T1w&res=384&lesions=1&seed=3&z=20
 const q = new URLSearchParams(location.search);
-for (const [param, id] of [["mode", "mode"], ["res", "res"], ["sulcal", "sulcal"], ["seed", "seed"], ["z", "zpos"], ["y", "ypos"], ["x", "xpos"]]) {
+for (const [param, id] of [["mode", "mode"], ["window", "window"], ["res", "res"], ["sulcal", "sulcal"], ["seed", "seed"], ["z", "zpos"], ["y", "ypos"], ["x", "xpos"]]) {
   if (q.has(param)) $(id).value = q.get(param);
 }
 if (q.get("lesions") === "1") $("lesions").checked = true;
 
 let pending = false;
 const schedule = () => { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; draw(); }); } };
-for (const id of ["mode", "res", "sulcal", "seed", "lesions", "zpos", "ypos", "xpos"]) $(id).addEventListener("input", schedule);
+for (const id of ["mode", "window", "res", "sulcal", "seed", "lesions", "zpos", "ypos", "xpos"]) $(id).addEventListener("input", schedule);
 draw();

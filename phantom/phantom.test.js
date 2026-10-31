@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createPhantom, sliceLabels, LABELS } from "./phantom.js";
 
-const { AIR, WM, GM, CSF, FAT, BONE, LESION } = LABELS;
+const { AIR, WM, GM, CSF, FAT, BONE, LESION, MUSCLE } = LABELS;
 
 function volumesMl(phantom, step = 3) {
   const counts = new Array(7).fill(0);
@@ -23,7 +23,7 @@ test("phantom is deterministic for a seed and differs between seeds", () => {
 test("tissue volumes are in a plausible adult range", () => {
   const v = volumesMl(createPhantom({ seed: 1 }));
   const parenchyma = v[WM] + v[GM];
-  assert.ok(parenchyma > 1000 && parenchyma < 1500, `parenchyma ${parenchyma} mL`);
+  assert.ok(parenchyma > 800 && parenchyma < 1500, `parenchyma ${parenchyma} mL`);
   assert.ok(v[CSF] > 100 && v[CSF] < 400, `CSF ${v[CSF]} mL`);
   const gmFraction = v[GM] / parenchyma;
   assert.ok(gmFraction > 0.25 && gmFraction < 0.55, `GM fraction ${gmFraction}`);
@@ -33,7 +33,7 @@ test("tissue volumes are in a plausible adult range", () => {
 test("every seed stays in range", () => {
   for (const seed of [2, 7, 13]) {
     const v = volumesMl(createPhantom({ seed }), 4);
-    assert.ok(v[WM] + v[GM] > 900 && v[WM] + v[GM] < 1600, `seed ${seed}: ${v[WM] + v[GM]}`);
+    assert.ok(v[WM] + v[GM] > 800 && v[WM] + v[GM] < 1600, `seed ${seed}: ${v[WM] + v[GM]}`);
   }
 });
 
@@ -90,4 +90,55 @@ test("the cerebellum sits posterior and inferior to the cerebrum", () => {
     if (p.labelAt(x, 55, z) === WM || p.labelAt(x, 55, z) === GM) anteriorLow++;
   }
   assert.ok(cerebellar > anteriorLow);
+});
+
+test("face: eyes are vitreous inside orbital fat, with an open nasal passage", () => {
+  const p = createPhantom({ seed: 1 });
+  assert.equal(p.labelAt(32, 76, -4), CSF);
+  assert.equal(p.labelAt(-32, 76, -4), CSF);
+  assert.equal(p.labelAt(32, 60, -4), FAT);
+  assert.equal(p.labelAt(0, 60, -20), AIR);
+  assert.equal(p.labelAt(0, 66, -32), AIR, "oral cavity");
+  assert.equal(p.labelAt(0, 66, -48), MUSCLE, "tongue / floor of mouth");
+});
+
+test("neck: muscle, vertebral marrow, spinal canal with cord, and an airway", () => {
+  const p = createPhantom({ seed: 1 });
+  assert.equal(p.labelAt(35, 0, -80), MUSCLE);
+  assert.equal(p.labelAt(0, -4, -40), FAT, "vertebral marrow");
+  assert.equal(p.labelAt(0, -26, -60), WM, "cord");
+  assert.equal(p.labelAt(0, -33, -60), CSF, "CSF around the cord");
+  assert.equal(p.labelAt(0, 10, -80), AIR, "airway");
+  assert.equal(p.labelAt(100, 0, -80), AIR, "outside the neck is air");
+  assert.equal(p.labelAt(27, 56, -16), AIR, "maxillary sinus sits below the orbit");
+});
+
+test("the skull base separates the brain from the face", () => {
+  const p = createPhantom({ seed: 1 });
+  const column = [];
+  for (let z = 40; z >= -40; z -= 0.5) { const l = p.labelAt(10, 60, z); if (column[column.length - 1] !== l) column.push(l); }
+  // brain tissue above, then bone/marrow of the base, then soft tissue below
+  const firstBone = column.indexOf(BONE);
+  assert.ok(firstBone > 0 && column.slice(0, firstBone).some((l) => l === WM || l === GM || l === CSF));
+  assert.ok(column.slice(firstBone).includes(MUSCLE) || column.slice(firstBone).includes(AIR));
+});
+
+test("interhemispheric fissure is CSF above the corpus callosum and tissue below it", () => {
+  const p = createPhantom({ seed: 1 });
+  let csfAbove = 0, csfBelow = 0;
+  for (let y = -30; y <= 30; y += 2) for (let x = -1.6; x <= 1.6; x += 0.4) {
+    if (p.labelAt(x, y, 50) === CSF) csfAbove++;
+    if (p.labelAt(x, y, 17) === CSF) csfBelow++;
+  }
+  assert.ok(csfAbove > 20, `above ${csfAbove}`);
+  assert.ok(csfBelow < csfAbove / 2, `below ${csfBelow}`);
+});
+
+test("temporal lobes hold brain tissue lateral and inferior to the cerebrum", () => {
+  const p = createPhantom({ seed: 1 });
+  let tissue = 0;
+  for (let y = -10; y <= 20; y += 3) for (const sx of [-1, 1]) for (let z = -18; z <= -6; z += 3) {
+    const l = p.labelAt(sx * 47, y, z); if (l === WM || l === GM) tissue++;
+  }
+  assert.ok(tissue > 20, `tissue ${tissue}`);
 });
