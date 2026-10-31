@@ -1,18 +1,20 @@
 import { createPhantom, sliceLabels, LABELS } from "./phantom.js";
+import { tissuesAt } from "../contrast/physics.js";
 
 const $ = (id) => document.getElementById(id);
 const FOV = 250;
 // View centre [screen-right, screen-up] in mm: shifts the frame to include the face and neck.
 const CENTER = { axial: [0, 8], coronal: [0, -2], sagittal: [-8, -2] };
 
-// 3 T tissue values as used by the contrast simulator (T1/T2 in ms, PD 0-1).
-// Bone is treated as signal void; the lesion row is illustrative (long T1/T2).
+// WM, GM, CSF and fat come from the contrast simulator's 3.0 T table (T1/T2 in ms, PD 0-1).
+// Bone is treated as signal void; lesion and muscle rows are illustrative.
+const T3 = tissuesAt("3.0T");
 const TISSUE = {
   [LABELS.AIR]:    { name: "Air",         color: [0, 0, 0],       PD: 0,    T1: 1000, T2: 1 },
-  [LABELS.WM]:     { name: "White matter", color: [68, 114, 196],  PD: 0.70, T1: 1084, T2: 69 },
-  [LABELS.GM]:     { name: "Gray matter",  color: [237, 125, 49],  PD: 0.82, T1: 1820, T2: 99 },
-  [LABELS.CSF]:    { name: "CSF",          color: [169, 209, 142], PD: 1.0,  T1: 4163, T2: 2000 },
-  [LABELS.FAT]:    { name: "Fat",          color: [255, 217, 102], PD: 1.0,  T1: 371,  T2: 133 },
+  [LABELS.WM]:     { name: "White matter", color: [68, 114, 196],  PD: T3.WM.PD,  T1: T3.WM.T1,  T2: T3.WM.T2 },
+  [LABELS.GM]:     { name: "Gray matter",  color: [237, 125, 49],  PD: T3.GM.PD,  T1: T3.GM.T1,  T2: T3.GM.T2 },
+  [LABELS.CSF]:    { name: "CSF",          color: [169, 209, 142], PD: T3.CSF.PD, T1: T3.CSF.T1, T2: T3.CSF.T2 },
+  [LABELS.FAT]:    { name: "Fat",          color: [255, 217, 102], PD: T3.Fat.PD, T1: T3.Fat.T1, T2: T3.Fat.T2 },
   [LABELS.BONE]:   { name: "Cortical bone", color: [140, 140, 140], PD: 0.0, T1: 300,  T2: 1 },
   [LABELS.LESION]: { name: "Lesion",       color: [235, 70, 70],   PD: 0.85, T1: 1400, T2: 140 },
   // Illustrative skeletal-muscle values at 3 T (not in the contrast simulator's tissue table).
