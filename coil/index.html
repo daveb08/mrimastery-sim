@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coil Fields Simulator</title>
+<link rel="stylesheet" href="../shared/style.css">
+</head>
+<body>
+<main>
+  <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
+  <h1>Coil fields &amp; geometry</h1>
+  <p class="sub">Free-space coil fields and ideal RF excitation.</p>
+  <div class="info">Explore coil geometry, then connect its RF field to spin excitation. Tissue loading and
+    high-frequency wave effects remain future models.</div>
+
+  <div class="with-sidebar">
+    <aside class="panel sidebar" aria-label="Coil geometry controls">
+      <h2>Coil geometry</h2>
+      <label for="geometry">Coil arrangement</label>
+      <select id="geometry"><option value="single">Single circular loop</option><option value="pair">Coaxial pair</option></select>
+      <label for="radius">Radius R (cm) <span class="v" id="radiusV"></span></label>
+      <input id="radius" type="range" min="2" max="40" step="1" value="10">
+      <label for="current">Current I (A; RF peak) <span class="v" id="currentV"></span></label>
+      <input id="current" type="range" min="-5" max="5" step="0.1" value="1">
+      <label for="turns">Turns per coil N <span class="v" id="turnsV"></span></label>
+      <input id="turns" type="range" min="1" max="50" step="1" value="1">
+      <div id="spacingWrap" hidden>
+        <label for="spacing">Separation d / R <span class="v" id="spacingV"></span></label>
+        <input id="spacing" type="range" min="0.25" max="2" step="0.05" value="1">
+        <p class="caption">d / R = 1 is a Helmholtz pair. Both coils carry equal currents in the same sense.</p>
+      </div>
+      <label for="tilt">Coil-axis tilt from +z (degrees) <span class="v" id="tiltV"></span></label>
+      <input id="tilt" type="range" min="0" max="90" step="5" value="0">
+      <label for="roi">Central ROI radius / R <span class="v" id="roiV"></span></label>
+      <input id="roi" type="range" min="0.1" max="0.5" step="0.05" value="0.25">
+      <div class="check" style="margin-top:12px"><input type="checkbox" id="arrows" checked>
+        <label for="arrows" style="margin:0;color:var(--text)">Show field-direction arrows</label></div>
+      <p class="caption">RF excitation uses this current as a signed peak cosine amplitude, not RMS. Positive current
+        is counterclockwise viewed from the positive coil axis toward the coil. Negative current reverses the field.</p>
+    </aside>
+
+    <section>
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tabBtnCoil" aria-selected="true" aria-controls="tabCoil">Coil fields</button>
+        <button role="tab" id="tabBtnRf" aria-selected="false" aria-controls="tabRf">RF excitation</button>
+      </div>
+
+      <div id="tabCoil" role="tabpanel">
+        <div class="metrics">
+          <div class="metric panel"><div class="label">Center |B|</div><div class="value" id="mCenter"></div></div>
+          <div class="metric panel"><div class="label">Max ROI deviation</div><div class="value" id="mVar"></div></div>
+          <div class="metric panel"><div class="label">ROI radius</div><div class="value" id="mRoi"></div></div>
+        </div>
+        <p class="caption">ROI metric: max | |B(r)| &minus; |B(0)| | / |B(0)| &times; 100%, sampled over the circular
+          x&ndash;z region. This measures magnitude variation in a 2D section, not 3D or B&#8321;&#8314; uniformity.</p>
+        <div class="grid2">
+          <div class="panel">
+            <h2 style="margin-top:0">Field map &middot; y = 0</h2>
+            <div id="fieldMap" class="plot tall"></div>
+            <p class="caption">Orange dots: wire crossings; orange dashes: coil planes (not conductors). White circle:
+              ROI. Arrows show direction only. Color saturates above 3&times; the center field; the scale updates
+              with current. Points within 0.03R of ideal wires are masked; this is not a finite-wire model.</p>
+          </div>
+          <div class="panel stack">
+            <div><h2 style="margin-top:0">Coil geometry</h2><div id="geom3d" class="plot"></div></div>
+            <div><h2 style="margin-top:0">Signed field along the coil axis</h2><div id="axial" class="plot"></div></div>
+          </div>
+        </div>
+        <details>
+          <summary>Theory &amp; experiments</summary>
+          <div class="eq">B(r) = (&mu;&#8320;NI / 4&pi;) &#8750; dl &times; (r &minus; r&prime;) / |r &minus; r&prime;|&sup3;</div>
+          <div class="eq">B<sub>axis</sub>(s) = &mu;&#8320;NI R&sup2; / [ 2 (R&sup2; + s&sup2;)<sup>3/2</sup> ]</div>
+          <div class="eq">B<sub>Helmholtz</sub>(0) = (4/5)<sup>3/2</sup> &mu;&#8320;NI / R</div>
+          <p>Double the current: field strength doubles. Reverse it: arrows and the signed profile reverse. Double R at
+            fixed I and N: center field halves. Select a pair and compare d/R = 0.5, 1, and 1.5; at d/R = 1 the second
+            axial derivative vanishes at the midpoint.</p>
+          <p>The numerical solver sums 256 current elements per loop. N turns are treated as coincident loops. Near-wire
+            fields are excluded because ideal filament fields diverge. Current is prescribed in amperes. The RF excitation
+            tab interprets it as a peak sinusoidal amplitude.</p>
+          <p><a href="https://openstax.org/books/university-physics-volume-2/pages/12-4-magnetic-field-of-a-current-loop"
+                target="_blank" rel="noopener">Loop-field derivation &mdash; OpenStax</a></p>
+        </details>
+      </div>
+
+      <div id="tabRf" role="tabpanel" hidden>
+        <h2 style="margin-top:0">RF field to excitation</h2>
+        <div class="info">Here the coil current is the signed PEAK amplitude of I(t) = I<sub>peak</sub> cos(2&pi; f&#8320; t),
+          not RMS. Both coils share the same RF phase. Only the transverse co-rotating component excites spins.</div>
+        <div class="controls">
+          <div><label for="b0">B&#8320; magnitude (T)</label>
+            <input id="b0" type="number" min="0.001" max="11.7" step="0.001" value="3"></div>
+          <div><label for="b0axis">B&#8320; direction</label>
+            <select id="b0axis"><option>+z</option><option>+x</option><option>+y</option></select></div>
+          <div><label for="duration">Rectangular pulse duration (ms)</label>
+            <input id="duration" type="number" min="0" max="10" step="0.01" value="1"></div>
+        </div>
+        <div class="metrics">
+          <div class="metric panel"><div class="label">&sup1;H frequency</div><div class="value" id="rFreq"></div></div>
+          <div class="metric panel"><div class="label">Center |B&#8321;&#8314;|</div><div class="value" id="rB1"></div></div>
+          <div class="metric panel"><div class="label">Center rotation</div><div class="value" id="rRot"></div></div>
+          <div class="metric panel"><div class="label">Center 90&deg; pulse</div><div class="value" id="rT90"></div></div>
+        </div>
+        <p class="caption" id="rCenterNote"></p>
+        <div class="info" id="rNoField" hidden>No transverse RF field at the center. With nonzero current, choose B&#8320;
+          perpendicular to the coil axis (for example +x when coil tilt is 0&deg;), or tilt the coil to 90&deg; with
+          B&#8320; along +z.</div>
+        <p class="caption" id="rLowField" hidden>Low-field context (&lt;0.5 T): the carrier frequency is lower. Tuning,
+          conductor/sample noise, matching and environmental interference remain future models.</p>
+        <p class="caption">Changing B&#8320; magnitude changes the on-resonance carrier frequency, not this
+          prescribed-current B&#8321;&#8314; map or its flip angles. No detuning, frequency-dependent current, or tissue
+          loading is calculated.</p>
+        <div class="warn" id="rApprox" hidden></div>
+        <div class="check"><input type="checkbox" id="lock"><label for="lock">Lock display scales</label></div>
+        <p class="caption" id="lockNote" hidden>Both color scales are fixed. Values outside the locked ranges saturate at
+          the colorbar ends. Unlock to adjust contrast.</p>
+        <p class="caption">At fixed coil current and geometry, changing pulse duration leaves the B&#8321;&#8314; field
+          unchanged but scales the flip angle.</p>
+        <div class="radio" role="radiogroup" aria-label="Map layout">
+          <label><input type="radio" name="layout" value="stacked" checked> Stacked (larger)</label>
+          <label><input type="radio" name="layout" value="side"> Side by side</label>
+        </div>
+        <div id="maps" class="stack">
+          <div class="panel" id="mapB1">
+            <strong>Co-rotating transverse field</strong>
+            <details open><summary>Window / level</summary>
+              <div class="btnrow">
+                <button class="btn" id="b1_reset" type="button">Reset auto</button>
+                <button class="btn" id="b1_full" type="button">Full range</button>
+              </div>
+              <div class="check"><input type="checkbox" id="b1_auto"><label for="b1_auto">Auto contrast</label></div>
+              <div class="pair">
+                <div><label for="b1_window">Window (&micro;T)</label><input id="b1_window" type="number" min="0.000001" step="0.1"></div>
+                <div><label for="b1_level">Level (&micro;T)</label><input id="b1_level" type="number" min="0" step="0.1"></div>
+              </div>
+              <p class="caption" id="b1_range"></p>
+            </details>
+            <div id="plotB1" class="plot tall"></div>
+          </div>
+          <div class="panel" id="mapFlip">
+            <strong>Flip-angle map</strong>
+            <details open><summary>Window / level</summary>
+              <div class="btnrow">
+                <button class="btn" id="flip_reset" type="button">Reset auto</button>
+                <button class="btn" id="flip_full" type="button">Full range</button>
+                <button class="btn" id="flip_standard" type="button">0&ndash;180&deg;</button>
+              </div>
+              <div class="check"><input type="checkbox" id="flip_auto"><label for="flip_auto">Auto contrast</label></div>
+              <div class="pair">
+                <div><label for="flip_window">Window (degrees)</label><input id="flip_window" type="number" min="0.000001" step="1"></div>
+                <div><label for="flip_level">Level (degrees)</label><input id="flip_level" type="number" min="0" step="1"></div>
+              </div>
+              <p class="caption" id="flip_range"></p>
+            </details>
+            <div id="plotFlip" class="plot tall"></div>
+          </div>
+        </div>
+        <p class="caption">Both maps use the y = 0 section and the same near-wire exclusions as the coil map. White circle:
+          ROI; dots: wire crossings. Window and level affect colors only, not field values or rotation angles. Values
+          outside the displayed range saturate at the ends of the color scale. Full range includes near-wire peaks.</p>
+        <details>
+          <summary>Why the factor of two?</summary>
+          <div class="eq">B<sub>&perp;,peak</sub> = |B<sub>peak</sub> &times; B&#770;&#8320;|</div>
+          <div class="eq">|B&#8321;&#8314;| = B<sub>&perp;,peak</sub> / 2</div>
+          <div class="eq">f&#8320; = (&gamma; / 2&pi;) B&#8320;</div>
+          <div class="eq">&alpha; = &gamma; |B&#8321;&#8314;| &tau;</div>
+          <div class="eq">M<sub>&#8741;</sub> / M&#8320; = cos &alpha; &nbsp;&nbsp; |M<sub>&perp;</sub>| / M&#8320; = |sin &alpha;|</div>
+          <p>A linear RF oscillation decomposes into two equal, oppositely rotating components. The co-rotating component
+            drives on-resonance excitation in the rotating-wave approximation. A negative current reverses RF phase by
+            180&deg; but leaves these magnitude maps unchanged. This half-amplitude rule is specific to the real,
+            linearly polarized field modeled here.</p>
+          <p>This is an ideal hard-pulse model: uniform B&#8320;, on resonance, no relaxation, no gradients, no RF phase
+            map, and no counter-rotating or longitudinal RF dynamics. Local transverse magnetization magnitude is not a
+            reconstructed image or a receive-coil signal.</p>
+          <p><a href="https://mriphysics.github.io/teaching-mri-intro.html" target="_blank" rel="noopener">RF polarization and
+            rotating frames &mdash; Shaihan Malik</a> &middot; <a href="https://physics.nist.gov/cuu/pdf/all.pdf"
+            target="_blank" rel="noopener">Proton gyromagnetic ratio &mdash; NIST</a></p>
+        </details>
+      </div>
+
+      <details>
+        <summary>Next models &middot; planned, not simulated</summary>
+        <ul>
+          <li><strong>Advanced excitation:</strong> complex RF phase, quadrature coils, off-resonance Bloch dynamics and
+            shaped pulses (see the <a href="../bloch/">Bloch simulator</a> for off-resonance dynamics).</li>
+          <li><strong>Tissue loading:</strong> conductivity and permittivity, sample losses and coil impedance.</li>
+          <li><strong>High-frequency waves:</strong> spatial phase, dielectric effects and full-wave field solutions.</li>
+          <li><strong>Low-field MRI (&lt;0.5 T):</strong> tuning at lower Larmor frequencies, coil versus sample noise,
+            conductor losses, matching and environmental interference. Low B&#8320; alone will not be used as a
+            guarantee that loading or wave effects can be ignored.</li>
+        </ul>
+        <p>The RF tab uses B&#8320; to set orientation and carrier frequency. Coil fields still depend only on geometry
+          and prescribed current.</p>
+      </details>
+    </section>
+  </div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script type="module" src="ui.js"></script>
+</body>
+</html>

@@ -36,3 +36,28 @@ select:focus-visible, input:focus-visible, button:focus-visible { outline: 2px s
 .note { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; margin-top: 8px; }
 hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0 0; }
 [hidden] { display: none !important; }
+
+/* Sidebar + content layout, tabs, buttons, details */
+.with-sidebar { display: grid; grid-template-columns: 290px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .with-sidebar { grid-template-columns: 1fr; } }
+.sidebar h2 { margin: 0 0 6px; font-size: 1.05rem; }
+.sidebar label { display: block; font-size: .85rem; color: var(--muted); margin-top: 10px; }
+.sidebar label span.v { float: right; color: var(--text); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.tabs button { background: none; border: 0; color: var(--muted); padding: 8px 14px; font: inherit; cursor: pointer;
+               border-bottom: 2px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+button.btn { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 4px;
+             padding: 5px 10px; font: inherit; cursor: pointer; }
+button.btn:hover:not(:disabled) { border-color: var(--accent); }
+button.btn:disabled { opacity: .45; cursor: default; }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+details { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; margin: 10px 0; background: var(--panel); }
+details summary { cursor: pointer; }
+.eq { font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; margin: 8px 0; padding-left: 12px; }
+.warn { border: 1px solid var(--warn); background: rgba(255,170,68,.12); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
+.stack > div { margin-bottom: 12px; }
+.radio { display: flex; gap: 14px; flex-wrap: wrap; margin: 8px 0; }
+.radio label { display: flex; gap: 6px; align-items: center; color: var(--text); }
+.radio input { width: auto; }
