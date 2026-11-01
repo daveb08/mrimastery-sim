@@ -24,7 +24,7 @@ Each phase is usable and pushable on its own; review with the user between phase
 1. **Physics core and tests (no UI).** `contrast/physics.js`: tables, signal equations, Signal -> Noise -> SNR chain,
    scan time, timing constraints, slider ranges, defaults and presets. Verified against golden values generated from the
    original Python (`contrast/tools/gen_from_python.py`). **Done.** In parallel: **layout redesign** (below).
-2. **Controls, metrics and plots.** Controls and presets, metric row, signal/SNR bars, T1/T2 curves.
+2. **Controls, metrics and plots.** Controls and presets, metric row, signal/SNR bars, signal curves. **Done**, in layout C (below).
 3. **Phantom images.** Three planes on the procedural phantom, crosshairs and click-to-set slice, the image pipeline,
    window/level. The headline feature; publish after this phase.
 4. **Pulse-sequence diagrams.** All 8 sequences, ported faithfully first; an event-list rewrite (which could also drive the
@@ -57,7 +57,7 @@ pulse sequence, k-space), and work at phone width.
 - New tissues (muscle, bone, lesion) need a signal per sequence; DWI needs ADC. Optional lesion types (demyelinating,
   acute infarct) would make FLAIR and DWI more instructive.
 - Analytics: none, privacy-friendly, or Google Analytics.
-- Layout direction: to be chosen after the wireframes are reviewed.
+- Layout direction: **chosen, C** (image plus live trade-off meters). Meters for SNR, resolution and scan time stay pinned beside the images, with an optional pinned baseline showing percent change. Controls are in three tabs (Contrast / Geometry / Signal & time) next to the images, plots below the controls. Reason given by the user: in the old app the controls were far from the images, so they kept scrolling after each change.
 - **Data check:** the 3.0 T row of `FIELD_STRENGTH_TISSUES` (WM T1 832 / T2 80, GM T1 1331 / T2 80) differs from the base
   `TISSUES` table (WM 1084 / 69, GM 1820 / 99), although both cite Stanisz et al. 2005. At 3.0 T WM and GM have identical T2,
   so T2-weighted GM/WM contrast comes only from PD. The runtime uses the field table. Worth verifying against the papers.

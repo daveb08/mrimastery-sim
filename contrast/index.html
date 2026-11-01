@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MRI Contrast Simulator</title>
+<link rel="stylesheet" href="../shared/style.css">
+<link rel="stylesheet" href="contrast.css">
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+</head>
+<body>
+<main class="wide">
+  <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
+  <h1>MRI contrast simulator</h1>
+  <p class="sub">Change a setting and watch contrast, resolution, SNR and scan time trade off. The results stay in view while you adjust.</p>
+
+  <div class="panel setup" aria-label="Sequence setup">
+    <div><label for="seq">Sequence</label><select id="seq"></select></div>
+    <div><label for="field">Field strength</label><select id="field"></select></div>
+    <div><label for="preset">Teaching protocol</label><select id="preset"></select></div>
+  </div>
+
+  <div class="workbench">
+    <section class="stage" aria-label="Results and images">
+      <div class="meters" id="meters" aria-live="polite"></div>
+      <div id="messages"></div>
+      <div class="chips" id="chips"></div>
+
+      <div class="panel viewer" aria-label="Phantom images">
+        <div class="viewer-grid">
+          <div class="ph">Axial</div><div class="ph">Coronal</div><div class="ph">Sagittal</div>
+        </div>
+        <p class="caption">Phantom images with window/level arrive in the next phase. They will sit here, beside the controls.</p>
+      </div>
+
+    </section>
+
+    <aside class="side">
+    <div class="panel controlpanel" aria-label="Scan parameters">
+      <div class="tabs" role="tablist" aria-label="Parameter groups">
+        <button role="tab" id="tabBtnContrast" aria-selected="true" aria-controls="paneContrast">Contrast</button>
+        <button role="tab" id="tabBtnGeometry" aria-selected="false" aria-controls="paneGeometry">Geometry</button>
+        <button role="tab" id="tabBtnSignal" aria-selected="false" aria-controls="paneSignal">Signal &amp; time</button>
+      </div>
+      <div id="paneContrast" role="tabpanel"></div>
+      <div id="paneGeometry" role="tabpanel" hidden></div>
+      <div id="paneSignal" role="tabpanel" hidden></div>
+    </div>
+      <div class="panel plots" aria-label="Plots">
+      <div class="tabs" role="tablist" aria-label="Plots">
+        <button role="tab" id="tabBtnBars" aria-selected="true" aria-controls="tabBars">Signal &amp; SNR</button>
+        <button role="tab" id="tabBtnCurves" aria-selected="false" aria-controls="tabCurves">Signal curves</button>
+      </div>
+      <div id="tabBars" role="tabpanel" class="stack2">
+        <div id="plotSignal" class="plot short"></div>
+        <div id="plotSnr" class="plot short"></div>
+      </div>
+      <div id="tabCurves" role="tabpanel" class="stack2" hidden>
+        <div id="plotCurve1" class="plot short"></div>
+        <div id="plotCurve2" class="plot short"></div>
+      </div>
+      </div>
+    </aside>
+  </div>
+</main>
+<script type="module" src="ui.js"></script>
+</body>
+</html>

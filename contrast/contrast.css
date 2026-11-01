@@ -1,0 +1,43 @@
+main.wide { max-width: 1440px; }
+.setup { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.setup label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 3px; }
+
+/* Results stay in view beside the controls; on narrow screens only the meters stay pinned. */
+.workbench { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+.stage { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow-y: auto; padding-right: 4px; }
+.controlpanel .tabs button { padding: 8px 12px; }
+@media (max-width: 900px) {
+  .workbench { grid-template-columns: 1fr; }
+  .stage { position: static; max-height: none; overflow: visible; }
+  .meters { position: sticky; top: 0; z-index: 5; }
+}
+
+.meters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: var(--bg); padding-bottom: 8px; }
+.meter { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+.meter .label { color: var(--muted); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meter .value { font-size: 1.5rem; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.meter .sub { color: var(--muted); font-size: .78rem; min-height: 1.1em; }
+.meter .bar { height: 6px; background: #333; border-radius: 3px; margin: 6px 0 3px; overflow: hidden; }
+.meter .bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .12s; }
+.meter .delta { font-size: .78rem; min-height: 1.1em; color: var(--blue); }
+.baseline-row { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; font-size: .8rem; color: var(--muted); }
+@media (max-width: 520px) { .meter .value { font-size: 1.15rem; } .meter .sub { display: none; } }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .85rem; color: var(--muted); margin: 4px 0 8px; }
+.chips b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+#messages .alert, #messages .warn { padding: 5px 10px; margin: 4px 0; font-size: .88rem; }
+
+.viewer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ph { aspect-ratio: 1; background: #000; border-radius: 4px; display: grid; place-items: center; color: #666; font-size: .9rem; }
+.plot.short { height: 215px; }
+
+.ctl { margin-top: 10px; }
+.ctl label { display: block; font-size: .85rem; color: var(--muted); }
+.ctl label span.v { float: right; color: var(--text); font-variant-numeric: tabular-nums; }
+.controlpanel .caption { margin: 6px 0; }
+.controlpanel h3 { font-size: .95rem; margin: 14px 0 0; color: var(--accent); }
+
+.side { display: grid; gap: 12px; min-width: 0; }
+.plots .tabs { margin-top: 0; }
+.stack2 { display: grid; gap: 8px; }
+.stack2[hidden] { display: none; }
