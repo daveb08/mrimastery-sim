@@ -45,15 +45,18 @@
         <div id="tabKspace" role="tabpanel" hidden>
           <div class="kgrid">
             <div><div class="vhead"><span>K-space (log |F|), axial slice</span><span id="kSize"></span></div>
-              <div class="frame kframe"><canvas id="kCanvas" width="1" height="1"></canvas></div></div>
+              <div class="frame kframe"><canvas id="kCanvas" width="1" height="1"></canvas><svg id="kTraj" class="ktraj" aria-hidden="true"></svg></div></div>
             <div><div class="vhead"><span>Reconstruction from the filled region</span></div>
               <div class="frame kframe"><canvas id="rCanvas" width="1" height="1"></canvas></div></div>
           </div>
           <div class="kanim">
             <button class="btn" id="kPlay">▶ Play acquisition</button>
+            <button class="btn" id="kBack" title="Back one line or TR" aria-label="Back one step" disabled>◀</button>
+            <button class="btn" id="kFwd" title="Forward one line or TR" aria-label="Forward one step">▶|</button>
             <button class="btn" id="kReset" disabled>Reset</button>
-            <input type="range" id="kProgress" min="0" max="1" step="1" value="0" aria-label="Acquisition progress" disabled>
-            <label class="kspeed">Speed <select id="kSpeed"><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>
+            <input type="range" id="kProgress" min="0" max="1000" step="1" value="0" aria-label="Acquisition progress" disabled>
+            <label class="kspeed">Speed <select id="kSpeed"><option value="0.125">⅛×</option><option value="0.25">¼×</option><option value="0.5" selected>½×</option><option value="1">1×</option><option value="2">2×</option></select></label>
+            <label class="check ksimple"><input type="checkbox" id="kSimple"> Simplified trajectory (16 lines)</label>
             <span id="kClock"></span>
           </div>
           <p class="caption" id="kOrder"></p>

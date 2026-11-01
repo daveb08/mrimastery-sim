@@ -40,6 +40,10 @@ Each phase is usable and pushable on its own; review with the user between phase
    **Fill animation done** (`acquisition.js`): Play / Pause / Reset, progress scrubbing and speed; linear order for GRE,
    bSSFP and MPRAGE (one line per TR or inversion block), a segmented echo train for the FSE family (TEeff echo in the centre
    segment), and a single-shot zigzag for EPI and DWI. The clock shows real scan time for one average.
+   A trajectory overlay draws the path (EPI blips solid, jumps between separately read lines dashed) with a moving cursor;
+   speeds down to 1/8x, step buttons, and an optional simplified 16-line trajectory kept in step with the full-matrix image.
+   Plans are lists of readouts (row + direction), the seam for non-Cartesian orders (spiral, PROPELLER) later, which will
+   also need regridding for the reconstruction.
 6. **"What changed?" explanations.**
 7. **Polish and retirement.** Mobile layout, shareable URL settings, deploy, retire the Streamlit app and `MRI_Simulator`.
 

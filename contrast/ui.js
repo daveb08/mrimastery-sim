@@ -15,7 +15,7 @@ import {
 import {
   fillMask, partialFourierMask, partialFourierRows, combineMasks, kspaceOf, reconstruct, logMagnitude, toInferno, autoWindowLevelObject,
 } from "./kspace.js";
-import { acquisitionPlan, maskAfter, progressLabel } from "./acquisition.js";
+import { acquisitionPlan, maskAt, progressLabel, stepProgress, trajectory } from "./acquisition.js";
 
 const $ = (id) => document.getElementById(id);
 const COLOR = Object.fromEntries(TISSUE_NAMES.map((n) => [n, TISSUES_BASE[n].color]));
@@ -385,42 +385,51 @@ function currentKspace() {
 }
 
 // ---- acquisition animation: fill k-space in the sequence's own order ----
+// anim.view is the plan whose trajectory is drawn (the simplified 16-line one, or the real one); anim.full always drives
+// the k-space fill and the reconstruction, at the same fraction of the scan.
 const ANIM_SECONDS = 9; // one pass at 1x speed
-const anim = { active: false, playing: false, plan: null, key: "", step: 0, lastT: 0 };
+const anim = { active: false, playing: false, full: null, view: null, key: "", t: 0, lastT: 0 };
 const planKey = () => [p.seq, p.freqMatrix, p.phaseMatrix, p.pfFraction, p.ETL, model?.timing?.effIdx, p.TR, p.NEX].join("|");
+const viewLength = () => anim.view.readouts.length;
+
+function buildPlans() {
+  const { nx, ny } = sampleCache.axial.sampled;
+  const opts = { effIdx: model.timing.effIdx ?? 0, scanSec: model.scanSec };
+  anim.full = acquisitionPlan(p, nx, ny, opts);
+  anim.view = $("kSimple").checked ? acquisitionPlan(p, nx, ny, { ...opts, simple: true }) : anim.full;
+}
 
 function setAnimControls() {
   const locked = anim.active;
   for (const el of document.querySelectorAll("input[name=kRegion]")) el.disabled = locked;
   $("kKy").disabled = $("kKx").disabled = locked;
-  const midway = anim.active && anim.step > 0 && anim.step < anim.plan.steps.length;
+  const midway = anim.active && anim.t > 0 && anim.t < viewLength();
   $("kPlay").textContent = anim.playing ? "❚❚ Pause" : midway ? "▶ Resume" : "▶ Play acquisition";
-  $("kReset").disabled = !locked;
-  $("kProgress").disabled = !locked;
+  $("kReset").disabled = $("kProgress").disabled = !locked;
+  $("kBack").disabled = !locked || anim.t <= 0;
+  $("kFwd").disabled = locked && anim.t >= viewLength();
 }
 
 function startAnim() {
-  const { nx, ny } = sampleCache.axial.sampled;
-  anim.plan = acquisitionPlan(p, nx, ny, { effIdx: model.timing.effIdx ?? 0, scanSec: model.scanSec });
+  buildPlans();
   anim.key = planKey();
   anim.active = true;
-  anim.step = 0;
-  $("kProgress").max = anim.plan.steps.length;
+  anim.t = 0;
 }
 
 function stopAnim() {
   anim.active = anim.playing = false;
-  anim.plan = null;
+  anim.full = anim.view = null;
   setAnimControls();
 }
 
-function tick(t) {
+function tick(time) {
   if (!anim.playing) return;
-  const dt = anim.lastT ? (t - anim.lastT) / 1000 : 0;
-  anim.lastT = t;
-  const n = anim.plan.steps.length;
-  anim.step = Math.min(n, anim.step + (dt * n * Number($("kSpeed").value)) / ANIM_SECONDS);
-  if (anim.step >= n) anim.playing = false;
+  const dt = anim.lastT ? (time - anim.lastT) / 1000 : 0;
+  anim.lastT = time;
+  const n = viewLength();
+  anim.t = Math.min(n, anim.t + (dt * n * Number($("kSpeed").value)) / ANIM_SECONDS);
+  if (anim.t >= n) anim.playing = false;
   renderKspace();
   if (anim.playing) requestAnimationFrame(tick);
   else setAnimControls();
@@ -428,15 +437,62 @@ function tick(t) {
 
 $("kPlay").addEventListener("click", () => {
   if (anim.playing) { anim.playing = false; setAnimControls(); return; }
-  if (!anim.active || anim.step >= anim.plan.steps.length) startAnim();
+  if (!anim.active || anim.t >= viewLength()) startAnim();
   anim.playing = true; anim.lastT = 0;
   setAnimControls();
   requestAnimationFrame(tick);
 });
 $("kReset").addEventListener("click", () => { stopAnim(); renderKspace(); });
 $("kProgress").addEventListener("input", () => {
-  anim.playing = false; anim.step = Number($("kProgress").value); setAnimControls(); renderKspace();
+  anim.playing = false; anim.t = (Number($("kProgress").value) / 1000) * viewLength(); renderKspace();
 });
+for (const [id, dir] of [["kBack", -1], ["kFwd", 1]]) {
+  $(id).addEventListener("click", () => {
+    if (!anim.active) startAnim();
+    anim.playing = false;
+    anim.t = stepProgress(anim.view, anim.t, dir);
+    renderKspace();
+  });
+}
+$("kSimple").addEventListener("change", () => {
+  if (!anim.active) return;
+  const frac = anim.t / viewLength();
+  buildPlans();
+  anim.t = frac * viewLength();
+  renderKspace();
+});
+
+// Draw the trajectory over the k-space panel: readouts so far, EPI blips (solid) or jumps between lines (dashed),
+// the line being read (bright) and a cursor with an arrowhead pointing along the read direction.
+function drawTrajectory(plan, t) {
+  const svg = $("kTraj");
+  if (!plan) { svg.innerHTML = ""; return; }
+  const W = svg.clientWidth || 1, H = svg.clientHeight || 1;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const { segments, dot } = trajectory(plan, t);
+  const d = { readout: "", current: "", blip: "", jump: "" };
+  for (const s of segments) d[s.kind] += `M${(s.x0 * W).toFixed(1)},${(s.y0 * H).toFixed(1)}L${(s.x1 * W).toFixed(1)},${(s.y1 * H).toFixed(1)}`;
+  // a coarse (simplified) path is drawn bold, with an arrowhead mid-way along every finished line to show its direction
+  const coarse = plan.ny <= 64;
+  const w = coarse ? 2.2 : 0.8, path = coarse ? "#d6f1ff" : "rgba(120,205,255,.55)";
+  let out = `<path d="${d.readout}" stroke="${path}" stroke-width="${w}" fill="none"/>`
+    + `<path d="${d.blip}" stroke="${path}" stroke-width="${w}" fill="none"/>`
+    + `<path d="${d.jump}" stroke="rgba(220,220,220,${coarse ? 0.55 : 0.4})" stroke-width="${coarse ? 1.3 : 0.8}" stroke-dasharray="5 4" fill="none"/>`
+    + `<path d="${d.current}" stroke="#7fd8ff" stroke-width="${coarse ? 3.5 : 2.5}" fill="none"/>`;
+  if (coarse) {
+    for (const s of segments) {
+      if (s.kind !== "readout") continue;
+      const dir = Math.sign(s.x1 - s.x0), x = ((s.x0 + s.x1) / 2) * W, y = s.y0 * H, a = 7 * dir;
+      out += `<polygon points="${(x + a).toFixed(1)},${y.toFixed(1)} ${(x - a).toFixed(1)},${(y - 5).toFixed(1)} ${(x - a).toFixed(1)},${(y + 5).toFixed(1)}" fill="#d6f1ff"/>`;
+    }
+  }
+  if (dot) {
+    const x = dot.x * W, y = dot.y * H, a = 9 * dot.dir;
+    out += `<polygon points="${(x + a).toFixed(1)},${y.toFixed(1)} ${(x - a * 0.2).toFixed(1)},${(y - 6).toFixed(1)} ${(x - a * 0.2).toFixed(1)},${(y + 6).toFixed(1)}" fill="#ffffff" stroke="#1a1a1a" stroke-width="1"/>`
+      + `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="#7fd8ff" stroke="#ffffff" stroke-width="1.2"/>`;
+  }
+  svg.innerHTML = out;
+}
 
 function renderKspace() {
   if (!model || $("tabKspace").hidden || !sampleCache.axial) return;
@@ -448,19 +504,25 @@ function renderKspace() {
     centric: p.seq === "FSE" };
   const { first } = partialFourierRows(ny, p.pfFraction);
   if (anim.active) {
-    const plan = anim.plan, n = plan.steps.length, k = Math.floor(anim.step);
-    mask = maskAfter(plan, k, nx, ny);
-    $("kProgress").value = k;
-    $("kClock").textContent = `${formatTime((k / n) * plan.passSec)} of ${formatTime(plan.passSec)}`
-      + (plan.nex > 1 ? ` (one of ${plan.nex} averages)` : "") + ` · ${progressLabel(plan, k)}`;
-    $("kOrder").textContent = plan.label + ".";
+    const n = viewLength(), frac = anim.t / n, full = anim.full, tFull = frac * full.readouts.length;
+    mask = maskAt(full, tFull);
+    $("kProgress").value = Math.round(frac * 1000);
+    $("kClock").textContent = `${formatTime(frac * full.passSec)} of ${formatTime(full.passSec)}`
+      + (full.nex > 1 ? ` (one of ${full.nex} averages)` : "") + ` · ${progressLabel(full, tFull)}`;
+    $("kOrder").textContent = anim.view.label + "."
+      + (anim.view !== full ? ` The trajectory is drawn on a simplified ${anim.view.ny}-line grid; k-space and the image use the full ${full.ny} lines.` : "");
     note = (first > 0 ? `Partial Fourier: the top ${first} ky rows are never acquired. ` : "")
-      + (k < n ? "The latest lines are highlighted in blue. " : "Acquisition complete. ") + "Press Reset to return to the fill sliders.";
+      + (tFull < full.readouts.length ? "The line being read is highlighted in blue. " : "Acquisition complete. ")
+      + "Press Reset to return to the fill sliders.";
+    drawTrajectory(anim.view, anim.t);
+    $("kCanvas").style.filter = anim.view !== full ? "brightness(.45)" : ""; // let the simplified path stand out
   } else {
     const fill = fillMask(nx, ny, opts);
     mask = combineMasks(fill.mask, partialFourierMask(nx, ny, p.pfFraction));
     $("kClock").textContent = "";
     $("kOrder").textContent = "";
+    drawTrajectory(null);
+    $("kCanvas").style.filter = "";
     note = `${fill.rows.length} of ${ny} ky rows and ${fill.cols.length} of ${nx} kx columns selected. `
       + (first > 0 ? `Partial Fourier: the top ${first} ky rows are never acquired and are zero-filled. ` : "")
       + "Noise is added at the filled points only, scaled so a full acquisition matches the images. "
