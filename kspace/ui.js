@@ -66,6 +66,9 @@ function buildScan() {
   const te = state.seq === "FSE" ? first.info.esp * (eff + 1) : first.te;
   scan = { P, shots, eff, nx: P.nx, ny: P.ny, errors: first.errors, info: first.info, te, tr: first.tr };
   scan.K = phantomKspace(P, { tr: first.tr, te });
+  // largest gradient on each axis over the whole scan, so every TR's diagram uses the same heights
+  scan.peaks = { x: 0, y: 0, z: 0 };
+  for (const s of shots) for (const g of s.seq.events) if (g.kind === "grad") scan.peaks[g.axis] = Math.max(scan.peaks[g.axis], Math.abs(g.amp));
 }
 
 // k-space of the noise-free phantom slice with this sequence's contrast
@@ -158,7 +161,7 @@ function renderDiagram() {
     return { t: p.t, v: Math.sqrt(Math.hypot(scan.K.re[i], scan.K.im[i]) / scan.K.max) };
   });
   const width = Math.max(700, $("diagram").clientWidth || 1000);
-  const opts = { width, rowHeight: 42, window, fontScale: textScale(), scale: $("scale").value, signal };
+  const opts = { width, rowHeight: 42, window, fontScale: textScale(), scale: $("scale").value, signal, peaks: scan.peaks };
   $("diagram").innerHTML = diagramSvg(seq, opts);
   geom = diagramGeometry(seq, opts);
   $("cursor").setAttribute("viewBox", `0 0 ${geom.W} ${geom.H}`);

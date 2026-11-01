@@ -93,7 +93,7 @@ export function diagramGeometry(seq, opts = {}) {
   return { W, H, left, right, top, rowH, plotW, t0, t1, axis: ax, X: (t) => left + ax.x(t) * plotW };
 }
 
-// opts: { width, rowHeight, window: [t0, t1], cursor: t, fontScale, scale: "axis" | "shared", signal: [{ t, v }] }
+// opts: { width, rowHeight, window: [t0, t1], cursor: t, fontScale, scale: "axis" | "shared", signal: [{ t, v }], peaks: { x, y, z } }
 // "axis" gives each gradient row its own full height (its peak is labelled); "shared" keeps true relative strengths.
 // `signal` (v from 0 to 1) is drawn on the ADC row: the received signal magnitude at each sample.
 export function diagramSvg(seq, opts = {}) {
@@ -101,8 +101,11 @@ export function diagramSvg(seq, opts = {}) {
   const { W, H, left, right, top, rowH, plotW, t0, t1, axis: ax, X } = diagramGeometry(seq, opts);
   const grads = seq.events.filter((e) => e.kind === "grad");
   const shared = opts.scale === "shared";
-  const peak = (axis) => Math.max(1e-9, ...grads.filter((g) => shared || g.axis === axis).map((g) => Math.abs(g.amp)));
-  const rowPeak = Object.fromEntries(["x", "y", "z"].map((a) => [a, peak(a)]));
+  // opts.peaks (per axis, e.g. the largest values over a whole scan) keeps heights comparable from one TR to the next
+  const own = (axis) => Math.max(1e-9, ...grads.filter((g) => g.axis === axis).map((g) => Math.abs(g.amp)));
+  const axisPeak = Object.fromEntries(["x", "y", "z"].map((a) => [a, Math.max(own(a), opts.peaks?.[a] ?? 0)]));
+  const all = Math.max(axisPeak.x, axisPeak.y, axisPeak.z);
+  const rowPeak = shared ? { x: all, y: all, z: all } : axisPeak;
   const rowMid = (i) => top + i * rowH + rowH / 2;
   const amp = (i, v) => rowMid(i) - (v / rowPeak[ROWS[i].key]) * (rowH * 0.42);
   const parts = [];

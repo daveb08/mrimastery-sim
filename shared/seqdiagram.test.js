@@ -67,3 +67,17 @@ test("pulse labels outside a zoom window are not drawn", () => {
   assert.ok(!diagramSvg(seq, { window: [20, 30] }).includes(">90°<"));
   assert.ok(diagramSvg(seq).includes(">90°<"));
 });
+
+test("with scan-wide peaks, a phase-encode lobe near the centre of k-space is drawn smaller than one at the edge", () => {
+  const edge = spinEcho({ ...P, TE: 30, TR: 1000 }, 0), mid = spinEcho({ ...P, TE: 30, TR: 1000 }, 28);
+  const peAmp = (seq) => Math.abs(seq.events.find((e) => e.label === "phase encode").amp);
+  const peaks = { y: Math.max(peAmp(edge), peAmp(mid)) };
+  const lobeHeight = (svg) => { // the Gpe path: second y value of the lobe polygon, relative to its baseline
+    const m = svg.match(/<path d="M[\d.]+,([\d.]+)L[\d.]+,([\d.]+)L[^"]*Z" fill="#66DD66"/);
+    return Math.abs(Number(m[1]) - Number(m[2]));
+  };
+  const hEdge = lobeHeight(diagramSvg(edge, { peaks })), hMid = lobeHeight(diagramSvg(mid, { peaks }));
+  assert.ok(hMid < 0.2 * hEdge, `${hMid} vs ${hEdge}`); // line 28 of 64 is 4 lines from the centre: 1/8 of the edge amplitude
+  // without scan-wide peaks each TR fills its own row, which hides the difference
+  assert.ok(Math.abs(lobeHeight(diagramSvg(mid)) - hEdge) < 1e-6 * hEdge + 0.2);
+});
