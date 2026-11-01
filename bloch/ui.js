@@ -120,7 +120,7 @@ function drawScene() {
     uirevision: "scene", // same sphere in every experiment: keep the camera/zoom
     scene: { uirevision: "scene", xaxis: ax, yaxis: ax, zaxis: ax, aspectmode: "cube", bgcolor: "#242424",
              camera: { eye: { x: 1.5, y: -1.5, z: 0.9 } } },
-  }, { responsive: true, displaylogo: false, scrollZoom: true });
+  });
 }
 
 function drawTraces() {
@@ -159,7 +159,7 @@ function drawTraces() {
         x0: sim.t[sim.starts[k]], x1: Math.max(sim.t[sim.eventEnds[k]], sim.t[sim.starts[k]] + sim.total * 0.006),
       }).filter(Boolean),
     ],
-  }, { responsive: true, displaylogo: false, scrollZoom: true });
+  });
 }
 
 function showFrame(i) {
