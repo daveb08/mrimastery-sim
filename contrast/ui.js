@@ -15,6 +15,7 @@ import {
 import {
   fillMask, partialFourierMask, partialFourierRows, combineMasks, kspaceOf, reconstruct, logMagnitude, toInferno, autoWindowLevelObject,
 } from "./kspace.js";
+import { acquisitionPlan, maskAfter } from "./acquisition.js";
 
 const $ = (id) => document.getElementById(id);
 const COLOR = Object.fromEntries(TISSUE_NAMES.map((n) => [n, TISSUES_BASE[n].color]));
@@ -369,18 +370,102 @@ function paint(canvas, rgba, nx, ny) {
   canvas.getContext("2d").putImageData(new ImageData(rgba, nx, ny), 0, 0);
 }
 
+// Current k-space of the noise-free axial image (including the EPI ghost), cached while nothing that shapes it changes.
+let kCache = { key: "", K: null };
+function currentKspace() {
+  const { sampled, key: sKey } = sampleCache.axial, { nx, ny } = sampled;
+  const lut = labelSignals(model, p);
+  const key = [sKey, Array.from(lut).join(","), p.seq, p.ghostPct].join("|");
+  if (kCache.key !== key) {
+    let v = composeSignal(sampled, lut);
+    if (p.seq === "EPI (single-shot)") v = addGhost(v, nx, ny, (p.ghostPct ?? 0) / 100);
+    kCache = { key, K: kspaceOf(v, nx, ny) };
+  }
+  return { K: kCache.K, nx, ny };
+}
+
+// ---- acquisition animation: fill k-space in the sequence's own order ----
+const ANIM_SECONDS = 9; // one pass at 1x speed
+const anim = { active: false, playing: false, plan: null, key: "", step: 0, lastT: 0 };
+const planKey = () => [p.seq, p.freqMatrix, p.phaseMatrix, p.pfFraction, p.ETL, model?.timing?.effIdx, p.TR, p.NEX].join("|");
+
+function setAnimControls() {
+  const locked = anim.active;
+  for (const el of document.querySelectorAll("input[name=kRegion]")) el.disabled = locked;
+  $("kKy").disabled = $("kKx").disabled = locked;
+  const midway = anim.active && anim.step > 0 && anim.step < anim.plan.steps.length;
+  $("kPlay").textContent = anim.playing ? "❚❚ Pause" : midway ? "▶ Resume" : "▶ Play acquisition";
+  $("kReset").disabled = !locked;
+  $("kProgress").disabled = !locked;
+}
+
+function startAnim() {
+  const { nx, ny } = sampleCache.axial.sampled;
+  anim.plan = acquisitionPlan(p, nx, ny, { effIdx: model.timing.effIdx ?? 0, scanSec: model.scanSec });
+  anim.key = planKey();
+  anim.active = true;
+  anim.step = 0;
+  $("kProgress").max = anim.plan.steps.length;
+}
+
+function stopAnim() {
+  anim.active = anim.playing = false;
+  anim.plan = null;
+  setAnimControls();
+}
+
+function tick(t) {
+  if (!anim.playing) return;
+  const dt = anim.lastT ? (t - anim.lastT) / 1000 : 0;
+  anim.lastT = t;
+  const n = anim.plan.steps.length;
+  anim.step = Math.min(n, anim.step + (dt * n * Number($("kSpeed").value)) / ANIM_SECONDS);
+  if (anim.step >= n) anim.playing = false;
+  renderKspace();
+  if (anim.playing) requestAnimationFrame(tick);
+  else setAnimControls();
+}
+
+$("kPlay").addEventListener("click", () => {
+  if (anim.playing) { anim.playing = false; setAnimControls(); return; }
+  if (!anim.active || anim.step >= anim.plan.steps.length) startAnim();
+  anim.playing = true; anim.lastT = 0;
+  setAnimControls();
+  requestAnimationFrame(tick);
+});
+$("kReset").addEventListener("click", () => { stopAnim(); renderKspace(); });
+$("kProgress").addEventListener("input", () => {
+  anim.playing = false; anim.step = Number($("kProgress").value); setAnimControls(); renderKspace();
+});
+
 function renderKspace() {
   if (!model || $("tabKspace").hidden || !sampleCache.axial) return;
   const t0 = performance.now();
-  const { sampled } = sampleCache.axial, { nx, ny } = sampled;
-  // noise-free axial image (including the EPI ghost); partial Fourier shows up below as rows that were never acquired
-  let v = composeSignal(sampled, labelSignals(model, p));
-  if (p.seq === "EPI (single-shot)") v = addGhost(v, nx, ny, (p.ghostPct ?? 0) / 100);
-  const K = kspaceOf(v, nx, ny);
+  if (anim.active && anim.key !== planKey()) stopAnim(); // the scan changed: back to the slider view
+  const { K, nx, ny } = currentKspace();
+  let mask, note;
   const opts = { region: document.querySelector("input[name=kRegion]:checked").value, kyPct: +$("kKy").value, kxPct: +$("kKx").value,
     centric: p.seq === "FSE" };
-  const fill = fillMask(nx, ny, opts);
-  const mask = combineMasks(fill.mask, partialFourierMask(nx, ny, p.pfFraction));
+  const { first } = partialFourierRows(ny, p.pfFraction);
+  if (anim.active) {
+    const plan = anim.plan, n = plan.steps.length, k = Math.floor(anim.step);
+    mask = maskAfter(plan, k, nx, ny);
+    $("kProgress").value = k;
+    $("kClock").textContent = `${formatTime((k / n) * plan.passSec)} of ${formatTime(plan.passSec)}`
+      + (plan.nex > 1 ? ` (one of ${plan.nex} averages)` : "") + ` · step ${k} of ${n}`;
+    $("kOrder").textContent = plan.label + ".";
+    note = (first > 0 ? `Partial Fourier: the top ${first} ky rows are never acquired. ` : "")
+      + "The latest lines are highlighted in blue. Press Reset to return to the fill sliders.";
+  } else {
+    const fill = fillMask(nx, ny, opts);
+    mask = combineMasks(fill.mask, partialFourierMask(nx, ny, p.pfFraction));
+    $("kClock").textContent = "";
+    $("kOrder").textContent = "";
+    note = `${fill.rows.length} of ${ny} ky rows and ${fill.cols.length} of ${nx} kx columns selected. `
+      + (first > 0 ? `Partial Fourier: the top ${first} ky rows are never acquired and are zero-filled. ` : "")
+      + "Noise is added at the filled points only, scaled so a full acquisition matches the images. "
+      + (opts.region === "Edges" ? "With edges only, the image is faint; adjust window/level if needed. " : "");
+  }
   const rec = reconstruct(K, mask, nx, ny, model.noiseFloor);
   const auto = autoWindowLevelObject(rec);
   if ($("kAutoWl").checked) { kwl.window = auto.window; kwl.level = auto.level; }
@@ -390,19 +475,17 @@ function renderKspace() {
   $("kWindowV").textContent = kwl.window.toFixed(3); $("kLevelV").textContent = kwl.level.toFixed(3);
   $("kKyV").textContent = `${opts.kyPct}%`; $("kKxV").textContent = `${opts.kxPct}%`;
   $("kKyLabel").textContent = opts.centric ? "ky fill (rows, phase), centric order (FSE)" : "ky fill (rows, phase)";
-  paint($("kCanvas"), toInferno(logMagnitude(K, mask)), nx, ny);
+  const kRgba = toInferno(logMagnitude(K, mask));
+  for (let i = 0; i < mask.length; i++) if (mask[i] === 2) { kRgba[4 * i] = 110; kRgba[4 * i + 1] = 200; kRgba[4 * i + 2] = 255; }
+  paint($("kCanvas"), kRgba, nx, ny);
   paint($("rCanvas"), toRgba(rec, kwl.window, kwl.level), nx, ny);
   // one square per k-space sample; both panels are capped at about half the window height so the controls stay in view
   const fit = (el, aspect) => { el.style.aspectRatio = `${aspect}`; el.style.width = `min(100%, ${(42 * aspect).toFixed(2)}vh)`; el.style.margin = "0 auto"; };
   fit($("kCanvas").parentElement, nx / ny);
   fit($("rCanvas").parentElement, p.fovRead / p.fovPhase);
   $("kSize").textContent = `${nx} kx × ${ny} ky`;
-  const { first } = partialFourierRows(ny, p.pfFraction);
-  $("kNote").textContent = `${fill.rows.length} of ${ny} ky rows and ${fill.cols.length} of ${nx} kx columns selected. `
-    + (first > 0 ? `Partial Fourier: the top ${first} ky rows are never acquired and are zero-filled. ` : "")
-    + "Noise is added at the filled points only, scaled so a full acquisition matches the images. "
-    + (opts.region === "Edges" ? "With edges only, the image is faint; adjust window/level if needed. " : "")
-    + `Rendered in ${(performance.now() - t0).toFixed(0)} ms.`;
+  $("kNote").textContent = note + ` Rendered in ${(performance.now() - t0).toFixed(0)} ms.`;
+  setAnimControls();
 }
 
 // Text drawn by this page (pulse-sequence labels) follows the A / A+ / A++ control; Plotly plots redraw themselves.

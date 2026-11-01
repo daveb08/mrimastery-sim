@@ -49,6 +49,14 @@
             <div><div class="vhead"><span>Reconstruction from the filled region</span></div>
               <div class="frame kframe"><canvas id="rCanvas" width="1" height="1"></canvas></div></div>
           </div>
+          <div class="kanim">
+            <button class="btn" id="kPlay">▶ Play acquisition</button>
+            <button class="btn" id="kReset" disabled>Reset</button>
+            <input type="range" id="kProgress" min="0" max="1" step="1" value="0" aria-label="Acquisition progress" disabled>
+            <label class="kspeed">Speed <select id="kSpeed"><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option></select></label>
+            <span id="kClock"></span>
+          </div>
+          <p class="caption" id="kOrder"></p>
           <div class="kctl">
             <div class="radio" role="radiogroup" aria-label="Fill region">
               <label><input type="radio" name="kRegion" value="Center" checked> Center</label>

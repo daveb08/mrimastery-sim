@@ -64,3 +64,10 @@
 .kgrid .vhead { justify-content: center; gap: 2px 12px; text-align: center; }
 .kgrid .vhead { color: var(--text); }
 .kgrid #kSize { color: var(--muted); }
+
+.kanim { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
+.kanim input[type=range] { flex: 1 1 200px; width: auto; }
+.kanim .kspeed { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .9rem; }
+.kanim .kspeed select { width: auto; }
+#kClock { font-variant-numeric: tabular-nums; color: var(--text); font-size: .95rem; }
+#kOrder:empty { display: none; }

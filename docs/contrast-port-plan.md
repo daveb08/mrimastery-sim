@@ -37,7 +37,9 @@ Each phase is usable and pushable on its own; review with the user between phase
    K-space" tab. Partial Fourier is now physically modelled in the images and k-space: an off-centre block of ky lines is
    acquired and the rest zero-filled (the original kept a symmetric central band). Reconstruction auto window/level uses the
    object pixels, since the original's whole-image rule saturated the head in a mostly-air field of view.
-   Possible follow-up: a Play button that fills k-space in the sequence's acquisition order.
+   **Fill animation done** (`acquisition.js`): Play / Pause / Reset, progress scrubbing and speed; linear order for GRE,
+   bSSFP and MPRAGE (one line per TR or inversion block), a segmented echo train for the FSE family (TEeff echo in the centre
+   segment), and a single-shot zigzag for EPI and DWI. The clock shows real scan time for one average.
 6. **"What changed?" explanations.**
 7. **Polish and retirement.** Mobile layout, shareable URL settings, deploy, retire the Streamlit app and `MRI_Simulator`.
 
