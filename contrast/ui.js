@@ -16,6 +16,7 @@ import {
   fillMask, partialFourierMask, partialFourierRows, combineMasks, kspaceOf, reconstruct, logMagnitude, toInferno, autoWindowLevelObject,
 } from "./kspace.js";
 import { acquisitionPlan, maskAt, progressLabel, stepProgress, trajectory } from "./acquisition.js";
+import { explorerUrl } from "../kspace/settings.js";
 
 const $ = (id) => document.getElementById(id);
 const COLOR = Object.fromEntries(TISSUE_NAMES.map((n) => [n, TISSUES_BASE[n].color]));
@@ -546,6 +547,7 @@ function renderKspace() {
   fit($("kCanvas").parentElement, nx / ny);
   fit($("rCanvas").parentElement, p.fovRead / p.fovPhase);
   $("kSize").textContent = `${nx} kx × ${ny} ky`;
+  $("kExplorer").href = explorerUrl("../kspace/", p);
   $("kNote").textContent = note + ` Rendered in ${(performance.now() - t0).toFixed(0)} ms.`;
   setAnimControls();
 }

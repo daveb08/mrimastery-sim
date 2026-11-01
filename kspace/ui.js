@@ -7,6 +7,7 @@ import { defaultParams, computeModel } from "../contrast/physics.js";
 import { sampleSlice, composeSignal, labelSignals, toRgba } from "../contrast/image.js";
 import { kspaceOf, reconstruct, toInferno, autoWindowLevelObject } from "../contrast/kspace.js";
 import { createPhantom } from "../phantom/phantom.js";
+import { fromQuery, toQuery, contrastNote } from "./settings.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -20,6 +21,12 @@ const NAMES = { SE: "Spin echo", GRE: "Gradient echo (spoiled)", FSE: "Fast spin
 const CONTRAST_SEQ = { SE: "FSE", GRE: "GRE", FSE: "FSE", EPI: "EPI (single-shot)" }; // tissue signal model to use
 
 let state = { seq: "SE", ...DEFAULTS, ...SEQ_DEFAULTS.SE, fov: 240, gMax: DEFAULT_LIMITS.gMax, slew: DEFAULT_LIMITS.slew };
+// settings given in the page address (a shared link, or the contrast simulator's "Open in k-space explorer" button)
+{
+  const q = fromQuery(location.search);
+  if (q.seq) state = { ...state, ...SEQ_DEFAULTS[q.seq], seq: q.seq };
+  state = { ...state, ...q };
+}
 
 const CONTROLS = [
   { key: "seq", label: "Sequence", type: "select", options: Object.entries(NAMES) },
@@ -129,10 +136,11 @@ function buildControls() {
 }
 
 function set(key, value, rebuildControls = true) {
-  if (key === "seq") state = { ...state, ...DEFAULTS, ...SEQ_DEFAULTS[value], seq: value, fov: state.fov, gMax: state.gMax, slew: state.slew };
+  if (key === "seq") state = { ...state, ...DEFAULTS, ...SEQ_DEFAULTS[value], seq: value, fov: state.fov, gMax: state.gMax, slew: state.slew, from: undefined };
   else if (key === "matrix") state.nx = state.ny = Number(value);
   else state[key] = typeof value === "string" && !isNaN(value) ? Number(value) : value;
   if (rebuildControls) buildControls();
+  history.replaceState(null, "", `?${toQuery(state)}`); // the address always describes what is shown, so it can be shared
   stop();
   buildScan();
   play.shot = 0; play.t = 0;
@@ -243,7 +251,7 @@ function renderStatus() {
   $("nextTr").disabled = play.shot >= n - 1;
   // what the gradients are doing at this moment
   const g = shot.prep.gAt(play.t);
-  const active = shot.seq.events.filter((e) => e.kind === "grad" && play.t >= e.start && play.t <= gradEnd(e)).map((e) => e.label);
+  const active = shot.seq.events.filter((e) => e.kind === "grad" && play.t > e.start && play.t < gradEnd(e)).map((e) => e.label);
   const rf = shot.seq.events.find((e) => e.kind === "rf" && Math.abs(play.t - e.center) <= e.duration / 2);
   const adc = shot.seq.events.find((e) => e.kind === "adc" && Math.abs(play.t - e.tc) <= (e.n / 2 + 0.5) * e.dwell);
   const parts = [];
@@ -265,7 +273,8 @@ function renderInfo() {
   if (scan.eff !== undefined) items.push(["Effective echo", `${scan.eff + 1} of ${state.ETL}`]);
   items.push(["TRs to fill k-space", `${scan.shots.length}`], ["Scan time", `${Math.floor(scanSec / 60)}:${String(Math.round(scanSec % 60)).padStart(2, "0")}`]);
   $("info").innerHTML = items.map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("");
-  $("messages").innerHTML = scan.errors.map((e) => `<div class="alert">${e}. The sequence is drawn at the nearest possible value.</div>`).join("");
+  const from = state.from ? `<div class="info">Opened from the contrast simulator (${state.from}) with its settings. ${contrastNote(state.from)}</div>` : "";
+  $("messages").innerHTML = from + scan.errors.map((e) => `<div class="alert">${e}. The sequence is drawn at the nearest possible value.</div>`).join("");
 }
 
 function renderFrame(forceRecon = false) {

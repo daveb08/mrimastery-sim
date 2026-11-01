@@ -41,6 +41,10 @@ hand-made path. Agreed with the user on 2026-11-01.
    Layout as in the contrast simulator: settings in a right-hand column, everything on one screen.
 4. **Polish and links** — the contrast simulator's "Open in k-space explorer" button, a landing-page card, phone and
    iPad checks.
+   **Done:** settings live in the page address (shareable links, `kspace/settings.js` with 6 tests); the contrast
+   simulator's K-space tab opens the explorer with its settings and notes approximations (inversion pulses, bSSFP, MPRAGE
+   and diffusion are not modelled yet); landing card added and the draft label removed; phone (diagram scrolls inside its
+   panel) and iPad portrait and landscape checked with no sideways page scrolling.
 
 ## Later
 

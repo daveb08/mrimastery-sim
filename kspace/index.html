@@ -9,13 +9,14 @@
   .kx-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 14px; align-items: start; }
   .kx-side { position: sticky; top: 8px; }
   .kx-controls { display: grid; grid-template-columns: 1fr; gap: 8px; }
-  @media (max-width: 1000px) { .kx-layout { grid-template-columns: 1fr; } .kx-side { position: static; } .kx-controls { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); } }
+  @media (max-width: 1000px) { .kx-layout { grid-template-columns: minmax(0, 1fr); } .kx-side { position: static; } .kx-controls { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); } }
   .kx-controls label { display: block; font-size: .85rem; color: var(--muted); }
   .kx-controls label span.v { float: right; color: var(--text); font-variant-numeric: tabular-nums; }
   .kx-info { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .92rem; color: var(--muted); margin: 8px 0 0; }
   .kx-info b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
   .viewbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 4px; }
-  .diagram-wrap { position: relative; margin-top: 6px; }
+  .diagram-scroll { overflow-x: auto; } /* on a phone the diagram keeps a readable size and scrolls sideways on its own */
+  .diagram-wrap { position: relative; margin-top: 6px; min-width: 700px; }
   .diagram-wrap svg.cursor { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
   .kpanels { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .kpanels h2 { font-size: 1rem; margin: 0 0 6px; text-align: center; }
@@ -31,7 +32,7 @@
 <body>
 <main>
   <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
-  <h1>K-space explorer <span style="font-size:.6em;color:var(--muted)">(draft)</span></h1>
+  <h1>K-space explorer</h1>
   <p class="sub">A pulse sequence built from real gradient events, and the path its gradients trace through k-space:
     k(t) = γ̄ ∫ G(t) dt. Play it and watch each gradient move the k-space position.</p>
 
@@ -49,7 +50,7 @@
           <select id="scale" style="width:auto"><option value="axis" selected>scaled per axis</option><option value="shared">true relative strength</option></select></label>
         <span class="caption" id="viewNote" style="margin:0"></span>
       </div>
-      <div class="diagram-wrap"><div id="diagram"></div><svg class="cursor" id="cursor" aria-hidden="true"></svg></div>
+      <div class="diagram-scroll"><div class="diagram-wrap"><div id="diagram"></div><svg class="cursor" id="cursor" aria-hidden="true"></svg></div></div>
     </div>
 
     <div class="panel" style="margin-bottom:12px">
