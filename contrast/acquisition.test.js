@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { acquisitionPlan, acquiredRows, echoTrainSteps, maskAfter } from "./acquisition.js";
+import { acquisitionPlan, acquiredRows, echoTrainSteps, maskAfter, progressLabel } from "./acquisition.js";
 import { defaultParams, SEQUENCES } from "./physics.js";
 
 // Every acquired k-space point is filled exactly once, and nothing outside the acquired rows.
@@ -72,4 +72,21 @@ test("the mask marks filled points and highlights the latest step; the pass time
   assert.equal(maskAfter(plan, 0, 4, 4).every((v) => v === 0), true);
   assert.equal(plan.passSec, 40);
   assert.equal(plan.nex, 2);
+});
+
+test("the finished acquisition shows no highlight", () => {
+  const plan = acquisitionPlan(defaultParams("DIR", "3.0T"), 8, 16, { effIdx: 0 });
+  const done = maskAfter(plan, plan.steps.length, 8, 16);
+  assert.ok(done.every((v) => v === 1));
+  assert.ok(maskAfter(plan, plan.steps.length - 1, 8, 16).includes(2));
+});
+
+test("progress is counted in the sequence's own units: lines for EPI, TRs for echo trains, inversion blocks for MPRAGE", () => {
+  const epi = acquisitionPlan(defaultParams("EPI (single-shot)", "3.0T"), 64, 256, {});
+  assert.equal(epi.steps.length, 1024);
+  assert.equal(progressLabel(epi, 1024), "line 256 of 256");
+  assert.equal(progressLabel(epi, 5), "line 2 of 256");
+  const fse = acquisitionPlan({ ...defaultParams("FSE", "3.0T"), ETL: 16 }, 8, 256, { effIdx: 3 });
+  assert.equal(progressLabel(fse, 5), "TR 5 of 16");
+  assert.equal(progressLabel(acquisitionPlan(defaultParams("MPRAGE", "3.0T"), 8, 256, {}), 84), "inversion block 84 of 256");
 });

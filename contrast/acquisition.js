@@ -75,15 +75,24 @@ export function acquisitionPlan(p, nx, ny, { effIdx = 0, scanSec = 0 } = {}) {
       : "Linear: one ky line per TR, top to bottom";
   }
   const nex = Math.max(1, p.NEX ?? 1);
-  return { steps, label, rows, passSec: scanSec / nex, nex };
+  const perLine = SINGLE_SHOT.includes(p.seq) ? EPI_CHUNKS : 1; // drawing steps per counted unit
+  const unit = SINGLE_SHOT.includes(p.seq) ? "line" : p.seq === "MPRAGE" ? "inversion block" : "TR";
+  const units = Math.ceil(steps.length / perLine);
+  return { steps, label, rows, passSec: scanSec / nex, nex, unit, units, perLine };
 }
 
-// Fill state after `n` steps: 1 = acquired, 2 = acquired in the most recent step (highlighted).
+// "TR 5 of 32", "line 114 of 256", ... for the clock, after k drawing steps.
+export function progressLabel(plan, k) {
+  return `${plan.unit} ${Math.ceil(k / plan.perLine)} of ${plan.units}`;
+}
+
+// Fill state after `n` steps: 1 = acquired, 2 = acquired in the most recent step (highlighted). Once the acquisition is
+// complete nothing is highlighted, so the final k-space is shown plainly.
 export function maskAfter(plan, n, nx, ny) {
   const mask = new Uint8Array(nx * ny);
   const k = Math.max(0, Math.min(plan.steps.length, Math.floor(n)));
   for (let s = 0; s < k; s++) {
-    const v = s === k - 1 ? 2 : 1;
+    const v = s === k - 1 && k < plan.steps.length ? 2 : 1;
     for (const { row, c0, c1 } of plan.steps[s]) mask.fill(v, row * nx + c0, row * nx + c1);
   }
   return mask;

@@ -15,7 +15,7 @@ import {
 import {
   fillMask, partialFourierMask, partialFourierRows, combineMasks, kspaceOf, reconstruct, logMagnitude, toInferno, autoWindowLevelObject,
 } from "./kspace.js";
-import { acquisitionPlan, maskAfter } from "./acquisition.js";
+import { acquisitionPlan, maskAfter, progressLabel } from "./acquisition.js";
 
 const $ = (id) => document.getElementById(id);
 const COLOR = Object.fromEntries(TISSUE_NAMES.map((n) => [n, TISSUES_BASE[n].color]));
@@ -452,10 +452,10 @@ function renderKspace() {
     mask = maskAfter(plan, k, nx, ny);
     $("kProgress").value = k;
     $("kClock").textContent = `${formatTime((k / n) * plan.passSec)} of ${formatTime(plan.passSec)}`
-      + (plan.nex > 1 ? ` (one of ${plan.nex} averages)` : "") + ` · step ${k} of ${n}`;
+      + (plan.nex > 1 ? ` (one of ${plan.nex} averages)` : "") + ` · ${progressLabel(plan, k)}`;
     $("kOrder").textContent = plan.label + ".";
     note = (first > 0 ? `Partial Fourier: the top ${first} ky rows are never acquired. ` : "")
-      + "The latest lines are highlighted in blue. Press Reset to return to the fill sliders.";
+      + (k < n ? "The latest lines are highlighted in blue. " : "Acquisition complete. ") + "Press Reset to return to the fill sliders.";
   } else {
     const fill = fillMask(nx, ny, opts);
     mask = combineMasks(fill.mask, partialFourierMask(nx, ny, p.pfFraction));
