@@ -35,6 +35,10 @@ hand-made path. Agreed with the user on 2026-11-01.
 3. **The page** — diagram on top with a moving time cursor; k-space (trajectory and cursor) and the reconstruction below.
    Playback as a fraction of real time, step by event or by TR, sequence choice and the main parameters. Reuses the
    phantom, reconstruction, text-size control and click-to-zoom.
+   **Done (first version):** cursor on the diagram; k-space shows this TR's path k(t) (refocusing jumps dashed) and fills
+   with the phantom's k-space at each ADC sample; the image builds from the samples; the ADC row shows the received signal
+   |S(k(t))|; playback in ms per second or TRs per second, TR stepping, fill all, and a live note of what is switched on.
+   Layout as in the contrast simulator: settings in a right-hand column, everything on one screen.
 4. **Polish and links** — the contrast simulator's "Open in k-space explorer" button, a landing-page card, phone and
    iPad checks.
 

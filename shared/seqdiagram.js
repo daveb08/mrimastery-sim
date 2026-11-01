@@ -83,15 +83,22 @@ function niceStep(range, target) {
   return [1, 2, 5, 10].map((m) => m * p).find((s) => s >= raw) ?? 10 * p;
 }
 
-// opts: { width, rowHeight, window: [t0, t1], cursor: t, fontScale, scale: "axis" | "shared" }
-// "axis" gives each gradient row its own full height (its peak is labelled); "shared" keeps true relative strengths.
-export function diagramSvg(seq, opts = {}) {
-  const W = opts.width ?? 1000, rowH = opts.rowHeight ?? 52, fs = 12 * (opts.fontScale ?? 1);
+// Geometry shared by the drawing and by overlays (a moving cursor): viewBox size, plot area, rows and the time axis.
+export function diagramGeometry(seq, opts = {}) {
+  const W = opts.width ?? 1000, rowH = opts.rowHeight ?? 52;
   const left = 58, right = 14, top = 26, axisH = 30;
   const plotW = W - left - right, H = top + ROWS.length * rowH + axisH;
   const [t0, t1] = opts.window ?? [0, seq.tr];
   const ax = timeAxis(seq, t0, t1);
-  const X = (t) => left + ax.x(t) * plotW;
+  return { W, H, left, right, top, rowH, plotW, t0, t1, axis: ax, X: (t) => left + ax.x(t) * plotW };
+}
+
+// opts: { width, rowHeight, window: [t0, t1], cursor: t, fontScale, scale: "axis" | "shared", signal: [{ t, v }] }
+// "axis" gives each gradient row its own full height (its peak is labelled); "shared" keeps true relative strengths.
+// `signal` (v from 0 to 1) is drawn on the ADC row: the received signal magnitude at each sample.
+export function diagramSvg(seq, opts = {}) {
+  const fs = 12 * (opts.fontScale ?? 1);
+  const { W, H, left, right, top, rowH, plotW, t0, t1, axis: ax, X } = diagramGeometry(seq, opts);
   const grads = seq.events.filter((e) => e.kind === "grad");
   const shared = opts.scale === "shared";
   const peak = (axis) => Math.max(1e-9, ...grads.filter((g) => shared || g.axis === axis).map((g) => Math.abs(g.amp)));
@@ -151,6 +158,15 @@ export function diagramSvg(seq, opts = {}) {
     body.push(`<rect x="${f(X(a))}" y="${f(y - rowH * 0.22)}" width="${f(Math.max(1, X(b) - X(a)))}" height="${f(rowH * 0.44)}" fill="#ffffff" fill-opacity=".18" stroke="#ddd" stroke-width="1">`
       + `<title>ADC: ${adc.n} samples, ${(adc.n * adc.dwell).toFixed(2)} ms, ky line ${adc.row}${adc.dir < 0 ? " (read right to left)" : ""}</title></rect>`);
     body.push(`<line x1="${f(X(adc.tc))}" y1="${f(y - rowH * 0.3)}" x2="${f(X(adc.tc))}" y2="${f(y + rowH * 0.3)}" stroke="#fff" stroke-width="1" stroke-dasharray="2 2"/>`);
+  }
+  if (opts.signal && opts.signal.length) {
+    const y = rowMid(4) + rowH * 0.22; // baseline at the bottom of the ADC boxes
+    let d = "", prevT = -Infinity;
+    for (const { t, v } of opts.signal) {
+      d += `${t - prevT > 0.5 ? "M" : "L"}${f(X(t))},${f(y - v * rowH * 0.42)}`; // new stroke after a gap between ADC windows
+      prevT = t;
+    }
+    body.push(`<path d="${d}" stroke="#ffffff" stroke-width="1.4" fill="none"><title>Received signal magnitude</title></path>`);
   }
   parts.push(`<g clip-path="url(#sdclip)">${body.join("")}</g>`);
 
