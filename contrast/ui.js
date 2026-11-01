@@ -5,12 +5,17 @@ import {
 import { meterFraction, formatTime, inPlanePixel, percentChange, formatPercent, meterValues, METERS } from "./meters.js";
 import { sweepSpec, sweep } from "./curves.js";
 import { draw, layout, axisStyle } from "../shared/plot.js";
+import { createPhantom } from "../phantom/phantom.js";
+import {
+  PLANES, CENTER, POS_RANGE, normalAxis, patientToScreen, screenToPatient, clampPos, sampleSlice, renderPlane, autoWindowLevel,
+} from "./image.js";
 
 const $ = (id) => document.getElementById(id);
 const COLOR = Object.fromEntries(TISSUE_NAMES.map((n) => [n, TISSUES_BASE[n].color]));
 const GEOMETRY_KEEP = ["freqMatrix", "phaseMatrix", "fovRead", "fovPhase", "sliceMm", "NEX", "BW", "fatSat", "pfFraction"];
 
 let p = freshStart(defaultParams("FSE", "3.0T"));
+p.fovRead = p.fovPhase = 280; // a head-sized FOV; the original default (400 mm) shows the whole upper body
 let baseline = null; // pinned meter values
 let model = null;
 
@@ -118,6 +123,7 @@ function buildControls() {
   signal.append(slider("NEX", "NEX (averages)", 1, 8, 1));
   signal.append(slider("BW", "Bandwidth (Hz/px)", 50, 500, 10));
   signal.append(checkbox("fatSat", "Fat saturation"));
+  if (p.seq === "EPI (single-shot)") signal.append(slider("ghostPct", "N/2 ghost (%)", 0, 40, 1));
   if (PARTIAL_FOURIER_SEQUENCES.includes(p.seq)) {
     const wrap = document.createElement("div");
     wrap.className = "ctl";
@@ -224,7 +230,96 @@ function renderPlots(m) {
 function update() {
   normalize(p);
   model = computeModel(p);
-  renderMeters(model); renderChips(model); renderMessages(model); renderNotes(model); renderPlots(model);
+  renderMeters(model); renderChips(model); renderMessages(model); renderNotes(model); renderPlots(model); scheduleImages();
+}
+
+// ---- phantom images ----
+const ORIENT = {
+  axial: { top: "A", bottom: "P", left: "R", right: "L", name: "Axial", axis: "z" },
+  coronal: { top: "S", bottom: "I", left: "R", right: "L", name: "Coronal", axis: "y" },
+  sagittal: { top: "S", bottom: "I", left: "A", right: "P", name: "Sagittal", axis: "x" },
+};
+const pos = { x: 5, y: 0, z: 14 };
+let phantom = createPhantom({ seed: 1, sulcalDepthMm: 14, lesions: false });
+const sampleCache = {}; // plane -> { key, sampled }
+const wl = { window: 1, level: 0.5 };
+const views = {};
+
+for (const plane of PLANES) {
+  const o = ORIENT[plane], ax = o.axis;
+  const el = document.createElement("div");
+  el.innerHTML = `<div class="vhead"><span>${o.name}</span><span id="vpos_${plane}"></span></div>`
+    + `<div class="frame" id="frame_${plane}"><canvas id="cv_${plane}" width="1" height="1"></canvas>`
+    + `<i class="xh v"></i><i class="xh h"></i>`
+    + `<span class="ol" style="top:2px;left:50%;transform:translateX(-50%)">${o.top}</span>`
+    + `<span class="ol" style="bottom:2px;left:50%;transform:translateX(-50%)">${o.bottom}</span>`
+    + `<span class="ol" style="left:3px;top:50%">${o.left}</span><span class="ol" style="right:3px;top:50%">${o.right}</span></div>`
+    + `<div class="vpos"><input type="range" id="slice_${plane}" min="${POS_RANGE[ax][0]}" max="${POS_RANGE[ax][1]}" step="1" aria-label="${o.name} slice position (mm)"></div>`;
+  $("views").append(el);
+  views[plane] = { canvas: $(`cv_${plane}`), frame: $(`frame_${plane}`), vline: el.querySelector(".xh.v"), hline: el.querySelector(".xh.h") };
+  $(`slice_${plane}`).addEventListener("input", (e) => { pos[ax] = Number(e.target.value); scheduleImages(); });
+  const pick = (e) => {
+    const r = views[plane].frame.getBoundingClientRect();
+    const [cr, cu] = CENTER[plane];
+    const right = cr + ((e.clientX - r.left) / r.width - 0.5) * p.fovRead;
+    const up = cu + (0.5 - (e.clientY - r.top) / r.height) * p.fovPhase;
+    Object.assign(pos, clampPos(screenToPatient(plane, right, up)));
+    scheduleImages();
+  };
+  let dragging = false;
+  views[plane].frame.addEventListener("pointerdown", (e) => { dragging = true; views[plane].frame.setPointerCapture(e.pointerId); pick(e); });
+  views[plane].frame.addEventListener("pointermove", (e) => { if (dragging) pick(e); });
+  views[plane].frame.addEventListener("pointerup", () => { dragging = false; });
+}
+
+function syncWlControls(auto) {
+  const w = $("wlWindow"), l = $("wlLevel");
+  w.max = Math.max(2, 4 * auto.window).toFixed(2); l.max = Math.max(2, 3 * auto.level + 2 * auto.window).toFixed(2);
+  w.value = wl.window; l.value = wl.level;
+  $("wlWindowV").textContent = wl.window.toFixed(2); $("wlLevelV").textContent = wl.level.toFixed(2);
+  w.disabled = l.disabled = $("autoWl").checked;
+}
+$("autoWl").addEventListener("change", scheduleImages);
+for (const id of ["wlWindow", "wlLevel"]) $(id).addEventListener("input", () => {
+  $("autoWl").checked = false; wl.window = Number($("wlWindow").value); wl.level = Number($("wlLevel").value); scheduleImages();
+});
+$("lesions").addEventListener("change", () => {
+  phantom = createPhantom({ seed: 1, sulcalDepthMm: 14, lesions: $("lesions").checked });
+  for (const k of Object.keys(sampleCache)) delete sampleCache[k];
+  scheduleImages();
+});
+
+let imagePending = false;
+function scheduleImages() {
+  if (imagePending) return;
+  imagePending = true;
+  requestAnimationFrame(() => { imagePending = false; renderImages(); });
+}
+
+function renderImages() {
+  if (!model) return;
+  const auto = autoWindowLevel(p, model);
+  if ($("autoWl").checked) { wl.window = auto.window; wl.level = auto.level; }
+  syncWlControls(auto);
+  const t0 = performance.now();
+  for (const plane of PLANES) {
+    const ax = normalAxis(plane), v = views[plane];
+    const spec = { nx: p.freqMatrix, ny: p.phaseMatrix, fovRead: p.fovRead, fovPhase: p.fovPhase, thicknessMm: p.sliceMm };
+    const key = [pos[ax], spec.nx, spec.ny, spec.fovRead, spec.fovPhase, spec.thicknessMm].join("|");
+    if (sampleCache[plane]?.key !== key) sampleCache[plane] = { key, sampled: sampleSlice(phantom, plane, pos[ax], spec) };
+    const rgba = renderPlane(sampleCache[plane].sampled, model, p, { window: wl.window, level: wl.level, noiseSeed: 12345 });
+    v.canvas.width = spec.nx; v.canvas.height = spec.ny;
+    v.canvas.getContext("2d").putImageData(new ImageData(rgba, spec.nx, spec.ny), 0, 0);
+    v.frame.style.aspectRatio = `${p.fovRead} / ${p.fovPhase}`;
+    const [cr, cu] = CENTER[plane], [r, u] = patientToScreen(plane, pos);
+    v.vline.style.left = `${((r - (cr - p.fovRead / 2)) / p.fovRead) * 100}%`;
+    v.hline.style.top = `${((cu + p.fovPhase / 2 - u) / p.fovPhase) * 100}%`;
+    $(`slice_${plane}`).value = pos[ax];
+    $(`vpos_${plane}`).textContent = `${ax} = ${pos[ax]} mm`;
+  }
+  $("viewNote").textContent = `${p.freqMatrix} × ${p.phaseMatrix} matrix over ${p.fovRead} × ${p.fovPhase} mm, ${p.seq === "MPRAGE" ? "1" : p.sliceMm} mm slices. `
+    + "Click or drag an image to move the other two slices. Muscle and lesion signals use illustrative tissue values. "
+    + `Rendered in ${(performance.now() - t0).toFixed(0)} ms.`;
 }
 
 buildControls();

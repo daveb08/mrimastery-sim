@@ -26,7 +26,7 @@ Each phase is usable and pushable on its own; review with the user between phase
    original Python (`contrast/tools/gen_from_python.py`). **Done.** In parallel: **layout redesign** (below).
 2. **Controls, metrics and plots.** Controls and presets, metric row, signal/SNR bars, signal curves. **Done**, in layout C (below).
 3. **Phantom images.** Three planes on the procedural phantom, crosshairs and click-to-set slice, the image pipeline,
-   window/level. The headline feature; publish after this phase.
+   window/level. The headline feature; publish after this phase. **Done** (`contrast/image.js`): acquired matrix and FOV, slab and in-plane partial volume, phase-direction wrap-around, N/2 ghost, Rician noise at the model's noise floor, auto or manual window/level. Not yet: partial-Fourier Gibbs, EPI distortion, fat chemical-shift misregistration.
 4. **Pulse-sequence diagrams.** All 8 sequences, ported faithfully first; an event-list rewrite (which could also drive the
    Bloch simulator) is a separate follow-up.
 5. **K-space visualiser.** Needs a 2D FFT on top of `shared/fft.js`.

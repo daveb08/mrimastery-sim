@@ -10,7 +10,7 @@ Plotly (pinned, from jsDelivr) draws the plots.
 | `signal/` | Fourier transforms, sampling/aliasing, RF pulse and slice profile |
 | `coil/` | Biot-Savart coil fields, B1+ and flip-angle maps (coil geometry to excitation) |
 | `phantom/` | Procedural 3D head phantom (labels as a function of position) with a three-plane viewer |
-| `contrast/` | Contrast simulator: physics core, trade-off meters, controls and signal plots (phantom images next); see `docs/contrast-port-plan.md` |
+| `contrast/` | Contrast simulator: physics core, trade-off meters, controls, signal plots and phantom images; see `docs/contrast-port-plan.md` |
 | `shared/` | Common stylesheet, Plotly dark-theme helpers, FFT |
 
 Each simulator keeps its numerics in DOM-free modules (`bloch/bloch.js`, `signal/fourier.js`,
@@ -18,7 +18,7 @@ Each simulator keeps its numerics in DOM-free modules (`bloch/bloch.js`, `signal
 with the original Python implementation (the coil tests port the original pytest cases).
 
 ```
-node --test bloch/bloch.test.js signal/signal.test.js coil/coil.test.js phantom/phantom.test.js contrast/physics.test.js contrast/meters.test.js contrast/curves.test.js   # pass files, not directories (Node 24)
+node --test bloch/bloch.test.js signal/signal.test.js coil/coil.test.js phantom/phantom.test.js contrast/physics.test.js contrast/meters.test.js contrast/curves.test.js contrast/image.test.js   # pass files, not directories (Node 24)
 python -m http.server 8000                              # then open http://localhost:8000/
 ```
 

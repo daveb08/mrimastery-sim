@@ -3,7 +3,7 @@ main.wide { max-width: 1440px; }
 .setup label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 3px; }
 
 /* Results stay in view beside the controls; on narrow screens only the meters stay pinned. */
-.workbench { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+.workbench { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
 .stage { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow-y: auto; padding-right: 4px; }
 .controlpanel .tabs button { padding: 8px 12px; }
 @media (max-width: 900px) {
@@ -28,7 +28,6 @@ main.wide { max-width: 1440px; }
 #messages .alert, #messages .warn { padding: 5px 10px; margin: 4px 0; font-size: .88rem; }
 
 .viewer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.ph { aspect-ratio: 1; background: #000; border-radius: 4px; display: grid; place-items: center; color: #666; font-size: .9rem; }
 .plot.short { height: 215px; }
 
 .ctl { margin-top: 10px; }
@@ -41,3 +40,16 @@ main.wide { max-width: 1440px; }
 .plots .tabs { margin-top: 0; }
 .stack2 { display: grid; gap: 8px; }
 .stack2[hidden] { display: none; }
+
+.vhead { display: flex; flex-wrap: wrap; gap: 0 6px; justify-content: space-between; font-size: .8rem; color: var(--muted); margin-bottom: 3px; }
+.frame { position: relative; background: #000; border-radius: 4px; overflow: hidden; cursor: crosshair; touch-action: none; }
+.frame canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.frame .xh { position: absolute; background: rgba(255, 215, 0, .55); pointer-events: none; }
+.frame .xh.v { width: 1px; top: 0; bottom: 0; }
+.frame .xh.h { height: 1px; left: 0; right: 0; }
+.frame .ol { position: absolute; color: rgba(255, 255, 255, .55); font-size: .7rem; pointer-events: none; }
+.vpos { margin-top: 4px; }
+.vpos input { width: 100%; }
+.wl { display: grid; grid-template-columns: auto 1fr 1fr auto; gap: 4px 16px; align-items: end; margin-top: 8px; }
+.wl .ctl { margin-top: 0; }
+@media (max-width: 700px) { .wl { grid-template-columns: 1fr 1fr; } }
