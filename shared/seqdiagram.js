@@ -86,7 +86,7 @@ function niceStep(range, target) {
 // Geometry shared by the drawing and by overlays (a moving cursor): viewBox size, plot area, rows and the time axis.
 export function diagramGeometry(seq, opts = {}) {
   const W = opts.width ?? 1000, rowH = opts.rowHeight ?? 52;
-  const left = 58, right = 14, top = 26, axisH = 30;
+  const left = 58, right = 14, top = 40, axisH = 30; // top margin holds the pulse labels and the scale caption
   const plotW = W - left - right, H = top + ROWS.length * rowH + axisH;
   const [t0, t1] = opts.window ?? [0, seq.tr];
   const ax = timeAxis(seq, t0, t1);
@@ -152,7 +152,7 @@ export function diagramSvg(seq, opts = {}) {
     });
     body.push(`<polyline points="${pts.join(" ")}" fill="none" stroke="#FFD700" stroke-width="1.5"><title>${rf.role === "excite" ? "excitation" : "refocusing"} ${rf.flip}°, ${rf.duration} ms</title></polyline>`);
     if (rf.center >= t0 && rf.center <= t1) {
-      body.push(`<text x="${f(X(rf.center))}" y="${f(top + 10)}" fill="#FFD700" font-size="${f(fs * 0.9)}" text-anchor="middle" font-weight="bold">${rf.flip}°</text>`);
+      body.push(`<text x="${f(X(rf.center))}" y="${f(top - 4)}" fill="#FFD700" font-size="${f(fs * 0.9)}" text-anchor="middle" font-weight="bold">${rf.flip}°</text>`);
     }
   }
   // ADC windows
@@ -192,7 +192,7 @@ export function diagramSvg(seq, opts = {}) {
       + `<text x="${f(x)}" y="${f(axisY + 16)}" fill="#aaa" font-size="${f(fs * 0.85)}" text-anchor="middle">${+t.toFixed(3)}</text>`);
   }
   parts.push(`<text x="${W - right}" y="${f(H - 2)}" fill="#888" font-size="${f(fs * 0.85)}" text-anchor="end">time (ms)</text>`);
-  parts.push(`<text x="${left}" y="${f(top - 10)}" fill="#888" font-size="${f(fs * 0.85)}">${shared
+  parts.push(`<text x="${left}" y="${f(top - 24)}" fill="#888" font-size="${f(fs * 0.85)}">${shared
     ? `gradient heights to one scale: ${rowPeak.x.toFixed(1)} mT/m full height`
     : "gradient heights scaled per axis (peak shown under each label)"}</text>`);
 

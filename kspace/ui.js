@@ -224,11 +224,13 @@ function drawRecon(force = false) {
   const now = performance.now();
   if (!force && (count === reconCount || now - lastRecon < 120)) return;
   lastRecon = now; reconCount = count;
-  const rec = reconstruct(scan.K, m, scan.nx, scan.ny, 0);
-  const wl = autoWindowLevelObject(rec);
   const cv = $("rCanvas");
   cv.width = scan.nx; cv.height = scan.ny;
-  cv.getContext("2d").putImageData(new ImageData(toRgba(rec, wl.window, wl.level), scan.nx, scan.ny), 0, 0);
+  const ctx = cv.getContext("2d");
+  if (count === 0) { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, scan.nx, scan.ny); return; } // nothing acquired yet
+  const rec = reconstruct(scan.K, m, scan.nx, scan.ny, 0);
+  const wl = autoWindowLevelObject(rec);
+  ctx.putImageData(new ImageData(toRgba(rec, wl.window, wl.level), scan.nx, scan.ny), 0, 0);
 }
 
 function renderStatus() {

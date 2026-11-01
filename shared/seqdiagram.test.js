@@ -81,3 +81,10 @@ test("with scan-wide peaks, a phase-encode lobe near the centre of k-space is dr
   // without scan-wide peaks each TR fills its own row, which hides the difference
   assert.ok(Math.abs(lobeHeight(diagramSvg(mid)) - hEdge) < 1e-6 * hEdge + 0.2);
 });
+
+test("pulse labels sit above the RF row, clear of even a full-height 180", () => {
+  const svg = diagramSvg(spinEcho({ ...P, TE: 30, TR: 1000 }, 0), { rowHeight: 42 });
+  const labelY = Number(svg.match(/<text x="[\d.]+" y="([\d.]+)" fill="#FFD700"[^>]*>180°/)[1]);
+  const pulseTop = Math.min(...svg.match(/<polyline points="([^"]+)"/g).flatMap((p) => p.match(/,[\d.]+/g).map((v) => Number(v.slice(1)))));
+  assert.ok(labelY < pulseTop - 2, `label baseline ${labelY}, pulse top ${pulseTop}`);
+});
