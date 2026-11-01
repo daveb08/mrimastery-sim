@@ -1,8 +1,12 @@
 // DOM-free image formation for the contrast simulator: sample the labelled phantom at the acquired matrix and
 // field of view (slab partial volume, in-plane partial volume, phase-direction wrap-around), map tissues to signal,
-// add the N/2 ghost and Rician noise, then window/level to grey. Screen-up is always the phase-encode direction.
+// add the N/2 ghost, partial-Fourier zero filling and Rician noise, then window/level to grey. Screen-up is always the phase-encode direction.
 import { tissueSignal, optimalWindowLevel } from "./physics.js";
 import { LABELS } from "../phantom/phantom.js";
+import { unitNoise } from "./noise.js";
+import { applyPartialFourier } from "./kspace.js";
+
+export { unitNoise };
 
 export const PLANES = ["axial", "coronal", "sagittal"];
 // View centre [screen-right, screen-up] in mm, framing the head with a little neck (same as the phantom viewer).
@@ -114,26 +118,6 @@ export function addGhost(values, nx, ny, fraction) {
   return out;
 }
 
-// Deterministic noise so that the pattern does not flicker while sliders move.
-function mulberry32(seed) {
-  let a = seed >>> 0;
-  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-}
-const noiseCache = new Map();
-export function unitNoise(n, seed = 12345) {
-  const key = `${n}|${seed}`;
-  if (!noiseCache.has(key)) {
-    const r = mulberry32(seed);
-    const a = new Float32Array(n), b = new Float32Array(n);
-    for (let i = 0; i < n; i++) {
-      const u = Math.max(r(), 1e-12), v = r(), m = Math.sqrt(-2 * Math.log(u));
-      a[i] = m * Math.cos(2 * Math.PI * v); b[i] = m * Math.sin(2 * Math.PI * v);
-    }
-    noiseCache.clear(); noiseCache.set(key, { a, b });
-  }
-  return noiseCache.get(key);
-}
-
 // Magnitude image of signal plus complex Gaussian noise (Rician): sigma is the model's noise floor, so SNR matches the meters.
 export function addRicianNoise(values, sigma, seed) {
   if (!(sigma > 0)) return values;
@@ -165,6 +149,7 @@ export function toRgba(values, window, level) {
 export function renderPlane(sampled, model, p, { window, level, noiseSeed }) {
   let v = composeSignal(sampled, labelSignals(model, p));
   if (p.seq === "EPI (single-shot)") v = addGhost(v, sampled.nx, sampled.ny, (p.ghostPct ?? 0) / 100);
+  v = applyPartialFourier(v, sampled.nx, sampled.ny, p.pfFraction);
   v = addRicianNoise(v, model.noiseFloor, noiseSeed);
   return toRgba(v, window, level);
 }

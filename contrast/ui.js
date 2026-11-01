@@ -10,7 +10,11 @@ import { drawPulseSequence, psdParams } from "./psd.js";
 import { psdToSvg } from "./psd_svg.js";
 import {
   PLANES, CENTER, POS_RANGE, normalAxis, patientToScreen, screenToPatient, clampPos, sampleSlice, renderPlane, autoWindowLevel,
+  composeSignal, labelSignals, addGhost, toRgba,
 } from "./image.js";
+import {
+  fillMask, partialFourierMask, partialFourierRows, combineMasks, kspaceOf, reconstruct, logMagnitude, toInferno, autoWindowLevelObject,
+} from "./kspace.js";
 
 const $ = (id) => document.getElementById(id);
 const COLOR = Object.fromEntries(TISSUE_NAMES.map((n) => [n, TISSUES_BASE[n].color]));
@@ -331,6 +335,73 @@ function renderImages() {
   }
   $("viewNote").textContent = `${p.freqMatrix} × ${p.phaseMatrix} matrix over ${p.fovRead} × ${p.fovPhase} mm, ${p.seq === "MPRAGE" ? "1" : p.sliceMm} mm slices. `
     + "Click or drag an image to move the other two slices. Muscle and lesion signals use illustrative tissue values. "
+    + `Rendered in ${(performance.now() - t0).toFixed(0)} ms.`;
+  renderKspace();
+}
+
+// ---- k-space tab: the axial slice's k-space at the acquired matrix, and the image rebuilt from the filled part ----
+const kwl = { window: 1, level: 0.5 };
+
+function showViewerTab(which) {
+  const k = which === "kspace";
+  $("tabBtnImages").setAttribute("aria-selected", !k); $("tabBtnKspace").setAttribute("aria-selected", k);
+  $("tabImages").hidden = k; $("tabKspace").hidden = !k;
+  if (k) renderKspace();
+}
+$("tabBtnImages").addEventListener("click", () => showViewerTab("images"));
+$("tabBtnKspace").addEventListener("click", () => showViewerTab("kspace"));
+
+let kPending = false;
+function scheduleKspace() {
+  if (kPending) return;
+  kPending = true;
+  requestAnimationFrame(() => { kPending = false; renderKspace(); });
+}
+for (const el of document.querySelectorAll("input[name=kRegion]")) el.addEventListener("change", scheduleKspace);
+for (const id of ["kKy", "kKx"]) $(id).addEventListener("input", scheduleKspace);
+$("kAutoWl").addEventListener("change", scheduleKspace);
+for (const id of ["kWindow", "kLevel"]) $(id).addEventListener("input", () => {
+  $("kAutoWl").checked = false; kwl.window = Number($("kWindow").value); kwl.level = Number($("kLevel").value); scheduleKspace();
+});
+
+function paint(canvas, rgba, nx, ny) {
+  canvas.width = nx; canvas.height = ny;
+  canvas.getContext("2d").putImageData(new ImageData(rgba, nx, ny), 0, 0);
+}
+
+function renderKspace() {
+  if (!model || $("tabKspace").hidden || !sampleCache.axial) return;
+  const t0 = performance.now();
+  const { sampled } = sampleCache.axial, { nx, ny } = sampled;
+  // noise-free axial image (including the EPI ghost); partial Fourier shows up below as rows that were never acquired
+  let v = composeSignal(sampled, labelSignals(model, p));
+  if (p.seq === "EPI (single-shot)") v = addGhost(v, nx, ny, (p.ghostPct ?? 0) / 100);
+  const K = kspaceOf(v, nx, ny);
+  const opts = { region: document.querySelector("input[name=kRegion]:checked").value, kyPct: +$("kKy").value, kxPct: +$("kKx").value,
+    centric: p.seq === "FSE" };
+  const fill = fillMask(nx, ny, opts);
+  const mask = combineMasks(fill.mask, partialFourierMask(nx, ny, p.pfFraction));
+  const rec = reconstruct(K, mask, nx, ny, model.noiseFloor);
+  const auto = autoWindowLevelObject(rec);
+  if ($("kAutoWl").checked) { kwl.window = auto.window; kwl.level = auto.level; }
+  const w = $("kWindow"), l = $("kLevel");
+  w.max = Math.max(0.5, 4 * auto.window).toFixed(3); l.max = Math.max(0.5, 3 * auto.level + 2 * auto.window).toFixed(3);
+  w.value = kwl.window; l.value = kwl.level; w.disabled = l.disabled = $("kAutoWl").checked;
+  $("kWindowV").textContent = kwl.window.toFixed(3); $("kLevelV").textContent = kwl.level.toFixed(3);
+  $("kKyV").textContent = `${opts.kyPct}%`; $("kKxV").textContent = `${opts.kxPct}%`;
+  $("kKyLabel").textContent = opts.centric ? "ky fill (rows, phase), centric order (FSE)" : "ky fill (rows, phase)";
+  paint($("kCanvas"), toInferno(logMagnitude(K, mask)), nx, ny);
+  paint($("rCanvas"), toRgba(rec, kwl.window, kwl.level), nx, ny);
+  // one square per k-space sample; both panels are capped at about half the window height so the controls stay in view
+  const fit = (el, aspect) => { el.style.aspectRatio = `${aspect}`; el.style.width = `min(100%, ${(42 * aspect).toFixed(2)}vh)`; el.style.margin = "0 auto"; };
+  fit($("kCanvas").parentElement, nx / ny);
+  fit($("rCanvas").parentElement, p.fovRead / p.fovPhase);
+  $("kSize").textContent = `${nx} kx × ${ny} ky`;
+  const { first } = partialFourierRows(ny, p.pfFraction);
+  $("kNote").textContent = `${fill.rows.length} of ${ny} ky rows and ${fill.cols.length} of ${nx} kx columns selected. `
+    + (first > 0 ? `Partial Fourier: the top ${first} ky rows are never acquired and are zero-filled. ` : "")
+    + "Noise is added at the filled points only, scaled so a full acquisition matches the images. "
+    + (opts.region === "Edges" ? "With edges only, the image is faint; adjust window/level if needed. " : "")
     + `Rendered in ${(performance.now() - t0).toFixed(0)} ms.`;
 }
 

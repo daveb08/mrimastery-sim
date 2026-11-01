@@ -31,7 +31,13 @@ Each phase is usable and pushable on its own; review with the user between phase
    Bloch simulator) is a separate follow-up. **Done** (`psd.js`, `psd_svg.js`): the geometry is tested against 107 figures
    recorded from the real matplotlib code (`tools/gen_psd_from_python.py`). Inherited quirks, kept on purpose: the EPI TEeff
    label overlaps the N/2 ghost note and the bSSFP "Repeating unit" label touches the second RF label. DWI has no diagram in the original either.
-5. **K-space visualiser.** Needs a 2D FFT on top of `shared/fft.js`.
+5. **K-space visualiser.** Needs a 2D FFT on top of `shared/fft.js`. **Done** (`kspace.js`, any-length FFT in `shared/fft.js`):
+   k-space at the acquired matrix (not resized to 128), continuous ky/kx fill sliders with the original's Center/Edges and
+   FSE-centric rules (tested against them, `tools/gen_kspace_from_python.py`), noise at the filled points, and an "Images |
+   K-space" tab. Partial Fourier is now physically modelled in the images and k-space: an off-centre block of ky lines is
+   acquired and the rest zero-filled (the original kept a symmetric central band). Reconstruction auto window/level uses the
+   object pixels, since the original's whole-image rule saturated the head in a mostly-air field of view.
+   Possible follow-up: a Play button that fills k-space in the sequence's acquisition order.
 6. **"What changed?" explanations.**
 7. **Polish and retirement.** Mobile layout, shareable URL settings, deploy, retire the Streamlit app and `MRI_Simulator`.
 

@@ -52,3 +52,10 @@
 .wl { display: grid; grid-template-columns: auto 1fr 1fr auto; gap: 4px 16px; align-items: end; margin-top: 8px; }
 .wl .ctl { margin-top: 0; }
 @media (max-width: 700px) { .wl { grid-template-columns: 1fr 1fr; } }
+
+.viewer > .tabs { margin-top: -4px; }
+.kgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.kframe { cursor: default; }
+.kctl { display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px 16px; align-items: end; margin-top: 8px; }
+.kctl .ctl { margin-top: 0; }
+@media (max-width: 700px) { .kgrid, .kctl { grid-template-columns: 1fr; } }
