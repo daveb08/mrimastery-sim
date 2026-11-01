@@ -3,11 +3,11 @@ import { prepare, adcSamples, sampleTrajectory } from "../shared/ktraj.js";
 import { diagramSvg, diagramGeometry } from "../shared/seqdiagram.js";
 import { textScale } from "../shared/plot.js";
 import { echoTrainReadouts, acquiredRows } from "../contrast/acquisition.js";
-import { defaultParams, computeModel } from "../contrast/physics.js";
+import { defaultParams, computeModel, tissuesAt, csfNullTi, dirNullTi2 } from "../contrast/physics.js";
 import { sampleSlice, composeSignal, labelSignals, toRgba } from "../contrast/image.js";
 import { kspaceOf, reconstruct, toInferno, autoWindowLevelObject } from "../contrast/kspace.js";
 import { createPhantom } from "../phantom/phantom.js";
-import { fromQuery, toQuery, contrastNote } from "./settings.js";
+import { fromQuery, toQuery, contrastNote, applies, RANGES, INVERSION_SEQS } from "./settings.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,6 +19,8 @@ const SEQ_DEFAULTS = {
 };
 const NAMES = { SE: "Spin echo", GRE: "Gradient echo (spoiled)", FSE: "Fast spin echo", EPI: "Single-shot EPI" };
 const CONTRAST_SEQ = { SE: "FSE", GRE: "GRE", FSE: "FSE", EPI: "EPI (single-shot)" }; // tissue signal model to use
+const INVERSION_MODEL = { IR: "FLAIR", DIR: "DIR" }; // ... or with an inversion (FLAIR's equation is the same as STIR's)
+const INVERSION_TR = { IR: 9000, DIR: 8000 }; // TR raised to at least this when an inversion is switched on
 
 let state = { seq: "SE", ...DEFAULTS, ...SEQ_DEFAULTS.SE, fov: 240, gMax: DEFAULT_LIMITS.gMax, slew: DEFAULT_LIMITS.slew };
 // settings given in the page address (a shared link, or the contrast simulator's "Open in k-space explorer" button)
@@ -31,9 +33,14 @@ let state = { seq: "SE", ...DEFAULTS, ...SEQ_DEFAULTS.SE, fov: 240, gMax: DEFAUL
 const CONTROLS = [
   { key: "seq", label: "Sequence", type: "select", options: Object.entries(NAMES) },
   { key: "TE", label: "TE (ms)", min: 1, max: 200, step: 0.5 },
-  { key: "TR", label: "TR (ms)", min: 10, max: 5000, step: 10 },
-  { key: "flip", label: "Flip angle (°)", min: 5, max: 90, step: 1, when: ["GRE"] },
-  { key: "ETL", label: "Echo train length", min: 2, max: 32, step: 1, when: ["FSE"] },
+  { key: "TR", label: "TR (ms)", min: RANGES.TR[0], max: RANGES.TR[1], step: 10 },
+  { key: "flip", label: "Flip angle (°)", min: 5, max: 90, step: 1 },
+  { key: "ETL", label: "Echo train length", min: 2, max: 32, step: 1 },
+  { key: "inversion", label: "Inversion", type: "select", when: INVERSION_SEQS,
+    options: [["none", "None"], ["IR", "One inversion (FLAIR, STIR)"], ["DIR", "Two inversions (DIR)"]] },
+  { key: "TI", label: "TI (ms)", min: RANGES.TI[0], max: RANGES.TI[1], step: 10 },
+  { key: "TI1", label: "TI1: first inversion (ms)", min: RANGES.TI1[0], max: RANGES.TI1[1], step: 10 },
+  { key: "TI2", label: "TI2: second inversion (ms)", min: RANGES.TI2[0], max: RANGES.TI2[1], step: 10 },
   { key: "matrix", label: "Matrix (square)", type: "select", options: [[32, "32 × 32"], [64, "64 × 64"], [128, "128 × 128"], [256, "256 × 256"]] },
   { key: "fov", label: "FOV (mm)", min: 120, max: 400, step: 10 },
   { key: "bw", label: "Bandwidth (Hz/pixel)", min: 50, max: 3000, step: 10 },
@@ -42,7 +49,9 @@ const CONTROLS = [
   { key: "slew", label: "Max slew rate (T/m/s)", type: "select", options: [[70, "70"], [150, "150"], [200, "200"]] },
 ];
 
-const params = () => ({ ...state, nx: state.ny, fovRead: state.fov, fovPhase: state.fov, limits: { gMax: +state.gMax, slew: +state.slew } });
+const inversionOf = (s) => (INVERSION_SEQS.includes(s.seq) ? s.inversion ?? "none" : "none");
+const params = () => ({ ...state, inversion: inversionOf(state), nx: state.ny, fovRead: state.fov, fovPhase: state.fov,
+  limits: { gMax: +state.gMax, slew: +state.slew } });
 
 // ---- the scan: one sequence per TR, with its k-space samples and path ----
 let scan = null;
@@ -72,7 +81,7 @@ function buildScan() {
   // FSE: the effective TE is the echo that crosses ky = 0 (the same echo number in every train)
   const te = state.seq === "FSE" ? first.info.esp * (eff + 1) : first.te;
   scan = { P, shots, eff, nx: P.nx, ny: P.ny, errors: first.errors, info: first.info, te, tr: first.tr };
-  scan.K = phantomKspace(P, { tr: first.tr, te });
+  scan.K = phantomKspace(P, { tr: first.tr, te, ti: first.info.ti }); // the inversion times actually played
   // largest gradient on each axis over the whole scan, so every TR's diagram uses the same heights
   scan.peaks = { x: 0, y: 0, z: 0 };
   for (const s of shots) for (const g of s.seq.events) if (g.kind === "grad") scan.peaks[g.axis] = Math.max(scan.peaks[g.axis], Math.abs(g.amp));
@@ -82,10 +91,11 @@ function buildScan() {
 const phantom = createPhantom({ seed: 1, sulcalDepthMm: 14 });
 const kCache = new Map();
 function phantomKspace(P, seq) {
-  const name = CONTRAST_SEQ[state.seq];
+  const name = INVERSION_MODEL[P.inversion] ?? CONTRAST_SEQ[state.seq];
+  const [ti1, ti2] = seq.ti ?? [];
   const p = { ...defaultParams(name, "3.0T"), TR: seq.tr, TE: seq.te ?? P.TE, FA: P.flip ?? 90, freqMatrix: P.nx, phaseMatrix: P.ny,
-    fovRead: P.fovRead, fovPhase: P.fovPhase, sliceMm: P.sliceMm, ETL: P.ETL ?? 1 };
-  const key = [name, p.TR.toFixed(1), p.TE.toFixed(2), p.FA, P.nx, P.fovRead, P.sliceMm].join("|");
+    fovRead: P.fovRead, fovPhase: P.fovPhase, sliceMm: P.sliceMm, ETL: P.ETL ?? 1, TI: ti1 ?? 0, TI1: ti1 ?? 0, TI2: ti2 ?? 0 };
+  const key = [name, p.TR.toFixed(1), p.TE.toFixed(2), p.FA, p.TI1.toFixed(1), p.TI2.toFixed(1), P.nx, P.fovRead, P.sliceMm].join("|");
   if (!kCache.has(key)) {
     const sampled = sampleSlice(phantom, "axial", 14, { nx: P.nx, ny: P.ny, fovRead: P.fovRead, fovPhase: P.fovPhase, thicknessMm: P.sliceMm });
     const v = composeSignal(sampled, labelSignals(computeModel(p), p));
@@ -119,7 +129,7 @@ function buildControls() {
   const box = $("controls");
   box.innerHTML = "";
   for (const c of CONTROLS) {
-    if (c.when && !c.when.includes(state.seq)) continue;
+    if (c.when ? !c.when.includes(state.seq) : !applies(c.key, state)) continue;
     const wrap = document.createElement("div"), id = `k_${c.key}`;
     const value = c.key === "matrix" ? state.ny : state[c.key] ?? 0;
     if (c.type === "select") {
@@ -138,6 +148,7 @@ function buildControls() {
 function set(key, value, rebuildControls = true) {
   if (key === "seq") state = { ...state, ...DEFAULTS, ...SEQ_DEFAULTS[value], seq: value, fov: state.fov, gMax: state.gMax, slew: state.slew, from: undefined };
   else if (key === "matrix") state.nx = state.ny = Number(value);
+  else if (key === "inversion") { state.inversion = value; if (value !== "none") state.TR = Math.max(state.TR, INVERSION_TR[value]); }
   else state[key] = typeof value === "string" && !isNaN(value) ? Number(value) : value;
   if (rebuildControls) buildControls();
   history.replaceState(null, "", `?${toQuery(state)}`); // the address always describes what is shown, so it can be shared
@@ -255,7 +266,11 @@ function renderStatus() {
   const rf = shot.seq.events.find((e) => e.kind === "rf" && Math.abs(play.t - e.center) <= e.duration / 2);
   const adc = shot.seq.events.find((e) => e.kind === "adc" && Math.abs(play.t - e.tc) <= (e.n / 2 + 0.5) * e.dwell);
   const parts = [];
-  if (rf) parts.push(rf.role === "excite" ? `RF excitation (${rf.flip}°): k is set to 0` : "180° refocusing pulse: k jumps to −k");
+  if (rf) {
+    parts.push(rf.role === "excite" ? `RF excitation (${rf.flip}°): k is set to 0`
+      : rf.role === "invert" ? "180° inversion pulse: Mz is flipped to −Mz; there is no transverse signal yet, so k is not involved"
+        : "180° refocusing pulse: k jumps to −k");
+  }
   if (active.length) parts.push(`gradients on: ${[...new Set(active)].join(", ")} (Gx ${g[0].toFixed(1)}, Gy ${g[1].toFixed(1)}, Gz ${g[2].toFixed(1)} mT/m)`);
   if (adc) parts.push(`ADC sampling line ${adc.row}`);
   $("kNote").textContent = parts.length ? parts.join(" · ") : "No gradients or RF at this moment.";
@@ -268,6 +283,19 @@ function renderInfo() {
     ["Readout gradient", `${i.gRead.toFixed(2)} mT/m`], ["Sample spacing", `${(i.dwell * 1000).toFixed(1)} µs`],
     ["Readout duration", `${(i.dwell * i.nx).toFixed(2)} ms`],
   ];
+  if (i.ti) {
+    // inversion times that null a tissue at this TR (3 T relaxation times, as in the contrast simulator)
+    const T = tissuesAt("3.0T");
+    if (i.ti.length === 1) {
+      items.splice(1, 0, ["TI", `${i.ti[0].toFixed(0)} ms`]);
+      items.push(["CSF null TI", `${csfNullTi(scan.tr, T.CSF.T1).toFixed(0)} ms`], ["Fat null TI", `${csfNullTi(scan.tr, T.Fat.T1).toFixed(0)} ms`]);
+    } else {
+      items.splice(1, 0, ["TI1", `${i.ti[0].toFixed(0)} ms`], ["TI2", `${i.ti[1].toFixed(0)} ms`]);
+      const wm = dirNullTi2(scan.tr, i.ti[0], T.WM.T1);
+      items.push(["WM null TI2", wm ? `${wm.toFixed(0)} ms` : "n/a"]);
+    }
+    items.push(["Minimum TI", `${i.minTI.toFixed(1)} ms`]);
+  }
   if (i.minTE !== undefined) items.push(["Minimum TE", `${i.minTE.toFixed(2)} ms`]);
   if (i.esp !== undefined) items.push(["Echo spacing", `${i.esp.toFixed(2)} ms`]);
   if (scan.eff !== undefined) items.push(["Effective echo", `${scan.eff + 1} of ${state.ETL}`]);

@@ -3,8 +3,17 @@
 
 export const SEQS = ["SE", "GRE", "FSE", "EPI"];
 export const MATRICES = [32, 64, 128, 256];
-const RANGES = { TE: [1, 200], TR: [10, 5000], flip: [5, 90], ETL: [2, 32], fov: [120, 400], bw: [50, 3000], sliceMm: [1, 10] };
-const KEYS = { seq: "seq", TE: "te", TR: "tr", flip: "flip", ETL: "etl", ny: "matrix", fov: "fov", bw: "bw", sliceMm: "slice", gMax: "gmax", slew: "slew", from: "from" };
+export const INVERSIONS = ["none", "IR", "DIR"];
+export const INVERSION_SEQS = ["SE", "FSE"]; // spin-echo readouts, as in FLAIR, STIR and DIR
+export const RANGES = {
+  TE: [1, 200], TR: [10, 12000], flip: [5, 90], ETL: [2, 32], fov: [120, 400], bw: [50, 3000], sliceMm: [1, 10],
+  TI: [20, 4000], TI1: [300, 5000], TI2: [20, 2500],
+};
+const KEYS = {
+  seq: "seq", TE: "te", TR: "tr", flip: "flip", ETL: "etl", inversion: "inv", TI: "ti", TI1: "ti1", TI2: "ti2",
+  ny: "matrix", fov: "fov", bw: "bw", sliceMm: "slice", gMax: "gmax", slew: "slew", from: "from",
+};
+const NUMERIC = ["TE", "TR", "flip", "ETL", "TI", "TI1", "TI2", "fov", "bw", "sliceMm"];
 
 const clamp = (v, [lo, hi]) => Math.min(hi, Math.max(lo, v));
 export const nearestMatrix = (n) => MATRICES.reduce((best, m) => (Math.abs(Math.log(m / n)) < Math.abs(Math.log(best / n)) ? m : best), 128);
@@ -14,7 +23,8 @@ export function fromQuery(search) {
   const q = new URLSearchParams(search), out = {};
   const seq = q.get(KEYS.seq);
   if (SEQS.includes(seq)) out.seq = seq;
-  for (const key of ["TE", "TR", "flip", "ETL", "fov", "bw", "sliceMm"]) {
+  if (INVERSIONS.includes(q.get(KEYS.inversion))) out.inversion = q.get(KEYS.inversion);
+  for (const key of NUMERIC) {
     const v = Number(q.get(KEYS[key]));
     if (q.has(KEYS[key]) && Number.isFinite(v)) out[key] = clamp(v, RANGES[key]);
   }
@@ -25,10 +35,21 @@ export function fromQuery(search) {
   return out;
 }
 
+// Whether a setting applies to the chosen sequence (and inversion).
+export function applies(key, s) {
+  const inv = INVERSION_SEQS.includes(s.seq) ? s.inversion ?? "none" : "none";
+  if (key === "flip") return s.seq === "GRE";
+  if (key === "ETL") return s.seq === "FSE";
+  if (key === "inversion") return inv !== "none";
+  if (key === "TI") return inv === "IR";
+  if (key === "TI1" || key === "TI2") return inv === "DIR";
+  return true;
+}
+
 export function toQuery(s) {
   const q = new URLSearchParams();
   for (const [key, name] of Object.entries(KEYS)) {
-    if (s[key] === undefined || s[key] === null || (key === "flip" && s.seq !== "GRE") || (key === "ETL" && s.seq !== "FSE")) continue;
+    if (s[key] === undefined || s[key] === null || !applies(key, s)) continue;
     q.set(name, String(s[key]));
   }
   return q.toString();
@@ -39,16 +60,16 @@ const FROM_CONTRAST = {
   FSE: { seq: "FSE" },
   GRE: { seq: "GRE" },
   "EPI (single-shot)": { seq: "EPI" },
-  FLAIR: { seq: "FSE", note: "The FLAIR inversion pulse is not modelled here yet; this is its fast-spin-echo readout." },
-  STIR: { seq: "FSE", note: "The STIR inversion pulse is not modelled here yet; this is its fast-spin-echo readout." },
-  DIR: { seq: "FSE", note: "The two inversion pulses of DIR are not modelled here yet; this is its fast-spin-echo readout." },
+  FLAIR: { seq: "FSE", inversion: "IR" },
+  STIR: { seq: "FSE", inversion: "IR" },
+  DIR: { seq: "FSE", inversion: "DIR" },
   bSSFP: { seq: "GRE", note: "Balanced SSFP is not modelled here yet; this is a spoiled gradient echo with the same timing." },
   MPRAGE: { seq: "GRE", note: "The MPRAGE inversion and 3D encoding are not modelled here yet; this is one gradient-echo readout." },
   DWI: { seq: "EPI", note: "The diffusion gradients are not modelled here yet; this is the EPI readout." },
 };
 export const contrastNote = (from) => FROM_CONTRAST[from]?.note ?? "";
 
-// p: the contrast simulator's parameters ({ seq, TR, TE, FA, ETL, phaseMatrix, fovRead, BW, sliceMm }).
+// p: the contrast simulator's parameters ({ seq, TR, TE, TI, TI1, TI2, FA, ETL, phaseMatrix, fovRead, BW, sliceMm }).
 export function fromContrast(p) {
   const map = FROM_CONTRAST[p.seq] ?? { seq: "GRE" };
   let seq = map.seq;
@@ -62,6 +83,8 @@ export function fromContrast(p) {
   if (seq === "GRE") out.flip = clamp(p.FA ?? 30, RANGES.flip);
   if (seq === "FSE") out.ETL = clamp(p.ETL ?? 8, RANGES.ETL);
   if (seq === "EPI") out.bw = Math.max(out.bw, 1500); // EPI reads each line in well under a millisecond
+  if (map.inversion === "IR") Object.assign(out, { inversion: "IR", TI: clamp(p.TI, RANGES.TI) });
+  if (map.inversion === "DIR") Object.assign(out, { inversion: "DIR", TI1: clamp(p.TI1, RANGES.TI1), TI2: clamp(p.TI2, RANGES.TI2) });
   return out;
 }
 

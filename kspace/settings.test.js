@@ -9,10 +9,11 @@ test("settings round-trip through the page address", () => {
 });
 
 test("bad or out-of-range values in the address are ignored or clamped", () => {
-  const s = fromQuery("seq=MRA&te=-5&tr=99999&matrix=100&gmax=999&bw=abc");
+  const s = fromQuery("seq=MRA&te=-5&tr=99999&matrix=100&gmax=999&bw=abc&inv=TRIPLE");
   assert.equal(s.seq, undefined);
   assert.equal(s.TE, 1);
-  assert.equal(s.TR, 5000);
+  assert.equal(s.TR, 12000);
+  assert.equal(s.inversion, undefined);
   assert.equal(s.ny, 128); // nearest available matrix
   assert.equal(s.gMax, undefined);
   assert.equal(s.bw, undefined);
@@ -35,12 +36,28 @@ test("contrast-simulator sequences map to explorer sequences, with notes for the
   assert.equal(fromContrast({ ...defaultParams("FSE", "3.0T"), ETL: 1 }).seq, "SE");
   assert.equal(fromContrast(defaultParams("GRE", "3.0T")).seq, "GRE");
   assert.equal(fromContrast(defaultParams("EPI (single-shot)", "3.0T")).seq, "EPI");
-  for (const seq of ["FLAIR", "STIR", "DIR", "bSSFP", "MPRAGE", "DWI"]) {
+  for (const seq of ["bSSFP", "MPRAGE", "DWI"]) {
     const s = fromContrast(defaultParams(seq, "3.0T"));
     assert.ok(["SE", "GRE", "FSE", "EPI"].includes(s.seq), seq);
     assert.ok(contrastNote(s.from).length > 10, seq);
   }
   assert.equal(contrastNote("GRE"), "");
+});
+
+test("FLAIR, STIR and DIR carry their inversion times over, with a TR range wide enough for them", () => {
+  const flair = fromContrast(defaultParams("FLAIR", "3.0T"));
+  assert.deepEqual([flair.seq, flair.inversion, flair.TI, flair.TR], ["FSE", "IR", 2500, 9000]);
+  assert.equal(fromContrast(defaultParams("STIR", "3.0T")).TI, 210);
+  const dir = fromContrast(defaultParams("DIR", "3.0T"));
+  assert.deepEqual([dir.inversion, dir.TI1, dir.TI2, dir.TR], ["DIR", 3400, 800, defaultParams("DIR", "3.0T").TR]);
+  for (const seq of ["FLAIR", "STIR", "DIR"]) assert.equal(contrastNote(seq), "");
+  // through the address and back
+  const back = fromQuery(toQuery(dir));
+  assert.deepEqual([back.inversion, back.TI1, back.TI2, back.TI], ["DIR", 3400, 800, undefined]);
+  assert.equal(fromQuery("tr=11000").TR, 11000);
+  // inversion settings are dropped where they do not apply
+  assert.ok(!toQuery({ seq: "GRE", inversion: "IR", TI: 500 }).includes("ti"));
+  assert.ok(!toQuery({ seq: "FSE", inversion: "none", TI: 500 }).includes("ti"));
 });
 
 test("the contrast settings carry over: TE, TR, flip, ETL, matrix, FOV, bandwidth, slice", () => {

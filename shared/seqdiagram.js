@@ -150,9 +150,13 @@ export function diagramSvg(seq, opts = {}) {
       const s = x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x);
       return `${f(X(rf.center + (u * rf.duration) / 2))},${f(rowMid(0) - s * a * rowH * 0.42)}`;
     });
-    body.push(`<polyline points="${pts.join(" ")}" fill="none" stroke="#FFD700" stroke-width="1.5"><title>${rf.role === "excite" ? "excitation" : "refocusing"} ${rf.flip}°, ${rf.duration} ms</title></polyline>`);
+    const role = { excite: "excitation", refocus: "refocusing", invert: "inversion" }[rf.role];
+    body.push(`<polyline points="${pts.join(" ")}" fill="none" stroke="#FFD700" stroke-width="1.5"><title>${role} ${rf.flip}°, ${rf.duration} ms</title></polyline>`);
     if (rf.center >= t0 && rf.center <= t1) {
-      body.push(`<text x="${f(X(rf.center))}" y="${f(top - 4)}" fill="#FFD700" font-size="${f(fs * 0.9)}" text-anchor="middle" font-weight="bold">${rf.flip}°</text>`);
+      const label = `${rf.flip}°${rf.role === "invert" ? " inv" : ""}`;
+      const halfW = label.length * fs * 0.27; // rough half width of the bold label, so one at the edge is not clipped
+      const x = Math.min(W - right - halfW, Math.max(left + halfW, X(rf.center)));
+      body.push(`<text x="${f(x)}" y="${f(top - 4)}" fill="#FFD700" font-size="${f(fs * 0.9)}" text-anchor="middle" font-weight="bold">${label}</text>`);
     }
   }
   // ADC windows

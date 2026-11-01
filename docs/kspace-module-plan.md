@@ -45,6 +45,11 @@ hand-made path. Agreed with the user on 2026-11-01.
    simulator's K-space tab opens the explorer with its settings and notes approximations (inversion pulses, bSSFP, MPRAGE
    and diffusion are not modelled yet); landing card added and the draft label removed; phone (diagram scrolls inside its
    panel) and iPad portrait and landscape checked with no sideways page scrolling.
+5. **Inversion recovery and longer TR** (2026-11-01) — TR up to 12 000 ms; one inversion (FLAIR, STIR) or two (DIR)
+   before SE or FSE (`withInversion` in `shared/sequence.js`): slice-selective 4 ms 180° inversion plus spoiler, TI
+   measured from each inversion centre to the excitation centre, minimum-TI and TR checks. Inversions leave k alone. The
+   phantom contrast uses the FLAIR/STIR or DIR signal equations; the info panel shows the CSF, fat or WM null TI. The
+   contrast simulator's FLAIR, STIR and DIR now open with their real TI values instead of an approximation note.
 
 ## Later
 

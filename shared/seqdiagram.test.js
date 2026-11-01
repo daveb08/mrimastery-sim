@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { timeAxis, diagramSvg } from "./seqdiagram.js";
-import { DEFAULTS, spinEcho, gradientEcho, fastSpinEcho, epi, gradEnd } from "./sequence.js";
+import { DEFAULTS, spinEcho, gradientEcho, fastSpinEcho, epi, gradEnd, BUILDERS } from "./sequence.js";
 
 const P = { ...DEFAULTS, nx: 64, ny: 64 };
 
@@ -80,6 +80,15 @@ test("with scan-wide peaks, a phase-encode lobe near the centre of k-space is dr
   assert.ok(hMid < 0.2 * hEdge, `${hMid} vs ${hEdge}`); // line 28 of 64 is 4 lines from the centre: 1/8 of the edge amplitude
   // without scan-wide peaks each TR fills its own row, which hides the difference
   assert.ok(Math.abs(lobeHeight(diagramSvg(mid)) - hEdge) < 1e-6 * hEdge + 0.2);
+});
+
+test("an inversion pulse is labelled as one, and a label at the very start of the TR stays inside the plot", () => {
+  const seq = BUILDERS.SE({ ...P, TE: 30, TR: 9000, inversion: "IR", TI: 2500 }, 0);
+  const svg = diagramSvg(seq);
+  const m = svg.match(/<text x="([\d.]+)"[^>]*>180° inv</);
+  assert.ok(m, "inversion label missing");
+  assert.ok(Number(m[1]) - "180° inv".length * 12 * 0.27 >= 58 - 1e-6);
+  assert.ok(svg.includes("<title>inversion 180°"));
 });
 
 test("pulse labels sit above the RF row, clear of even a full-height 180", () => {

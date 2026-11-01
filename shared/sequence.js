@@ -1,6 +1,6 @@
 // Event-list pulse sequences in real units (ms, mT/m, mm), built from imaging parameters within scanner limits.
 // A sequence is { events, te, tr, errors, info } where events are
-//   { kind: "rf",   role: "excite" | "refocus", center, duration, flip, phase }
+//   { kind: "rf",   role: "excite" | "refocus" | "invert", center, duration, flip, phase }
 //   { kind: "grad", axis: "x" | "y" | "z", start, rise, flat, fall, amp, label }   (trapezoid; amp in mT/m)
 //   { kind: "adc",  tc, n, dwell, dir, row }  (k crosses kx = 0 at tc; sample i maps to grid column i, or n - 1 - i if dir < 0)
 // x is the frequency-encode (readout) axis, y phase encode, z slice select. k(t) is computed in shared/ktraj.js.
@@ -12,7 +12,7 @@ const CRUSH_CYCLES = 2; // crusher area: cycles of phase across the slice
 
 export const DEFAULTS = {
   fovRead: 240, fovPhase: 240, nx: 128, ny: 128, bw: 260, sliceMm: 5, TE: 20, TR: 500, ETL: 8, flip: 90,
-  rfExcite: 2.0, rfRefocus: 2.0, limits: DEFAULT_LIMITS,
+  rfExcite: 2.0, rfRefocus: 2.0, rfInvert: 4.0, inversion: "none", TI: 2500, TI1: 3400, TI2: 800, limits: DEFAULT_LIMITS,
 };
 
 // ---- trapezoids ----
@@ -203,4 +203,55 @@ export function epi(P0, rows) {
   return finish(events, TE, TR, errors, { ...ro, esp: period, minTE, rows: [...rows] });
 }
 
-export const BUILDERS = { SE: spinEcho, GRE: gradientEcho, FSE: fastSpinEcho, EPI: epi };
+// ---- inversion recovery: one (IR: FLAIR, STIR) or two (DIR) 180° inversions before the excitation ----
+// P.inversion is "none" | "IR" | "DIR". Inversion times run from each inversion's centre to the excitation's centre:
+// IR uses P.TI; DIR uses P.TI1 (first inversion) and P.TI2 (second, so TI2 < TI1). An inversion only flips Mz, so it
+// leaves k alone; the spoiler after it dephases any transverse magnetisation an imperfect inversion leaves behind.
+function inversionBlock(P, center) {
+  const lim = P.limits, d = P.rfInvert, gss = sliceSelect(P, d, []);
+  const lobe = trap("z", 0, gss, d, lim, "inversion slice select");
+  const spoil = shortestTrap("z", 0, 4 / (GAMMA_BAR * P.sliceMm), lim, "spoiler");
+  const start = center - lobe.rise - d / 2;
+  const events = [
+    { ...lobe, start },
+    { kind: "rf", role: "invert", center, duration: d, flip: 180, phase: 0 },
+    { ...spoil, start: start + gradEnd(lobe) },
+  ];
+  return { events, lead: lobe.rise + d / 2, tail: gradEnd(lobe) - lobe.rise - d / 2 + gradEnd(spoil) };
+}
+
+export function withInversion(build) {
+  return (P0, rows) => {
+    const P = { ...DEFAULTS, ...P0 };
+    if (!P.inversion || P.inversion === "none") return build(P0, rows);
+    const img = build({ ...P0, TR: Infinity }, rows); // timed here, once the inversions are in front
+    const errors = [...img.errors];
+    const probe = inversionBlock(P, 0);
+    const exCenter = img.events.find((e) => e.kind === "rf" && e.role === "excite").center;
+    const minGap = probe.tail + probe.lead; // inversion centre to the next pulse's centre
+    const minTI = probe.tail + exCenter;
+    // centres of the inversions, measured back from the excitation
+    let tis;
+    if (P.inversion === "DIR") {
+      let ti2 = P.TI2, ti1 = P.TI1;
+      if (ti2 < minTI - 1e-9) { errors.push(`TI2 too short: the minimum TI2 is ${Math.ceil(minTI)} ms`); ti2 = minTI; }
+      if (ti1 < ti2 + minGap - 1e-9) { errors.push(`TI1 must be at least ${Math.ceil(minGap)} ms longer than TI2`); ti1 = ti2 + minGap; }
+      tis = [ti1, ti2];
+    } else {
+      let ti = P.TI;
+      if (ti < minTI - 1e-9) { errors.push(`TI too short: the minimum TI is ${Math.ceil(minTI)} ms`); ti = minTI; }
+      tis = [ti];
+    }
+    const first = probe.lead; // the first inversion block starts at t = 0
+    const offset = first + tis[0] - exCenter; // shift of the imaging part
+    const events = [];
+    for (const ti of tis) events.push(...inversionBlock(P, first + tis[0] - ti).events);
+    for (const e of img.events) events.push(e.kind === "adc" ? { ...e, tc: e.tc + offset } : e.kind === "rf" ? { ...e, center: e.center + offset } : { ...e, start: e.start + offset });
+    const end = Math.max(...events.filter((e) => e.kind === "grad").map(gradEnd));
+    let TR = P.TR;
+    if (TR < end) { errors.push(`TR too short: the minimum TR with the inversion${tis.length > 1 ? "s" : ""} is ${Math.ceil(end)} ms`); TR = end; }
+    return finish(events, img.te, TR, errors, { ...img.info, minTI, ti: tis });
+  };
+}
+
+export const BUILDERS = { SE: withInversion(spinEcho), GRE: withInversion(gradientEcho), FSE: withInversion(fastSpinEcho), EPI: withInversion(epi) };

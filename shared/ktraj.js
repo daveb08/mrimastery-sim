@@ -1,6 +1,6 @@
 // Exact k-space trajectory of an event-list sequence (shared/sequence.js): k(t) = gamma-bar * integral of G dt,
 // integrated analytically over the trapezoids. An excitation sets k to 0 at the RF centre; a refocusing pulse sends k
-// to -k there. Units: k in 1/mm, t in ms, G in mT/m.
+// to -k there; an inversion pulse leaves it alone. Units: k in 1/mm, t in ms, G in mT/m.
 import { GAMMA_BAR, gradEnd } from "./sequence.js";
 
 const AXES = ["x", "y", "z"];
@@ -30,7 +30,8 @@ const gradientAt = (g, t) => {
 // Precompute the k state at each RF centre so kAt(t) costs one pass over the gradients.
 export function prepare(seq) {
   const grads = seq.events.filter((e) => e.kind === "grad");
-  const rfs = seq.events.filter((e) => e.kind === "rf").sort((a, b) => a.center - b.center);
+  // inversion pulses only flip Mz (there is no transverse magnetisation yet), so they do not touch k
+  const rfs = seq.events.filter((e) => e.kind === "rf" && e.role !== "invert").sort((a, b) => a.center - b.center);
   const integral = (a, b) => AXES.map((ax) => grads.reduce((s, g) => (g.axis === ax ? s + areaUpTo(g, b) - areaUpTo(g, a) : s), 0) * GAMMA_BAR);
   const states = []; // { t, k } just after each RF pulse
   let k = [0, 0, 0], tPrev = null;

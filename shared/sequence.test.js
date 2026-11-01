@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  GAMMA_BAR, DEFAULTS, DEFAULT_LIMITS, gradArea, gradEnd, shortestTrap, spinEcho, gradientEcho, fastSpinEcho, epi,
+  GAMMA_BAR, DEFAULTS, DEFAULT_LIMITS, gradArea, gradEnd, shortestTrap, spinEcho, gradientEcho, fastSpinEcho, epi, BUILDERS,
 } from "./sequence.js";
 import { areaUpTo, prepare, adcSamples, adcTimes } from "./ktraj.js";
 import { echoTrainReadouts, acquiredRows } from "../contrast/acquisition.js";
@@ -128,6 +128,51 @@ test("FSE: echoes are evenly spaced, the effective TE is the echo that crosses k
 
 test("a gradient ends where it should", () => {
   assert.equal(gradEnd({ start: 1, rise: 0.1, flat: 2, fall: 0.1 }), 3.2);
+});
+
+const centres = (seq, role) => seq.events.filter((e) => e.kind === "rf" && e.role === role).map((e) => e.center);
+
+test("inversion recovery: the 180° inversion sits exactly TI before the excitation, and TE is unchanged", () => {
+  for (const kind of ["SE", "FSE"]) {
+    const rows = kind === "SE" ? 32 : [0, 8, 16, 24, 32, 40, 48, 56];
+    const seq = BUILDERS[kind]({ ...P, ETL: 8, TE: 80, TR: 9000, inversion: "IR", TI: 2500 }, rows);
+    const [inv] = centres(seq, "invert"), [ex] = centres(seq, "excite");
+    assert.deepEqual(seq.errors, []);
+    assert.ok(near(ex - inv, 2500));
+    const echoes = seq.events.filter((e) => e.kind === "adc").map((a) => a.tc - ex);
+    const plain = BUILDERS[kind]({ ...P, ETL: 8, TE: 80, TR: 9000 }, rows);
+    const ex0 = centres(plain, "excite")[0];
+    assert.deepEqual(echoes.map((t) => t.toFixed(9)), plain.events.filter((e) => e.kind === "adc").map((a) => (a.tc - ex0).toFixed(9)));
+  }
+});
+
+test("inversion recovery: the inversion leaves k alone, so the samples are exactly those without it", () => {
+  const params = { ...P, TE: 30, TR: 3000 };
+  const a = adcSamples(BUILDERS.SE({ ...params, inversion: "IR", TI: 200 }, 5)), b = adcSamples(BUILDERS.SE(params, 5));
+  a.forEach((s, i) => assert.ok(near(s.colExact, b[i].colExact, 1e-9) && near(s.rowExact, b[i].rowExact, 1e-9) && Math.abs(s.kz) < 1e-9));
+  // and k is reported as 0 between the inversion and the excitation (no transverse magnetisation)
+  const seq = BUILDERS.SE({ ...params, inversion: "IR", TI: 200 }, 5);
+  const pr = prepare(seq);
+  assert.deepEqual(pr.kAt(centres(seq, "invert")[0] + 3), [0, 0, 0]);
+});
+
+test("double inversion: inversions TI1 and TI2 before the excitation", () => {
+  const seq = BUILDERS.FSE({ ...P, ETL: 8, TE: 25, TR: 8000, inversion: "DIR", TI1: 3400, TI2: 800 }, [32, 24, 40, 16, 48, 8, 56, 0]);
+  const inv = centres(seq, "invert"), [ex] = centres(seq, "excite");
+  assert.equal(inv.length, 2);
+  assert.ok(near(ex - inv[0], 3400) && near(ex - inv[1], 800));
+  assert.deepEqual(seq.errors, []);
+});
+
+test("inversion timing that cannot be played is reported and drawn at the nearest possible value", () => {
+  const short = BUILDERS.SE({ ...P, TE: 30, TR: 3000, inversion: "IR", TI: 1 }, 0);
+  assert.ok(short.errors.some((e) => e.startsWith("TI too short")));
+  assert.ok(near(centres(short, "excite")[0] - centres(short, "invert")[0], short.info.minTI));
+  const tr = BUILDERS.SE({ ...P, TE: 30, TR: 1000, inversion: "IR", TI: 2500 }, 0);
+  assert.ok(tr.errors.some((e) => e.startsWith("TR too short")) && tr.tr > 2500);
+  const dir = BUILDERS.FSE({ ...P, ETL: 4, TE: 25, TR: 8000, inversion: "DIR", TI1: 500, TI2: 500 }, [32, 16, 48, 0]);
+  assert.ok(dir.errors.some((e) => e.startsWith("TI1 must be")));
+  for (const g of dir.events.filter((e) => e.kind === "grad")) assert.ok(Math.abs(g.amp) <= DEFAULT_LIMITS.gMax + 1e-9);
 });
 
 test("spin echo: the phase encode before the 180 is applied with the opposite sign, so line 0 still reaches -ky max", () => {
