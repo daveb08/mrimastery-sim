@@ -30,6 +30,8 @@ hand-made path. Agreed with the user on 2026-11-01.
    the phase encode precedes the 180, which inverts ky too, so it must be applied with the opposite sign.
 2. **Diagram from the events, to scale** — RF, Gss, Gpe, Gfe and ADC/signal rows in real milliseconds, long waits
    compressed with break marks so one TR or echo train fits, zoom into a single echo.
+   **Done** (`shared/seqdiagram.js`, 7 tests) on a draft `/kspace/` page (not linked from the landing page yet): gradient
+   heights per axis or on one true scale, hover details, and the main parameters and scanner limits as controls.
 3. **The page** — diagram on top with a moving time cursor; k-space (trajectory and cursor) and the reconstruction below.
    Playback as a fraction of real time, step by event or by TR, sequence choice and the main parameters. Reuses the
    phantom, reconstruction, text-size control and click-to-zoom.

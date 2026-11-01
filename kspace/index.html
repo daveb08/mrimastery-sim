@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K-space Explorer</title>
+<link rel="stylesheet" href="../shared/style.css">
+<style>
+  .kx-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 16px; }
+  .kx-controls label { display: block; font-size: .85rem; color: var(--muted); }
+  .kx-controls label span.v { float: right; color: var(--text); font-variant-numeric: tabular-nums; }
+  .kx-info { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .92rem; color: var(--muted); margin: 8px 0 0; }
+  .kx-info b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  #diagram { margin-top: 6px; }
+  .viewbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 4px; }
+</style>
+<script src="../shared/text-size.js"></script>
+</head>
+<body>
+<main>
+  <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
+  <h1>K-space explorer <span style="font-size:.6em;color:var(--muted)">(draft)</span></h1>
+  <p class="sub">A pulse sequence built from real gradient events. Every gradient is drawn to scale; k-space follows from them.</p>
+
+  <div class="panel">
+    <div class="kx-controls" id="controls"></div>
+  </div>
+  <div id="messages"></div>
+
+  <div class="panel" style="margin-top:12px">
+    <div class="viewbar">
+      <div class="radio" role="radiogroup" aria-label="Diagram view">
+        <label><input type="radio" name="view" value="tr" checked> Whole TR</label>
+        <label><input type="radio" name="view" value="echo"> Zoom to the centre echo</label>
+      </div>
+      <label style="font-size:.9rem;color:var(--muted)">Gradient heights
+        <select id="scale" style="width:auto"><option value="axis" selected>scaled per axis</option><option value="shared">true relative strength</option></select></label>
+      <span class="caption" id="viewNote" style="margin:0"></span>
+    </div>
+    <div id="diagram"></div>
+    <div class="kx-info" id="info"></div>
+    <p class="caption">Hover over a gradient, pulse or ADC window for its amplitude and duration. Shaded bands with zig-zag marks
+      are idle time that has been shortened so the whole TR fits; the label gives the real duration.</p>
+  </div>
+</main>
+<script type="module" src="ui.js"></script>
+</body>
+</html>
