@@ -5,7 +5,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
        font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-main { max-width: 1840px; margin: 0 auto; padding: 16px 24px; }
+main { max-width: 2560px; margin: 0 auto; padding: 16px 24px; }
 a { color: var(--blue); }
 nav.crumb { font-size: .85rem; margin-bottom: 8px; }
 h1 { font-size: 1.5rem; margin: 0 0 4px; }
