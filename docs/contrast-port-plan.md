@@ -28,7 +28,9 @@ Each phase is usable and pushable on its own; review with the user between phase
 3. **Phantom images.** Three planes on the procedural phantom, crosshairs and click-to-set slice, the image pipeline,
    window/level. The headline feature; publish after this phase. **Done** (`contrast/image.js`): acquired matrix and FOV, slab and in-plane partial volume, phase-direction wrap-around, N/2 ghost, Rician noise at the model's noise floor, auto or manual window/level. Not yet: partial-Fourier Gibbs, EPI distortion, fat chemical-shift misregistration.
 4. **Pulse-sequence diagrams.** All 8 sequences, ported faithfully first; an event-list rewrite (which could also drive the
-   Bloch simulator) is a separate follow-up.
+   Bloch simulator) is a separate follow-up. **Done** (`psd.js`, `psd_svg.js`): the geometry is tested against 107 figures
+   recorded from the real matplotlib code (`tools/gen_psd_from_python.py`). Inherited quirks, kept on purpose: the EPI TEeff
+   label overlaps the N/2 ghost note and the bSSFP "Repeating unit" label touches the second RF label. DWI has no diagram in the original either.
 5. **K-space visualiser.** Needs a 2D FFT on top of `shared/fft.js`.
 6. **"What changed?" explanations.**
 7. **Polish and retirement.** Mobile layout, shareable URL settings, deploy, retire the Streamlit app and `MRI_Simulator`.

@@ -6,6 +6,8 @@ import { meterFraction, formatTime, inPlanePixel, percentChange, formatPercent, 
 import { sweepSpec, sweep } from "./curves.js";
 import { draw, layout, axisStyle } from "../shared/plot.js";
 import { createPhantom } from "../phantom/phantom.js";
+import { drawPulseSequence, psdParams } from "./psd.js";
+import { psdToSvg } from "./psd_svg.js";
 import {
   PLANES, CENTER, POS_RANGE, normalAxis, patientToScreen, screenToPatient, clampPos, sampleSlice, renderPlane, autoWindowLevel,
 } from "./image.js";
@@ -230,10 +232,17 @@ function renderPlots(m) {
   }
 }
 
+function renderPsd(m) {
+  const fig = drawPulseSequence(psdParams(p, m));
+  $("psd").innerHTML = fig ? psdToSvg(fig, { fontScale: 1.25 }) : "";
+  $("psdNote").textContent = fig ? "Schematic: the spacing between events is illustrative; the labels give the real TR, TE and TI."
+    : `${p.seq} has no pulse-sequence diagram yet.`;
+}
+
 function update() {
   normalize(p);
   model = computeModel(p);
-  renderMeters(model); renderChips(model); renderMessages(model); renderNotes(model); renderPlots(model); scheduleImages();
+  renderMeters(model); renderChips(model); renderMessages(model); renderNotes(model); renderPlots(model); renderPsd(model); scheduleImages();
 }
 
 // ---- phantom images ----
