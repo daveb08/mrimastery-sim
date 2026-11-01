@@ -200,12 +200,15 @@ function renderNotes(m) {
     + `Noise floor ${m.noiseFloor.toFixed(5)}.`;
 }
 
+// Titles sit at the left, clear of the Plotly modebar at the top right.
+const TITLE = (text) => ({ text, font: { size: 12 }, x: 0.01, xanchor: "left" });
+
 const bar = (id, title, vals, fmt) => draw(id, [{
   type: "bar", x: TISSUE_NAMES, y: TISSUE_NAMES.map((n) => vals[n]),
   marker: { color: TISSUE_NAMES.map((n) => COLOR[n]) },
   text: TISSUE_NAMES.map((n) => fmt(vals[n])), textposition: "outside", cliponaxis: false,
   hovertemplate: "%{x}: %{y}<extra></extra>",
-}], layout({ title: { text: title, font: { size: 12 } }, showlegend: false, uirevision: undefined,
+}], layout({ title: TITLE(title), showlegend: false, uirevision: undefined,
   yaxis: axisStyle({ rangemode: "tozero" }), xaxis: axisStyle(), margin: { l: 48, r: 10, t: 34, b: 30 } }));
 
 function renderPlots(m) {
@@ -219,7 +222,7 @@ function renderPlots(m) {
       const { x, y } = sweep(p.seq, p, spec.key, spec.max);
       const now = spec.key === "TR" && p.seq === "bSSFP" ? p.TR : p[spec.key];
       draw(id, TISSUE_NAMES.map((n) => ({ type: "scatter", mode: "lines", x, y: y[n], name: n, line: { color: COLOR[n], width: 2 } })),
-        layout({ title: { text: `Signal vs ${spec.label}`, font: { size: 12 } }, xaxis: axisStyle({ title: spec.label }),
+        layout({ title: TITLE(`Signal vs ${spec.label}`), xaxis: axisStyle({ title: spec.label }),
           yaxis: axisStyle({ title: "Relative signal", rangemode: "tozero" }), uirevision: undefined,
           margin: { l: 52, r: 10, t: 34, b: 42 },
           shapes: [{ type: "line", x0: now, x1: now, yref: "paper", y0: 0, y1: 1, line: { color: "#fff", dash: "dash", width: 1 } }] }));
