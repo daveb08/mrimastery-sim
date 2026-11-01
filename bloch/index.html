@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bloch Simulator</title>
 <style>
+  html { font-size: calc(16px * var(--ts, 1)); }
   :root {
     --bg: #1a1a1a; --panel: #242424; --border: #444; --text: #e6e6e6; --muted: #aaa;
     --accent: #FFD700; --x: #ff6b6b; --y: #6bd66b; --z: #6ba6ff;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
-         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+         font: calc(15px * var(--ts, 1))/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   main { max-width: 2560px; margin: 0 auto; padding: 16px 24px; }
   h1 { font-size: 1.5rem; margin: 0 0 4px; }
   p.sub { color: var(--muted); margin: 0 0 14px; }
@@ -33,6 +34,7 @@
   #traces { height: 260px; margin-top: 8px; }
   .note { color: var(--muted); font-size: .8rem; margin-top: 12px; }
 </style>
+<script src="../shared/text-size.js"></script>
 </head>
 <body>
 <main>

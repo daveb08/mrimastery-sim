@@ -4,7 +4,7 @@ import {
 } from "./physics.js";
 import { meterFraction, formatTime, inPlanePixel, percentChange, formatPercent, meterValues, METERS } from "./meters.js";
 import { sweepSpec, sweep } from "./curves.js";
-import { draw, layout, axisStyle } from "../shared/plot.js";
+import { draw, layout, axisStyle, textScale } from "../shared/plot.js";
 import { createPhantom } from "../phantom/phantom.js";
 import { drawPulseSequence, psdParams } from "./psd.js";
 import { psdToSvg } from "./psd_svg.js";
@@ -238,7 +238,7 @@ function renderPlots(m) {
 
 function renderPsd(m) {
   const fig = drawPulseSequence(psdParams(p, m));
-  $("psd").innerHTML = fig ? psdToSvg(fig, { fontScale: 1.25 }) : "";
+  $("psd").innerHTML = fig ? psdToSvg(fig, { fontScale: 1.25 * textScale() }) : "";
   $("psdNote").textContent = fig ? "Schematic: the spacing between events is illustrative; the labels give the real TR, TE and TI."
     : `${p.seq} has no pulse-sequence diagram yet.`;
 }
@@ -404,6 +404,9 @@ function renderKspace() {
     + (opts.region === "Edges" ? "With edges only, the image is faint; adjust window/level if needed. " : "")
     + `Rendered in ${(performance.now() - t0).toFixed(0)} ms.`;
 }
+
+// Text drawn by this page (pulse-sequence labels) follows the A / A+ / A++ control; Plotly plots redraw themselves.
+window.addEventListener("textsizechange", () => { if (model) renderPsd(model); });
 
 buildControls();
 update();

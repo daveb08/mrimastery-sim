@@ -2,9 +2,10 @@
   --bg: #1a1a1a; --panel: #242424; --border: #444; --text: #e6e6e6; --muted: #aaa;
   --accent: #FFD700; --blue: #6699FF; --green: #66DD66; --red: #FF6666; --warn: #FFAA44;
 }
+html { font-size: calc(16px * var(--ts, 1)); }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
-       font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+       font: calc(15px * var(--ts, 1))/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
 main { max-width: 2560px; margin: 0 auto; padding: 16px 24px; }
 a { color: var(--blue); }
 nav.crumb { font-size: .85rem; margin-bottom: 8px; }

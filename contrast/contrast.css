@@ -13,16 +13,16 @@
 
 .meters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: var(--bg); padding-bottom: 8px; }
 .meter { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; min-width: 0; }
-.meter .label { color: var(--muted); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meter .label { color: var(--muted); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .meter .value { font-size: 1.5rem; font-variant-numeric: tabular-nums; line-height: 1.2; }
-.meter .sub { color: var(--muted); font-size: .78rem; min-height: 1.1em; }
+.meter .sub { color: var(--muted); font-size: .82rem; min-height: 1.1em; }
 .meter .bar { height: 6px; background: #333; border-radius: 3px; margin: 6px 0 3px; overflow: hidden; }
 .meter .bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .12s; }
-.meter .delta { font-size: .78rem; min-height: 1.1em; color: var(--blue); }
-.baseline-row { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; font-size: .8rem; color: var(--muted); }
+.meter .delta { font-size: .82rem; min-height: 1.1em; color: var(--blue); }
+.baseline-row { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; font-size: .88rem; color: var(--muted); }
 @media (max-width: 520px) { .meter .value { font-size: 1.15rem; } .meter .sub { display: none; } }
 
-.chips { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .85rem; color: var(--muted); margin: 4px 0 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .95rem; color: var(--muted); margin: 4px 0 8px; }
 .chips b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 #messages .alert, #messages .warn { padding: 5px 10px; margin: 4px 0; font-size: .88rem; }
 
@@ -40,13 +40,13 @@
 .stack2 { display: grid; gap: 8px; }
 .stack2[hidden] { display: none; }
 
-.vhead { display: flex; flex-wrap: wrap; gap: 0 6px; justify-content: space-between; font-size: .8rem; color: var(--muted); margin-bottom: 3px; }
+.vhead { display: flex; flex-wrap: wrap; gap: 0 6px; justify-content: space-between; font-size: .92rem; color: var(--muted); margin-bottom: 3px; }
 .frame { position: relative; background: #000; border-radius: 4px; overflow: hidden; cursor: crosshair; touch-action: none; }
 .frame canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 .frame .xh { position: absolute; background: rgba(255, 215, 0, .55); pointer-events: none; }
 .frame .xh.v { width: 1px; top: 0; bottom: 0; }
 .frame .xh.h { height: 1px; left: 0; right: 0; }
-.frame .ol { position: absolute; color: rgba(255, 255, 255, .55); font-size: .7rem; pointer-events: none; }
+.frame .ol { position: absolute; color: rgba(255, 255, 255, .6); font-size: .8rem; pointer-events: none; }
 .vpos { margin-top: 4px; }
 .vpos input { width: 100%; }
 .wl { display: grid; grid-template-columns: auto 1fr 1fr auto; gap: 4px 16px; align-items: end; margin-top: 8px; }
@@ -59,3 +59,8 @@
 .kctl { display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px 16px; align-items: end; margin-top: 8px; }
 .kctl .ctl { margin-top: 0; }
 @media (max-width: 700px) { .kgrid, .kctl { grid-template-columns: 1fr; } }
+
+/* k-space headings sit centred over their (narrower) panels */
+.kgrid .vhead { justify-content: center; gap: 2px 12px; text-align: center; }
+.kgrid .vhead { color: var(--text); }
+.kgrid #kSize { color: var(--muted); }

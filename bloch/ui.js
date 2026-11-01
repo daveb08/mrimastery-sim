@@ -1,4 +1,5 @@
 import { runProgram, meanTransverse } from "./bloch.js";
+import { draw } from "../shared/plot.js";
 
 const $ = (id) => document.getElementById(id);
 const SHOWN = 15;      // spins drawn as arrows
@@ -114,7 +115,7 @@ function drawScene() {
   ];
   const ax = { range: [-1.25, 1.25], showticklabels: false, title: "", showbackground: false,
                gridcolor: "#333", zerolinecolor: "#333" };
-  Plotly.react("scene", traces, {
+  draw("scene", traces, {
     paper_bgcolor: "#242424", margin: { l: 0, r: 0, t: 0, b: 0 },
     uirevision: "scene", // same sphere in every experiment: keep the camera/zoom
     scene: { uirevision: "scene", xaxis: ax, yaxis: ax, zaxis: ax, aspectmode: "cube", bgcolor: "#242424",
@@ -143,7 +144,7 @@ function drawTraces() {
     curves.push({ x: t, y: t.map((tt) => (tt < t0 ? null : a0 * Math.exp(-(tt - t0) / sim.T2))),
                   name: "T2 decay", mode: "lines", line: { color: "#ffffff", width: 1, dash: "dash" } });
   }
-  Plotly.react("traces", curves, {
+  draw("traces", curves, {
     paper_bgcolor: "#242424", plot_bgcolor: "#242424", font: { color: "#ccc", size: 11 },
     uirevision: "traces", // keep the user's zoom/pan across redraws
     margin: { l: 44, r: 12, t: 8, b: 36 }, legend: { orientation: "h", y: 1.18 },
