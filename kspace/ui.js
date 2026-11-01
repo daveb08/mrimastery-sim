@@ -317,12 +317,21 @@ function skipIdle(shot, t) {
   return seg ? seg.t1 : t;
 }
 
+// ms of this TR that playback actually shows: the skipped breaks do not count
+function playedMs(shot) {
+  if (!geom || geom.t0 !== 0) return shot.activeEnd;
+  return geom.axis.segments.filter((s) => !s.compressed && s.t0 < shot.activeEnd)
+    .reduce((sum, s) => sum + Math.min(s.t1, shot.activeEnd) - s.t0, 0) || shot.activeEnd;
+}
+
 function advance(dtSec) {
   const sp = $("speed").value, shot = shotNow();
-  const activeMs = shot.activeEnd;
-  const rate = sp === "tr1" ? activeMs : sp === "tr10" ? 10 * activeMs : Number(sp); // ms of sequence per second
-  play.t = skipIdle(shot, play.t + dtSec * rate);
-  if (play.t >= shot.activeEnd) play.t = shot.seq.tr; // nothing else happens in this TR
+  if (sp === "real") play.t += dtSec * 1000; // every millisecond, waits included
+  else {
+    const rate = sp === "tr1" ? playedMs(shot) : sp === "tr10" ? 10 * playedMs(shot) : Number(sp); // ms of sequence per second
+    play.t = skipIdle(shot, play.t + dtSec * rate);
+    if (play.t >= shot.activeEnd) play.t = shot.seq.tr; // nothing else happens in this TR
+  }
   if (play.t >= shot.seq.tr) {
     if (play.shot < scan.shots.length - 1) { play.shot++; play.t = 0; renderDiagram(); }
     else { play.t = shot.seq.tr; play.playing = false; }

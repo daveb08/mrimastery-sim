@@ -71,12 +71,14 @@
           <option value="10">10 ms per second</option>
           <option value="tr1">1 TR per second</option>
           <option value="tr10">10 TRs per second</option>
+          <option value="real">Real time</option>
         </select></label>
         <span id="clock"></span>
       </div>
       <p class="caption" id="kNote"></p>
       <p class="caption">The blue line is the path k(t) traced during this TR; the dot is where k is now. During the ADC windows
-        the signal is sampled and k-space fills in. Idle time (the shaded breaks in the diagram) is skipped during playback.
+        the signal is sampled and k-space fills in. Idle time (the shaded breaks in the diagram) is skipped during playback, except in
+        real time, which plays every millisecond of the scan.
         The phantom image is noise-free here so that the effect of the sampling stands out.</p>
     </div>
     </div>
