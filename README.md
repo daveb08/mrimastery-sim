@@ -20,8 +20,16 @@ Each simulator keeps its numerics in DOM-free modules (`bloch/bloch.js`, `signal
 with the original Python implementation (the coil tests port the original pytest cases).
 
 ```
-node --test shared/plot.test.js shared/sequence.test.js shared/seqdiagram.test.js kspace/settings.test.js bloch/bloch.test.js signal/signal.test.js coil/coil.test.js tuning/tuning.test.js phantom/phantom.test.js contrast/physics.test.js contrast/meters.test.js contrast/curves.test.js contrast/image.test.js contrast/psd.test.js contrast/kspace.test.js contrast/acquisition.test.js   # pass files, not directories (Node 24)
-python -m http.server 8000                              # then open http://localhost:8000/
+node --test "**/*.test.js"      # every unit test (the quotes matter: Node expands the pattern)
+node tools/smoke.mjs            # every page in headless Chrome; screenshots and report in qc-out/
+python -m http.server 8000      # then open http://localhost:8000/
 ```
+
+`tools/smoke.mjs` loads each page, exercises its main controls, and fails on JavaScript errors, failed loads,
+plots that do not draw, or a page check that does not hold. `node tools/smoke.mjs --baseline` saves the
+screenshots as a reference; later runs report how much each page changed, with difference images. In Claude
+Code, `/qc` runs both (`/qc full` adds a code review and a look at the screenshots). GitHub Actions runs the
+tests and the smoke test on every push (`.github/workflows/tests.yml`); it reports problems but does not stop
+GitHub Pages from publishing.
 
 Hosted with GitHub Pages at the domain in `CNAME`.
