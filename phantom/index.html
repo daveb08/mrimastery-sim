@@ -19,7 +19,7 @@
 <main>
   <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
   <h1>Procedural head phantom</h1>
-  <p class="sub">A generated, labeled head and neck with no stored data. For judging the phantom itself; it will feed the contrast simulator later.</p>
+  <p class="sub">A generated, labeled head and neck with no stored data, placed from standard-atlas landmarks. The contrast simulator and k-space explorer image this phantom.</p>
 
   <div class="panel">
     <div class="controls">
@@ -58,10 +58,23 @@
     <div class="panel"><div class="viewhead"><span>Sagittal</span><span>anterior &larr; &rarr; posterior</span></div><canvas id="sagittal" width="256" height="256"></canvas></div>
   </div>
   <p class="caption" id="stats"></p>
-  <p class="caption">Stylised anatomy, not a segmentation of a real person: scalp fat, a three-layer skull (cortical bone around
-    fatty marrow), CSF, a folded cortex with radial sulci, an interhemispheric fissure, temporal lobes, white matter, deep gray
-    nuclei, ventricles, cerebellum and brainstem; and a face with eyes, orbital fat, nose, ears, lips, mandible, zygomatic arches, sinuses and oral
-    cavity, plus a short neck with vertebrae, spinal cord and airway. Tissue values are the contrast simulator's 3.0 T table (so WM and GM share T2 = 80 ms and T2-weighted contrast comes from PD and T2* is not used here), plus illustrative muscle, lesion and bone rows; the skull's cortical bone is
+  <p class="caption">Stylised anatomy, not a segmentation of a real person, with structures placed from approximate
+    standard-atlas (MNI) coordinates scaled to an average adult.
+    <b>Brain:</b>
+    a cortex of even thickness (about 2.7 mm) with the central, pre- and postcentral, Sylvian, cingulate, calcarine and
+    parieto-occipital sulci placed anatomically; the seed varies only the minor folds.
+    C-shaped lateral ventricles, the third and fourth ventricles and the aqueduct; the corpus callosum.
+    Caudate, putamen, pallidum, thalamus, claustrum, hippocampus and amygdala, with the internal, external and extreme
+    capsules between them; the insula.
+    The brain fills the cranial fossae and lies on the tentorium; the cerebellum has lobules, folia and arbor vitae; the
+    brainstem has peduncles, a pons and olives.
+    <b>Head and neck:</b>
+    skull of varying thickness with marrow, the temporalis, frontal, sphenoid, ethmoid and maxillary sinuses, mastoid air,
+    the sella with the pituitary, and the optic chiasm.
+    Orbits with globe, lens, optic nerve and rectus muscles; a nose with septum and turbinates; palate, teeth, tongue and
+    mandible.
+    An airway from the nasopharynx to the trachea; cervical vertebrae with discs around a continuous cord; neck muscles and
+    fat planes. Tissue values are the contrast simulator's 3.0 T table (so WM and GM share T2 = 80 ms and T2-weighted contrast comes from PD and T2* is not used here), plus illustrative muscle, lesion and bone rows; the skull's cortical bone is
     treated as signal void. Weighted images are ideal spin-echo signal equations, not a full simulation.</p>
 </main>
 <script type="module" src="ui.js"></script>
