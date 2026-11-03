@@ -5,7 +5,9 @@ const $ = (id) => document.getElementById(id);
 const SHOWN = 15;      // spins drawn as arrows
 const STRIDE = 8;      // the signal averages SHOWN*STRIDE - 7 spins, so refocusing
 const SPINS = (SHOWN - 1) * STRIDE + 1; // is not spoiled by false revivals
-const COLORS = { x: "#ff6b6b", y: "#6bd66b", z: "#6ba6ff", mean: "#FFD700", spin: "#9fb4cc" };
+const COLORS = { x: "#ff6b6b", y: "#6bd66b", z: "#6ba6ff", mean: "#FFD700", spin: "#c77dff" };
+const HEAD = { mean: 0.16, spin: 0.11 }; // arrowhead length (sphere radius = 1)
+const SIDES = 10; // facets around each arrowhead
 const FMT = {
   flip: (v) => `${v}°`, phase: (v) => `${v}°`, pdur: (v) => `${(+v).toFixed(2)} ms`,
   delay: (v) => `${v} ms`, off: (v) => `${v} Hz`, spread: (v) => `${v} Hz`,
@@ -55,13 +57,46 @@ function eventAt(i) {
   return sim.events.findIndex((_, k) => i <= sim.eventEnds[k]);
 }
 
-function vectorLines(frame) {
-  const x = [], y = [], z = [];
-  for (let i = 0; i < sim.count; i += sim.count === 1 ? 1 : STRIDE) {
-    x.push(0, frame[3 * i], null); y.push(0, frame[3 * i + 1], null); z.push(0, frame[3 * i + 2], null);
+// Arrows from the origin to each vector: shafts (one line trace, broken by nulls) that stop at the base of an
+// arrowhead, and the heads as one triangle mesh (a tip plus a ring of SIDES base points each). Plotly's own cone
+// traces size themselves from the spacing between cones, so they balloon when the spin tips bunch together.
+// Heads shrink with short vectors so a decayed vector does not become all head.
+function arrows(vecs, head) {
+  const shaft = { x: [], y: [], z: [] }, mesh = { x: [], y: [], z: [], i: [], j: [], k: [] };
+  for (const [vx, vy, vz] of vecs) {
+    const n = Math.hypot(vx, vy, vz);
+    const h = head * Math.min(1, n / (2.5 * head));
+    const s = n > 1e-9 ? (n - h) / n : 0;
+    shaft.x.push(0, vx * s, null); shaft.y.push(0, vy * s, null); shaft.z.push(0, vz * s, null);
+    // unit direction d and two unit vectors a, b across it
+    const d = n > 1e-9 ? [vx / n, vy / n, vz / n] : [0, 0, 1];
+    const ref = Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    let a = [d[1] * ref[2] - d[2] * ref[1], d[2] * ref[0] - d[0] * ref[2], d[0] * ref[1] - d[1] * ref[0]];
+    const an = Math.hypot(...a); a = a.map((c) => c / an);
+    const b = [d[1] * a[2] - d[2] * a[1], d[2] * a[0] - d[0] * a[2], d[0] * a[1] - d[1] * a[0]];
+    const r = 0.38 * h, base = [vx * s, vy * s, vz * s], tip = mesh.x.length;
+    mesh.x.push(vx); mesh.y.push(vy); mesh.z.push(vz);
+    for (let m = 0; m < SIDES; m++) {
+      const t = (2 * Math.PI * m) / SIDES, c = Math.cos(t) * r, sn = Math.sin(t) * r;
+      mesh.x.push(base[0] + a[0] * c + b[0] * sn); mesh.y.push(base[1] + a[1] * c + b[1] * sn); mesh.z.push(base[2] + a[2] * c + b[2] * sn);
+      const p = tip + 1 + m, q = tip + 1 + ((m + 1) % SIDES);
+      mesh.i.push(tip); mesh.j.push(p); mesh.k.push(q); // side facet
+      if (m > 0 && m < SIDES - 1) { mesh.i.push(tip + 1); mesh.j.push(q); mesh.k.push(p); } // base cap (fan)
+    }
   }
-  return { x, y, z };
+  return { shaft, mesh };
 }
+
+function spinVectors(frame) {
+  const out = [];
+  for (let i = 0; i < sim.count; i += sim.count === 1 ? 1 : STRIDE) out.push([frame[3 * i], frame[3 * i + 1], frame[3 * i + 2]]);
+  return out;
+}
+
+const headTrace = (color, mesh) => ({
+  type: "mesh3d", ...mesh, color, flatshading: true, hoverinfo: "skip", showlegend: false,
+  lighting: { ambient: 0.75, diffuse: 0.5, specular: 0.1 },
+});
 
 function sphereTraces() {
   const ring = (fn) => {
@@ -102,16 +137,18 @@ function sphereTraces() {
   ];
 }
 
-const DYNAMIC = sphereTraces().length; // then: spin arrows, mean vector, mean trail
+const DYNAMIC = sphereTraces().length; // then: spin shafts, mean shaft, mean trail, spin heads, mean head
 
 function drawScene() {
-  const f = sim.frames[0];
-  const spins = vectorLines(f);
+  const spins = arrows(spinVectors(sim.frames[0]), HEAD.spin), mean = arrows([[0, 0, 1]], HEAD.mean);
+  const line = (d, color, width) => ({ type: "scatter3d", mode: "lines", ...d, line: { color, width }, hoverinfo: "skip", showlegend: false });
   const traces = [
     ...sphereTraces(),
-    { type: "scatter3d", mode: "lines", ...spins, line: { color: COLORS.spin, width: 4 }, hoverinfo: "skip", showlegend: false },
-    { type: "scatter3d", mode: "lines", x: [0, 0], y: [0, 0], z: [0, 1], line: { color: COLORS.mean, width: 8 }, hoverinfo: "skip", showlegend: false },
-    { type: "scatter3d", mode: "lines", x: [], y: [], z: [], line: { color: "rgba(255,215,0,0.45)", width: 3 }, hoverinfo: "skip", showlegend: false },
+    line(spins.shaft, COLORS.spin, 4),
+    line(mean.shaft, COLORS.mean, 8),
+    line({ x: [], y: [], z: [] }, "rgba(255,215,0,0.45)", 3),
+    { ...headTrace(COLORS.spin, spins.mesh), visible: sim.count > 1 }, // one spin: it is the mean vector
+    headTrace(COLORS.mean, mean.mesh),
   ];
   const ax = { range: [-1.25, 1.25], showticklabels: false, title: "", showbackground: false,
                gridcolor: "#333", zerolinecolor: "#333" };
@@ -119,7 +156,7 @@ function drawScene() {
     paper_bgcolor: "#242424", margin: { l: 0, r: 0, t: 0, b: 0 },
     uirevision: "scene", // same sphere in every experiment: keep the camera/zoom
     scene: { uirevision: "scene", xaxis: ax, yaxis: ax, zaxis: ax, aspectmode: "cube", bgcolor: "#242424",
-             camera: { eye: { x: 1.5, y: -1.5, z: 0.9 } } },
+             camera: { eye: { x: 1.05, y: -1.05, z: 0.63 } } }, // close in: the sphere fills the view
   });
 }
 
@@ -165,10 +202,10 @@ function drawTraces() {
 function showFrame(i) {
   i = Math.max(0, Math.min(sim.frames.length - 1, Math.round(i)));
   const f = sim.frames[i];
-  const s = vectorLines(f);
   const m = sim.mean;
-  Plotly.restyle("scene", { x: [s.x], y: [s.y], z: [s.z] }, [DYNAMIC]);
-  Plotly.restyle("scene", { x: [[0, m.mx[i]]], y: [[0, m.my[i]]], z: [[0, m.mz[i]]] }, [DYNAMIC + 1]);
+  const s = arrows(spinVectors(f), HEAD.spin), a = arrows([[m.mx[i], m.my[i], m.mz[i]]], HEAD.mean);
+  Plotly.restyle("scene", { x: [s.shaft.x, a.shaft.x], y: [s.shaft.y, a.shaft.y], z: [s.shaft.z, a.shaft.z] }, [DYNAMIC, DYNAMIC + 1]);
+  Plotly.restyle("scene", { x: [s.mesh.x, a.mesh.x], y: [s.mesh.y, a.mesh.y], z: [s.mesh.z, a.mesh.z] }, [DYNAMIC + 3, DYNAMIC + 4]);
   const j = i + 1;
   Plotly.restyle("scene", { x: [Array.from(m.mx.subarray(0, j))], y: [Array.from(m.my.subarray(0, j))],
                             z: [Array.from(m.mz.subarray(0, j))] }, [DYNAMIC + 2]);

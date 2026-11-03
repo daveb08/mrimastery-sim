@@ -30,8 +30,10 @@
   .transport { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
   .transport input { flex: 1; }
   #readout { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .85rem; min-width: 22ch; }
-  #scene { height: 520px; }
-  #traces { height: 260px; margin-top: 8px; }
+  /* the 3D view and the signal plot share the window height below the header and the play bar */
+  #scene { height: max(380px, calc(68vh - 160px)); }
+  #traces { height: max(220px, 32vh - 50px); margin-top: 8px; }
+  @media (max-width: 800px) { #scene { height: 420px; } #traces { height: 260px; } }
   .note { color: var(--muted); font-size: .8rem; margin-top: 12px; }
 </style>
 <script src="../shared/text-size.js"></script>
@@ -69,7 +71,7 @@
       <input id="t2" type="range" min="10" max="2000" step="5" value="100">
       <p class="note">Positive off-resonance precesses clockwise seen from +z.
       A spread of 0 shows a single spin; otherwise the signal averages 113 spins across the range and 15 of them are drawn.
-      The yellow arrow is the mean magnetization.</p>
+      The yellow arrow is the mean magnetization; the violet arrows are individual spins.</p>
     </section>
     <section>
       <div class="transport">
