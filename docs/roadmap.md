@@ -17,6 +17,13 @@ Recorded 2026-11-01. Order is a suggestion for the user to confirm; nothing here
    (e.g. wavelet soft-thresholding / FISTA) at 128 × 128 in the browser; show iterations removing noise-like aliasing.
    Vendor names: Siemens Compressed Sensing, GE HyperSense, Philips Compressed SENSE.
 5. **Pulse-sequence designer** — see `docs/sequence-designer-idea.md`; draws on everything above.
+6. **Multi-slice imaging** (added 2026-11-04) — interleaving several slices within one TR: slice order
+   (sequential, interleaved), slice gap and cross-talk from imperfect slice profiles, and how TR sets the
+   number of slices. Fits the k-space explorer (per-slice RF frequency offsets in the event model) and the
+   contrast simulator (slice count and scan time).
+7. **3D imaging** (added 2026-11-04) — a second phase-encode axis (partition encoding along z): a 3D
+   k-space volume, the scan-time and SNR trade-off against 2D, slab-selective excitation, and slab-edge
+   wrap. Links to MPRAGE in the contrast simulator, which is 3D in practice.
 
 Alongside 3–4: an acceleration-factor control in the contrast simulator (scan time ÷ R, SNR ∝ 1 / (g √R), matching
 artifacts).
