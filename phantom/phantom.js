@@ -5,6 +5,8 @@
 //
 // Coordinates are millimetres with the head centred near the origin:
 //   +x = patient LEFT, +y = ANTERIOR, +z = SUPERIOR.
+// Brain structures are placed from approximate standard-atlas (MNI-style) coordinates, scaled to an average adult
+// head: phantom mm = 0.94 x MNI mm, with the anterior commissure at about (0, 17, 4). See mni() below.
 //
 // Labels: 0 air, 1 white matter, 2 gray matter, 3 CSF (also eye vitreous),
 //         4 fat (scalp, marrow, orbital fat), 5 cortical bone, 6 lesion (optional),
@@ -52,6 +54,10 @@ function makeNoise(seed) {
   };
 }
 
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const smoothstep = (a, b, t) => { const u = clamp((t - a) / (b - a), 0, 1); return u * u * (3 - 2 * u); };
+const lerp = (a, b, t) => a + (b - a) * t;
+
 // Approximate signed distance (mm, negative inside) to an axis-aligned ellipsoid.
 function sdEllipsoid(x, y, z, a, b, c) {
   const k0 = Math.sqrt((x / a) ** 2 + (y / b) ** 2 + (z / c) ** 2);
@@ -67,17 +73,108 @@ function sdCapsule(px, py, pz, ax, ay, az, bx, by, bz, r) {
   return Math.hypot(px - ax - t * dx, py - ay - t * dy, pz - az - t * dz) - r;
 }
 
-const GRAD = 1.25; // typical |grad(noise)| per lattice unit: converts a noise level to a distance
-const R0 = 70;     // radius of the sphere on which the sulcal pattern is defined
+// ---- atlas frame ---------------------------------------------------------------------------------------------------
+const S = 0.94, OY = 17, OZ = 4;
+// An MNI-style point (mm) in phantom coordinates.
+const mni = (x, y, z) => [S * x, S * y + OY, S * z + OZ];
 
-// Skull-base floor height as a function of position: anterior fossa (orbital roofs) high,
-// middle fossa lower and lateral, posterior fossa lowest. The foramen magnum is open.
-function skullFloor(x, y) {
-  let z = y >= 50 ? 8 : y >= 0 ? 8 - (50 - y) * 0.4 : Math.max(-46, -12 + y * 0.55);
-  if (y > -30 && y < 50) z -= 0.3 * Math.max(0, Math.abs(x) - 30);
-  if (Math.hypot(x, y + 24) < 11) z = -200; // foramen magnum
+// A tube swept through nodes [x, y, z, radius, kz] given in MNI mm: the radius and a vertical squash kz (> 1 flattens,
+// < 1 makes it taller) vary linearly along each segment. Returns an approximate signed distance in phantom mm.
+function makeTube(nodesMni) {
+  const n = nodesMni.map(([x, y, z, r, kz = 1]) => [...mni(x, y, z), S * r, kz]);
+  const segs = [];
+  for (let i = 0; i < n.length - 1; i++) {
+    const a = n[i], b = n[i + 1], d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    segs.push({ a, b, d, l2: d[0] * d[0] + d[1] * d[1] + d[2] * d[2] || 1 });
+  }
+  const pad = Math.max(...n.map((p) => p[3] / Math.min(1, p[4]))) + 2;
+  const lo = [0, 1, 2].map((k) => Math.min(...n.map((p) => p[k])) - pad);
+  const hi = [0, 1, 2].map((k) => Math.max(...n.map((p) => p[k])) + pad);
+  return (x, y, z) => {
+    if (x < lo[0] || x > hi[0] || y < lo[1] || y > hi[1] || z < lo[2] || z > hi[2]) return 99;
+    let best = 99;
+    for (const { a, b, d, l2 } of segs) {
+      const t = clamp(((x - a[0]) * d[0] + (y - a[1]) * d[1] + (z - a[2]) * d[2]) / l2, 0, 1);
+      const r = lerp(a[3], b[3], t), kz = lerp(a[4], b[4], t);
+      const v = Math.hypot(x - a[0] - t * d[0], y - a[1] - t * d[1], (z - a[2] - t * d[2]) * kz) - r;
+      if (v < best) best = v;
+    }
+    return best;
+  };
+}
+// An ellipsoid given by its MNI centre and semi-axes.
+function makeEllipsoid([cx, cy, cz], [a, b, c]) {
+  const [px, py, pz] = mni(cx, cy, cz);
+  return (x, y, z) => sdEllipsoid(x - px, y - py, z - pz, S * a, S * b, S * c);
+}
+
+// ---- deep anatomy (left hemisphere, x > 0; evaluated at |x|) ---------------------------------------------------------
+// Lateral ventricle: frontal horn, body, atrium, occipital horn, and the temporal horn curving down and forward.
+const VENT_MAIN = makeTube([[8, 28, 4, 3, 0.8], [9, 17, 8, 6.5, 0.55], [11, 4, 14, 6, 0.8], [15, -14, 17, 5.5, 1.15],
+  [22, -30, 16, 6.5, 1.0], [28, -40, 12, 7.5, 0.9], [26, -56, 7, 4.5, 1.0], [21, -70, 5, 1.5, 1.0]]);
+const VENT_TEMPORAL = makeTube([[28, -40, 12, 6, 1.0], [34, -32, 0, 4.5, 1.2], [34, -18, -12, 3.5, 1.4], [31, -6, -19, 1.8, 1.4]]);
+const THIRD_VENT = makeEllipsoid([0, -10, 2], [2.1, 14, 10]);
+const MONRO = makeTube([[0, -1, 10, 2.2], [8, 1, 14, 2.2]]);
+// Deep grey nuclei.
+const CAUDATE = makeTube([[16, 15, 7, 6, 0.8], [16, 2, 14, 4.5, 0.9], [19, -14, 19, 3, 1], [25, -30, 17, 2, 1], [31, -38, 8, 1.5, 1]]);
+const PUTAMEN = makeEllipsoid([25.5, 2, 1], [5.5, 16, 10]);
+const PALLIDUM = makeEllipsoid([19.5, -3, -1], [3.8, 8, 5.5]);
+const THALAMUS = makeEllipsoid([11.5, -18, 6], [9.4, 15, 9.5]); // its medial face is the third ventricle's wall
+const CLAUSTRUM = makeEllipsoid([33.2, 1, 3], [0.9, 18, 13]);
+const HIPPOCAMPUS = makeTube([[25, -9, -20, 4.5, 1.2], [29, -22, -13, 4.5, 1.2], [28, -36, -3, 3.5, 1], [23, -42, 4, 2.5, 1]]);
+const AMYGDALA = makeEllipsoid([22, -3, -18], [7, 7, 6.5]);
+// Corpus callosum, a midline arch in (y, z): rostrum, genu, body and splenium (centreline and half-thickness, MNI).
+const CC = makeTube([[0, 18, -6, 2.5], [0, 28, 0, 4], [0, 32, 9, 5], [0, 25, 19, 4], [0, 8, 23, 3], [0, -12, 24, 3],
+  [0, -28, 21, 3.5], [0, -36, 16, 5.5], [0, -40, 9, 6], [0, -36, 4, 4]]);
+const CC_HALF_WIDTH = S * 19; // lateral reach of the callosal label before it merges with the hemispheric white matter
+// Top of the callosal arch (phantom z) as a function of phantom y; points below it lie under the arch.
+const ARCH = [[33, 10], [25, 23], [8, 26.5], [-12, 27.5], [-28, 25], [-36, 21], [-42, 10]].map(([y, z]) => mni(0, y, z).slice(1));
+function underArch(y, z) {
+  if (y > ARCH[0][0] || y < ARCH[ARCH.length - 1][0]) return false;
+  for (let i = 0; i < ARCH.length - 1; i++) {
+    const [y0, z0] = ARCH[i], [y1, z1] = ARCH[i + 1];
+    if (y <= y0 && y >= y1) return z < lerp(z0, z1, (y0 - y) / (y0 - y1));
+  }
+  return false;
+}
+// Brainstem: midbrain, pons, medulla, then the cord.
+const STEM = makeTube([[0, -26, -4, 8.5, 1], [0, -24, -16, 9, 1], [0, -22, -26, 11.5, 1.1], [0, -30, -38, 8, 1],
+  [0, -38, -48, 6.5, 1], [0, -44, -66, 5.5, 1]]);
+const CORD_BELOW = mni(0, -44, -66)[2];
+const FOURTH_VENT = makeEllipsoid([0, -45, -30], [6, 4, 9]);
+// Sylvian fissure: its lateral sheet rises posteriorly; the insula lies under the opercula at |x| ~ 37 MNI.
+const INSULA_X = S * 36;
+const insulaX = (e) => INSULA_X + 2.5 * (1 - e); // e: 0 at the insula's centre, 1 at its circular sulcus
+const INSULA_C = mni(0, -4, 7).slice(1), INSULA_R = [S * 25, S * 15];
+const sylvianZ = (y) => { const m = (y - OY) / S; return S * (-4 + 0.4 * (12 - m)) + OZ; };
+const SYLVIAN_C = mni(0, -12, 0)[1], SYLVIAN_HALF = S * 36;
+
+// ---- skull base and tentorium ----------------------------------------------------------------------------------------
+// Height of the cranial floor: anterior fossa (orbital roofs either side of a lower cribriform plate), middle fossa
+// (deep laterally, the sphenoid body medially), the petrous ridge, and the bowl of the posterior fossa with the clivus.
+const sphenoidRidgeY = (ax) => 33 - 0.08 * ax;
+const petrousY = (ax) => (ax < 16 ? 6 : 6 - 0.8 * (ax - 16));
+function tentoriumZ(ax, y) {
+  const h = y > 0 ? -8 : y > -35 ? -8 + (12 * -y) / 35 : y > -75 ? 4 - (10 * (-35 - y)) / 40 : -6 - 0.3 * (-75 - y);
+  return h - 0.32 * ax;
+}
+function skullFloor(x, y, withForamen = true) {
+  const ax = Math.abs(x);
+  const ant = -15 + 5 * Math.exp(-(((ax - 24) / 12) ** 2)) - 6 * Math.exp(-((ax / 6) ** 2));
+  const mid = -38 + 22 * smoothstep(24, 12, ax);
+  const clivus = -16 + 1.9 * (y - 6);
+  const post = Math.max(-54 + 0.006 * x * x + 0.004 * (y + 52) ** 2, ax < 18 ? clivus : -99);
+  const yp = petrousY(ax), ys = sphenoidRidgeY(ax);
+  let z = lerp(lerp(post, mid, smoothstep(yp - 3, yp + 3, y)), ant, smoothstep(ys - 3, ys + 3, y));
+  if (ax > 16) z = Math.max(z, tentoriumZ(ax, yp) - 2 - 0.12 * (y - yp) ** 2); // petrous ridge
+  if (withForamen && Math.hypot(x, y + 24) < 11) z = -200; // foramen magnum
   return z;
 }
+
+const GRAD = 1.25; // typical |grad(noise)| per lattice unit: converts a noise level to a distance
+const R0 = 70;     // radius of the sphere on which the sulcal pattern is defined
+const DZ = -24;    // the face and neck sit this far below their old place, under the new skull base
+const CORTEX = 2.7; // grey-matter thickness (mm) along pial surfaces
 
 // options: seed (anatomy variation), sulcalDepthMm (0 gives a smooth brain), lesions (bool)
 export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } = {}) {
@@ -85,10 +182,10 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
   const nB = makeNoise(seed * 7919 + 3), nC = makeNoise(seed * 7919 + 4), nCb = makeNoise(seed * 7919 + 5);
   const depthScale = sulcalDepthMm / 14;
 
-  const ventricles = [[-9, -2, 14, 6, 26, 9], [9, -2, 14, 6, 26, 9], [0, 4, 8, 1.2, 7, 7], [-9, 24, 12, 4, 10, 7], [9, 24, 12, 4, 10, 7]];
-  const nuclei = [[-12, -14, 5, 11, 15, 10], [12, -14, 5, 11, 15, 10], [-13, 14, 8, 6, 11, 9], [13, 14, 8, 6, 11, 9]];
+  // example white-matter lesions (MNI centre, semi-axes): periventricular, deep and near the cortex
   const lesionList = lesions
-    ? [[-15, 22, 12, 4, 4, 4], [17, 14, 14, 3, 3, 3], [-23, -12, 16, 5, 4, 4], [13, -26, 10, 3.5, 3.5, 3.5], [-7, 34, 17, 2.5, 2.5, 2.5], [-30, 5, 24, 3, 3, 3]]
+    ? [[[-24, 12, 24], [4, 5, 4]], [[22, -6, 28], [3, 3, 3]], [[-30, -30, 26], [5, 4, 4]], [[30, -50, 18], [3.5, 3.5, 3.5]],
+      [[-18, 34, 18], [2.5, 2.5, 2.5]], [[-36, 2, 34], [3, 3, 3]]].map(([c, r]) => [...mni(...c), ...r.map((v) => S * v)])
     : [];
   const inside = (list, x, y, z) => list.some(([cx, cy, cz, a, b, c]) => sdEllipsoid(x - cx, y - cy, z - cz, a, b, c) < 0);
 
@@ -102,38 +199,89 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
     return (((Math.abs(n) - w) * lambda) / GRAD) * Math.max(0.35, 1 - depth / R0);
   }
 
-  function brainLabel(x, y, z) {
-    // Cerebellum and brainstem sit low and posterior.
-    const sdCb = sdEllipsoid(x, y + 52, z + 30, 46, 32, 24);
-    const sdStem = sdCapsule(x, y + 14, z + 4, 0, 0, -45, 0, 2, -100, 10);
-    if (sdStem < 0) return WM;
-    if (sdCb < 0) {
-      const d = -sdCb;
-      let s = Infinity;
-      if (depthScale > 0) {
-        const L = Math.hypot(x / 46, (y + 52) / 32, (z + 30) / 24) || 1;
-        s = sulcalDistance((x / 46 / L) * 30, ((y + 52) / 32 / L) * 30, ((z + 30) / 24 / L) * 30, d, 7, 12, 0.12, nCb, 5.1);
-      }
-      if (s < 0) return CSF;
-      return d < 2.2 || s < 2 ? GM : WM;
-    }
+  // Cortical sulcus from one octave of noise: the distance (mm) from the sulcal CSF, using the local gradient so
+  // that every sulcus has the same width and the grey matter around it the same thickness. The sulcus is a sheet
+  // hw mm either side of the noise's zero level, running in to depth D, where the cortex wraps round its fundus.
+  // cd: depth below the pial surface. Returns Infinity when too deep to matter.
+  function sulcus(qx, qy, qz, cd, lambda, D, nz, off, hw) {
+    if (cd > D + CORTEX + 1) return Infinity;
+    const u = qx / lambda + off, v = qy / lambda + off * 0.7, w = qz / lambda - off * 0.4, h = 0.2;
+    const n = nz(u, v, w);
+    const g = Math.hypot(nz(u + h, v, w) - n, nz(u, v + h, w) - n, nz(u, v, w + h) - n) / (h * lambda) + 1e-4;
+    const sheet = (Math.abs(n) / g) * Math.max(0.4, 1 - cd / R0);
+    if (cd <= D) return sheet - hw * Math.sqrt(1 - (cd / D) ** 2);
+    return Math.hypot(sheet, cd - D);
+  }
 
-    // Cerebrum plus temporal lobes; their junction leaves a natural Sylvian cleft.
-    const sdBrain = Math.min(
-      sdEllipsoid(x, y - 1, z - 13.5, 63.4, 82.5, 62),
-      sdEllipsoid(x - 47, y - 4, z + 12, 16, 34, 18),
-      sdEllipsoid(x + 47, y - 4, z + 12, 16, 34, 18));
-    const depth = -sdBrain + depthScale * 0.8 * nA(x / 40, y / 40, z / 40);
-    if (depth < 0) return CSF;
-
-    // Interhemispheric fissure: a thin wavy CSF sheet above the corpus callosum.
-    if (z > 21 - 0.006 * (y - 4) ** 2 && Math.abs(x - 0.8 * Math.sin(y / 17 + z / 23)) < 0.8) return CSF;
-
+  function cerebellumLabel(x, y, z, depth) {
+    if (FOURTH_VENT(x, y, z) < 0) return CSF;
     let s = Infinity;
     if (depthScale > 0) {
-      const dx = x / 63.4, dy = (y - 1) / 82.5, dz = (z - 13.5) / 62;
-      const L = Math.hypot(dx, dy, dz) || 1;
-      let qx = (dx / L) * R0, qy = (dy / L) * R0, qz = (dz / L) * R0;
+      const L = Math.hypot(x / 46, (y + 45) / 32, (z + 32) / 24) || 1;
+      s = sulcalDistance((x / 46 / L) * 30, ((y + 45) / 32 / L) * 30, ((z + 32) / 24 / L) * 30, depth, 7, 12, 0.12, nCb, 5.1);
+    }
+    if (s < 0) return CSF;
+    return depth < 2.2 || s < 2 ? GM : WM;
+  }
+
+  function cerebrumLabel(x, y, z, depth) {
+    const ax = Math.abs(x);
+    const third = THIRD_VENT(x, y, z);
+    if (third < 0 || MONRO(ax, y, z) < 0) return CSF;
+    if (third < 1.5) return GM; // its walls are grey: thalamus above, hypothalamus below
+    const arch = underArch(y, z);
+    const dcc = CC(0, y, z);
+    if (dcc < 0 && ax < CC_HALF_WIDTH) return WM;
+
+    // pial surfaces other than the outer one: the interhemispheric fissure, the callosal and cingulate sulci and the
+    // Sylvian fissure with the insula beneath it (distances in mm, negative inside the CSF)
+    let pial = depth, medial = Infinity; // medial: depth below the medial surface, beyond the cingulate gyrus
+    if (!arch && dcc > 0) {
+      const fis = Math.abs(x - 0.8 * Math.sin(y / 17 + z / 23)) - 0.9;
+      if (fis < 0) return CSF;
+      pial = Math.min(pial, fis);
+      if (dcc > S * 15) medial = fis;
+      // sulci on the medial surface taper to a rounded fundus at their lateral depth
+      if (ax < 7) {
+        const cal = Math.abs(dcc - 1.1) - 0.6 * Math.sqrt(1 - (ax / 7) ** 2);
+        if (cal < 0) return CSF;
+        pial = Math.min(pial, cal);
+      }
+      if (ax < 16 && y > mni(0, -42, 0)[1] && z > mni(0, 0, -6)[2]) {
+        const cing = Math.abs(dcc - S * 11.5 - 1.2 * Math.sin(y / 9)) - 0.75 * Math.sqrt(1 - (ax / 16) ** 2);
+        if (cing < 0) return CSF;
+        pial = Math.min(pial, cing);
+      }
+    }
+    if (ax > INSULA_X - 6) {
+      // the insula: an oval of cortex, bulging laterally at its centre, covered by CSF and the opercula
+      let syl = Infinity;
+      const e = ((y - INSULA_C[0]) / INSULA_R[0]) ** 2 + ((z - INSULA_C[1]) / INSULA_R[1]) ** 2;
+      if (e < 1) syl = Math.abs(ax - insulaX(e)) - 0.8;
+      // the Sylvian fissure: a sheet from the insula out to the surface, fading at its ends
+      const ey = (y - SYLVIAN_C) / SYLVIAN_HALF;
+      if (Math.abs(ey) < 1) {
+        const zs = sylvianZ(y) + 1.8 * Math.sin(ax / 6 + y / 13) + 1.2 * Math.sin(y / 5.5);
+        const es = ((y - INSULA_C[0]) / INSULA_R[0]) ** 2 + ((zs - INSULA_C[1]) / INSULA_R[1]) ** 2;
+        if (ax > insulaX(Math.min(1, es)) - 0.5) syl = Math.min(syl, Math.abs(z - zs) - 0.9 * Math.sqrt(1 - ey * ey));
+      }
+      if (syl < 0) return CSF;
+      pial = Math.min(pial, syl);
+    }
+
+    let s = Infinity;
+    const cortical = Math.min(depth, medial);
+    if (depthScale > 0 && cortical < 20 * depthScale + CORTEX + 1) {
+      let qx, qy, qz;
+      if (medial < depth) {
+        // medial surface: the pattern lies in the sagittal plane, so the sulci run straight in from the midline
+        qx = R0; qy = y; qz = z;
+      } else {
+        // outer surface: the pattern lies on a sphere round the brain centre, so the sulci run radially inward
+        const dx = x / 63.4, dy = (y - 1) / 82.5, dz = (z - 13.5) / 62;
+        const L = Math.hypot(dx, dy, dz) || 1;
+        qx = (dx / L) * R0; qy = (dy / L) * R0; qz = (dz / L) * R0;
+      }
       // Two domain warps make the pattern meander like gyri: one in surface position (curving
       // the sulci along the cortex) and one in 3-D position (bending them as they go deeper).
       const wx = 6 * nWarp(qx / 20, qy / 20, qz / 20), wy = 6 * nWarp(qx / 20 + 9, qy / 20, qz / 20);
@@ -142,16 +290,47 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
       const uz = 9 * nWarp(x / 24, y / 24, z / 24 + 4);
       qx += wx + ux; qy += wy + uy; qz += wz + uz;
       s = Math.min(
-        sulcalDistance(qx, qy, qz, depth, 46, 21 * depthScale + 0.001, 0.045, nA, 3.3),
-        sulcalDistance(qx, qy, qz, depth, 29, 13 * depthScale + 0.001, 0.05, nB, 9.7),
-        sulcalDistance(qx, qy, qz, depth, 19, 7.5 * depthScale + 0.001, 0.05, nC, 6.1));
+        sulcus(qx, qy, qz, cortical, 34, 20 * depthScale, nA, 3.3, 0.7),
+        sulcus(qx, qy, qz, cortical, 20, 10 * depthScale, nB, 9.7, 0.55));
     }
     if (s < 0) return CSF;
-    let label = depth < 3.2 || s < 2.4 ? GM : WM;
-    if (inside(nuclei, x, y, z)) label = GM;
-    if (inside(ventricles, x, y, z)) return CSF;
-    if (label === WM && lesionList.length && inside(lesionList, x, y, z)) label = LESION;
-    return label;
+
+    // deep grey nuclei carve the ventricles they border (caudate, thalamus, hippocampus)
+    if (ax < 36 && y > -40 && y < 50 && z > -30 && z < 32) {
+      if (CAUDATE(ax, y, z) < 0 || THALAMUS(ax, y, z) < 0 || PUTAMEN(ax, y, z) < 0 || PALLIDUM(ax, y, z) < 0
+        || CLAUSTRUM(ax, y, z) < 0 || HIPPOCAMPUS(ax, y, z) < 0 || AMYGDALA(ax, y, z) < 0) return GM;
+    }
+    if (VENT_MAIN(ax, y, z) < 0 || VENT_TEMPORAL(ax, y, z) < 0) return CSF;
+
+    if (pial < CORTEX || s < CORTEX) return GM;
+    if (lesionList.length && inside(lesionList, x, y, z)) return LESION;
+    return WM;
+  }
+
+  // Everything inside the cranial cavity: brain, CSF spaces and the tentorium between cerebrum and cerebellum.
+  function intracranial(x, y, z, sdCranium, floor) {
+    const ax = Math.abs(x);
+    const stem = STEM(x, y, z);
+    if (stem < 0) return WM;
+    if (stem < 2.5 && z < -8) return CSF; // cisterns around the pons and medulla
+    const gap = 1.6 + depthScale * 0.6 * nA(x / 40, y / 40, z / 40); // subarachnoid space
+    const toWall = Math.min(-sdCranium - 12, z - floor);
+    const posterior = y < petrousY(ax);
+    const notch = ax < 12 && y > -22; // the tentorial notch, around the midbrain
+    if (posterior && !notch) {
+      const zt = tentoriumZ(ax, y);
+      // the brain lies close against the tentorium: a thin dural sheet with little CSF either side
+      if (z < zt - 0.8) {
+        const depth = Math.min(toWall - gap, zt - z - 0.8);
+        return depth < 0 ? CSF : cerebellumLabel(x, y, z, depth);
+      }
+      if (z < zt + 0.8) return CSF;
+      const depth = Math.min(toWall - gap, z - zt - 0.8);
+      return depth < 0 ? CSF : cerebrumLabel(x, y, z, depth);
+    }
+    if (notch && posterior && z < tentoriumZ(0, y) - 5) return CSF; // interpeduncular, ambient and quadrigeminal cisterns
+    const depth = toWall - gap;
+    return depth < 0 ? CSF : cerebrumLabel(x, y, z, depth);
   }
 
   // Air spaces: nasal passage, sinuses, oral cavity, pharynx and trachea.
@@ -191,10 +370,8 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
     return MUSCLE; // tongue, cheeks, neck muscles and other soft tissue
   }
 
-  function labelAt(x, y, z) {
-    // Outer surface: cranial vault (flatter below), face, nose and neck.
-    const zh = z - 8 < 0 ? (z - 8) * 1.3 : z - 8;
-    const sdVault = sdEllipsoid(x, y, zh, 76, 96, 84);
+  // Outer surface of the face and neck (in their own frame, before the DZ shift).
+  function sdFaceNeck(x, y, z) {
     const sdFace = Math.min(
       sdEllipsoid(x, y - 58, z + 34, 60, 40, 50),   // face
       sdEllipsoid(x, y - 70, z + 74, 28, 22, 16),   // chin
@@ -205,19 +382,27 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
       sdEllipsoid(Math.abs(x) - 78, y + 4, z + 6, 5, 11, 16)); // ears
     // Short neck, cut flat 6 cm below the chin.
     const sdNeck = Math.max(sdEllipsoid(x, y + 6, z + 70, 46, 56, 60), -92 - z);
-    const sdOuter = Math.min(sdVault, sdFace, sdNeck);
+    return Math.min(sdFace, sdNeck);
+  }
+
+  function labelAt(x, y, z) {
+    // Cranium: an ovoid, fuller above its equator than below.
+    const zc = z < 0 ? z * (92 / 80) : z;
+    const sdCranium = sdEllipsoid(x, y + 6, zc, 76, 96, 92);
+    const fz = z - DZ; // face and neck coordinates
+    const sdOuter = Math.min(sdCranium, sdFaceNeck(x, y, fz));
     if (sdOuter > 0) return AIR;
-    if (isAirSpace(x, y, z)) return AIR;
+    if (isAirSpace(x, y, fz)) return AIR;
 
     const floor = skullFloor(x, y);
-    if (sdVault < -12 && z > floor) return brainLabel(x, y, z);
+    if (sdCranium < -12 && z > floor) return intracranial(x, y, z, sdCranium, floor);
     // Skull: vault shell and the base slab, in three layers (outer table, marrow, inner table).
-    const wall = sdVault < -6 && sdVault > -12 && z > floor - 6 ? -sdVault - 6 : -1; // 0..6 mm into the vault shell
-    const base = sdVault < -6 && z <= floor && z > floor - 6 ? floor - z : -1; // 0..6 mm below the floor
+    const wall = sdCranium < -6 && sdCranium > -12 && z > floor - 6 ? -sdCranium - 6 : -1; // 0..6 mm into the vault
+    const base = sdCranium < -6 && z <= floor && z > floor - 6 ? floor - z : -1; // 0..6 mm below the floor
     const layer = wall >= 0 ? wall : base;
     if (layer >= 0) return layer < 1.5 || layer >= 4.5 ? BONE : FAT;
-    if (sdVault > -6 && sdVault <= 0 && z > floor - 8) return FAT; // scalp
-    return softTissue(x, y, z, sdOuter);
+    if (sdCranium > -6 && sdCranium <= 0 && z > floor - 8) return FAT; // scalp
+    return softTissue(x, y, fz, sdOuter);
   }
 
   return { labelAt, options: { seed, sulcalDepthMm, lesions } };
