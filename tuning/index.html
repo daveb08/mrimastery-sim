@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coil Tuning &amp; Matching</title>
+<link rel="stylesheet" href="../shared/style.css">
+<style>
+  .capctl { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: center; }
+  .capctl button { padding: 2px 9px; }
+  .readouts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 14px; margin: 8px 0; }
+  @media (max-width: 700px) { .readouts { grid-template-columns: repeat(2, 1fr); } }
+  .readouts div { font-size: .85rem; color: var(--muted); }
+  .readouts b { display: block; color: var(--text); font-size: 1.15rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ok { border: 1px solid var(--green); background: rgba(102,221,102,.1); border-radius: 6px; padding: 8px 12px; margin: 0 0 8px; }
+  #status .warn, #status .alert { margin: 0 0 8px; }
+  #circuit { margin-top: 10px; }
+  #circuit { padding: 4px 12px; }
+  #circuit svg { width: 100%; max-width: 640px; height: auto; display: block; margin: 0 auto; }
+  /* plots take what is left of the window once the header, readouts and circuit are placed */
+  .plot { height: max(280px, calc(100vh - 560px)); }
+</style>
+<script src="../shared/text-size.js"></script>
+</head>
+<body>
+<main>
+  <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
+  <h1>Coil tuning &amp; matching</h1>
+  <p class="sub">A loop coil made resonant at the Larmor frequency and matched to a 50 Ω line, and what a patient does to it.</p>
+
+  <div class="with-sidebar">
+    <aside class="panel sidebar" aria-label="Coil and circuit controls">
+      <h2>Scanner and coil</h2>
+      <label for="b0">Field strength</label>
+      <select id="b0"><option value="0.5">0.5 T</option><option value="1.5">1.5 T</option><option value="3" selected>3 T</option><option value="7">7 T</option></select>
+      <label for="radius">Loop radius (cm) <span class="v" id="radiusV"></span></label>
+      <input id="radius" type="range" min="2" max="12" step="0.5" value="5">
+      <label for="qu">Unloaded Q (the coil's own losses) <span class="v" id="quV"></span></label>
+      <input id="qu" type="range" min="50" max="600" step="10" value="250">
+      <label for="loading">Patient loading <span class="v" id="loadingV"></span></label>
+      <input id="loading" type="range" min="0" max="1" step="0.05" value="0">
+
+      <h2 style="margin-top:18px">Capacitors</h2>
+      <label for="ct">Tuning capacitor Ct <span class="v" id="ctV"></span></label>
+      <div class="capctl"><button class="btn" id="ctDown" aria-label="Decrease Ct">−</button>
+        <input id="ct" type="range" min="-13" max="-9.3" step="0.0005"><button class="btn" id="ctUp" aria-label="Increase Ct">+</button></div>
+      <label for="cm">Matching capacitor Cm <span class="v" id="cmV"></span></label>
+      <div class="capctl"><button class="btn" id="cmDown" aria-label="Decrease Cm">−</button>
+        <input id="cm" type="range" min="-13" max="-9.3" step="0.0005"><button class="btn" id="cmUp" aria-label="Increase Cm">+</button></div>
+      <div class="btnrow" style="margin-top:12px">
+        <button class="btn" id="auto">Tune &amp; match</button>
+        <button class="btn" id="mistune">Mistune</button>
+      </div>
+      <p class="caption">The − and + buttons step a capacitor by 0.5%, like turning a trimmer. Changing the field
+        strength, loop or loading keeps the capacitors as they are: the coil on the bench does not change.</p>
+    </aside>
+
+    <section>
+      <div id="status"></div>
+      <div class="readouts" id="readouts"></div>
+      <div class="grid2">
+        <div class="panel"><div id="s11" class="plot"></div></div>
+        <div class="panel"><div id="smith" class="plot"></div></div>
+      </div>
+      <div class="panel" id="circuit"></div>
+      <p class="caption">Model: a circular loop of 2 mm wire (L = μ₀R[ln(8R/a) − 2]); coil loss from the unloaded Q;
+        patient loss for tissue of conductivity 0.5 S/m, growing with frequency² and loop radius³; the patient also adds
+        a little stray capacitance, pulling the resonance down. B1+ is at the loop centre for 100 W from the amplifier:
+        B1+ is half the linear field, because only one of its two counter-rotating halves turns with the spins.</p>
+    </section>
+  </div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script type="module" src="ui.js"></script>
+</body>
+</html>
