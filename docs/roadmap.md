@@ -39,3 +39,19 @@ Recorded 2026-11-01; order agreed 2026-11-04 (basic ideas first). Nothing here s
 
 Alongside 4–5: an acceleration-factor control in the contrast simulator (scan time ÷ R, SNR ∝ 1 / (g √R), matching
 artifacts).
+
+## Backlog (not ordered, not started)
+
+- **Real-subject phantom option (OpenNeuro)** — added 2026-11-03.
+  - A "Phantom: generated / real subject" switch, with the procedural phantom kept as the default.
+  - Source: a healthy adult's 1 mm 3D T1 (plus T2 if available) from a CC0 OpenNeuro dataset, segmented offline
+    (SynthSeg, FSL FAST or FreeSurfer, or segmentations shipped with the dataset) into the phantom's labels. The
+    labels are stored as a compact file of a few MB.
+  - Risks:
+    - each dataset's licence must be checked, and the DOI cited;
+    - scans are defaced and often neck-cropped, so the subject is for brain views only;
+    - the anatomy is fixed (no seeds, no sub-voxel slices, lesions would need painting);
+    - segmentation errors are inherited;
+    - load size if several subjects are added.
+  - Start with a one-subject pilot. First step: research two or three candidate datasets for licence, size and
+    segmentations.

@@ -86,6 +86,27 @@ test("named sulci are at their landmarks for every seed", () => {
   }
 });
 
+test("posterior fossa: aqueduct, peduncles, dentate nuclei, cisterns, and a cerebellum that is mostly cortex", () => {
+  const p = createPhantom({ seed: 1 });
+  const at = (x, y, z) => p.labelAt(...mni(x, y, z));
+  assert.equal(at(0, -34, -6), CSF, "cerebral aqueduct");
+  assert.equal(at(0, -42, -30), CSF, "fourth ventricle");
+  assert.equal(at(0, -62, -52), CSF, "cisterna magna");
+  for (const sx of [1, -1]) {
+    assert.equal(at(sx * 18, -42, -28), WM, "middle cerebellar peduncle");
+    assert.equal(at(sx * 14, -56, -34), GM, "dentate nucleus");
+  }
+  // in front of the pons: clivus bone, then a thin cistern, then the pons
+  const row = [];
+  for (let y = 0; y >= -30; y -= 0.5) { const l = at(0, y, -27); if (row[row.length - 1] !== l) row.push(l); }
+  assert.ok(row.indexOf(CSF) > row.indexOf(BONE) && row.indexOf(WM) > row.indexOf(CSF), `row ${row}`);
+  let g = 0, w = 0;
+  for (let x = -45; x <= 45; x += 3) for (let y = -90; y <= -45; y += 3) for (let z = -60; z <= -20; z += 3) {
+    const l = at(x, y, z); if (l === GM) g++; if (l === WM) w++;
+  }
+  assert.ok(g / (g + w) > 0.55, `cerebellar grey fraction ${g / (g + w)}`);
+});
+
 test("phantom is deterministic for a seed and differs between seeds", () => {
   const a = sliceLabels(createPhantom({ seed: 4 }), "axial", 10, 64);
   const b = sliceLabels(createPhantom({ seed: 4 }), "axial", 10, 64);

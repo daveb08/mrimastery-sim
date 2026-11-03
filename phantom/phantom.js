@@ -104,8 +104,12 @@ function makeTube(nodesMni) {
 }
 // An ellipsoid given by its MNI centre and semi-axes.
 function makeEllipsoid([cx, cy, cz], [a, b, c]) {
-  const [px, py, pz] = mni(cx, cy, cz);
-  return (x, y, z) => sdEllipsoid(x - px, y - py, z - pz, S * a, S * b, S * c);
+  const [px, py, pz] = mni(cx, cy, cz), sa = S * a, sb = S * b, sc = S * c;
+  return (x, y, z) => {
+    // far outside: a cheap lower bound is enough (callers only test the sign or small distances)
+    if (Math.abs(x - px) > sa + 3 || Math.abs(y - py) > sb + 3 || Math.abs(z - pz) > sc + 3) return 99;
+    return sdEllipsoid(x - px, y - py, z - pz, sa, sb, sc);
+  };
 }
 
 // ---- deep anatomy (left hemisphere, x > 0; evaluated at |x|) ---------------------------------------------------------
@@ -137,11 +141,29 @@ function underArch(y, z) {
   }
   return false;
 }
-// Brainstem: midbrain, pons, medulla, then the cord.
-const STEM = makeTube([[0, -26, -4, 8.5, 1], [0, -24, -16, 9, 1], [0, -22, -26, 11.5, 1.1], [0, -30, -38, 8, 1],
-  [0, -38, -48, 6.5, 1], [0, -44, -66, 5.5, 1]]);
-const CORD_BELOW = mni(0, -44, -66)[2];
-const FOURTH_VENT = makeEllipsoid([0, -45, -30], [6, 4, 9]);
+// Brainstem: midbrain with the cerebral peduncles in front of the tectum, the pons bulging forward, the medulla with
+// its olives, then the cord. The middle cerebellar peduncles carry the pons into the cerebellar white matter.
+const MIDBRAIN = makeTube([[0, -30, 2, 8, 1], [0, -30, -12, 8.5, 1]]);
+const PEDUNCLE = makeTube([[7, -16, 4, 4.5, 1], [7, -22, -10, 5, 1]]); // evaluated at |x|
+const PONS = makeEllipsoid([0, -28, -27], [15, 12, 11]);
+const MEDULLA = makeTube([[0, -34, -36, 8, 1], [0, -38, -48, 6.5, 1], [0, -44, -66, 5.5, 1]]);
+const OLIVE = makeEllipsoid([5.5, -32, -44], [3, 3.5, 6]); // evaluated at |x|
+const MCP = makeTube([[11, -28, -27, 7, 1], [19, -42, -28, 6.5, 1], [17, -52, -30, 5, 1]]); // evaluated at |x|
+const STEM = (x, y, z) => {
+  const ax = Math.abs(x);
+  return Math.min(MIDBRAIN(x, y, z), PEDUNCLE(ax, y, z), PONS(x, y, z), MEDULLA(x, y, z), OLIVE(ax, y, z));
+};
+const AQUEDUCT = makeTube([[0, -32, 0, 1.3, 1], [0, -36, -12, 1.3, 1], [0, -40, -20, 1.8, 1]]);
+// Fourth ventricle: a tent over the back of the pons, its roof peaking at the fastigium, with lateral recesses.
+const FOURTH_VENT = (x, y, z) => Math.min(FOURTH_BODY(x, y, z), FOURTH_RECESS(Math.abs(x), y, z));
+const FOURTH_BODY = makeTube([[0, -40, -20, 1.8, 1], [0, -40, -28, 5, 0.8], [0, -47, -27, 1.5, 1], [0, -40, -28, 5, 0.8],
+  [0, -40, -38, 3, 1], [0, -42, -45, 1, 1]]);
+const FOURTH_RECESS = makeTube([[0, -40, -31, 3, 1], [12, -40, -34, 1.8, 1], [17, -38, -37, 1, 1]]);
+const CISTERNA_MAGNA = makeEllipsoid([0, -62, -52], [12, 9, 7]);
+const DENTATE = makeEllipsoid([14, -56, -34], [6, 8, 6]); // evaluated at |x|
+// Cerebellar fissures fan round a transverse axis through the fastigium; folia arc forward laterally.
+const [, CB_Y, CB_Z] = mni(0, -48, -27);
+const PRIMARY_STEP = (24 * Math.PI) / 180, FOLIUM_STEP = (4.2 * Math.PI) / 180;
 // Sylvian fissure: its lateral sheet rises posteriorly; the insula lies under the opercula at |x| ~ 37 MNI.
 const INSULA_X = S * 36;
 const insulaX = (e) => INSULA_X + 2.5 * (1 - e); // e: 0 at the insula's centre, 1 at its circular sulcus
@@ -245,15 +267,40 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
     return Math.hypot(sheet, cd - D);
   }
 
+  // Cerebellum: lobules separated by primary fissures, each lobule a fan of folia, with white-matter laminae (the arbor
+  // vitae) running from the deep white matter up the middle of each lobule. Angles are measured round a transverse
+  // axis through the fastigium; the seed only nudges the fissures.
+  const cbJitter = (k) => 0.25 * nCb(k * 1.7, 0.5, 0.5);
   function cerebellumLabel(x, y, z, depth) {
-    if (FOURTH_VENT(x, y, z) < 0) return CSF;
-    let s = Infinity;
-    if (depthScale > 0) {
-      const L = Math.hypot(x / 46, (y + 45) / 32, (z + 32) / 24) || 1;
-      s = sulcalDistance((x / 46 / L) * 30, ((y + 45) / 32 / L) * 30, ((z + 32) / 24 / L) * 30, depth, 7, 12, 0.12, nCb, 5.1);
-    }
-    if (s < 0) return CSF;
-    return depth < 2.2 || s < 2 ? GM : WM;
+    const ax = Math.abs(x);
+    if (FOURTH_VENT(x, y, z) < 0 || CISTERNA_MAGNA(x, y, z) < 0) return CSF;
+    if (MCP(ax, y, z) < 0) return WM;
+    if (ax < 1.5 && y < mni(0, -76, 0)[1] && z < mni(0, 0, -30)[2]) return CSF; // posterior cerebellar notch
+    if (DENTATE(ax, y, z) < 0) return GM;
+    const ye = y - 0.011 * x * x; // folia arc forward laterally, round the fourth ventricle
+    const dy = ye - CB_Y, dz = z - CB_Z, rho = Math.hypot(dy, dz);
+    // fissures are curved surfaces: they undulate and dip laterally rather than lying in planes
+    const th = Math.atan2(dz, -dy) - 0.004 * ax + 0.07 * MEANDER(x / 14, y / 18, z / 18);
+    // primary fissures, deep: distance along the arc from the nearest one
+    const kp = Math.round(th / PRIMARY_STEP), thp = (kp + cbJitter(kp)) * PRIMARY_STEP;
+    const dPrimary = rho * Math.abs(th - thp);
+    const primary = sheetSulcus(dPrimary, depth, Math.min(16, rho - 10) * depthScale, 0.5);
+    if (primary < 0) return CSF;
+    // folial sulci, shallow
+    // (none close to the fan's axis, where they would crowd together)
+    const folium = rho < 24 ? Infinity
+      : sheetSulcus(rho * Math.abs(th - Math.round(th / FOLIUM_STEP) * FOLIUM_STEP), depth, 4.5 * depthScale * clamp((rho - 24) / 8, 0, 1), 0.35);
+    if (folium < 0) return CSF;
+    // white matter: the deep core, and a lamina up the middle of each lobule, thinning towards the surface
+    if (depth > 20) return WM;
+    if (rho < 18) return depth > 4 ? WM : GM; // central white matter round the fastigium, where the laminae converge
+    const thm = thp + (th > thp ? 0.5 : -0.5) * PRIMARY_STEP;
+    const lamina = rho * Math.abs(th - thm), half = 0.25 + 1.1 * clamp((depth - 2.5) / 14, 0, 1);
+    if (depth > 2.5 && lamina < half) return WM;
+    // secondary laminae branch off towards the folia
+    const branch = rho * Math.abs(th - thm - Math.sign(th - thm || 1) * 0.25 * PRIMARY_STEP);
+    if (depth > 3 && depth < 11 && branch < 0.25 + 0.5 * clamp((depth - 3) / 8, 0, 1)) return WM;
+    return GM;
   }
 
   function cerebrumLabel(x, y, z, depth) {
@@ -367,9 +414,13 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
   // Everything inside the cranial cavity: brain, CSF spaces and the tentorium between cerebrum and cerebellum.
   function intracranial(x, y, z, sdCranium, floor) {
     const ax = Math.abs(x);
-    const stem = STEM(x, y, z);
-    if (stem < 0) return WM;
-    if (stem < 2.5 && z < -8) return CSF; // cisterns around the pons and medulla
+    if (z < 16 && y < 20 && ax < 30) { // brainstem region
+      if (AQUEDUCT(x, y, z) < 0 || FOURTH_VENT(x, y, z) < 0) return CSF;
+      const stem = STEM(x, y, z);
+      if (stem < 0) return WM;
+      if (y > CB_Y - 6 && MCP(ax, y, z) < 0) return WM;
+      if (stem < 2.5 && z < -8 && y > CB_Y + 4) return CSF; // prepontine and lateral medullary cisterns
+    }
     const gap = 1.6 + depthScale * 0.6 * nA(x / 40, y / 40, z / 40); // subarachnoid space
     const toWall = Math.min(-sdCranium - 12, z - floor);
     const posterior = y < petrousY(ax);
