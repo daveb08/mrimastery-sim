@@ -53,6 +53,39 @@ test("the temporal lobe sits in the middle cranial fossa, the cerebellum under t
   assert.ok(brain(p.labelAt(...mni(25, -80, 10))), "occipital lobe above the tentorium");
 });
 
+test("the cortex is a thin ribbon: grey matter between sulcal CSF and white matter is about 3 mm along radial rays", () => {
+  const p = createPhantom({ seed: 1 });
+  const runs = [];
+  for (let k = 0; k < 400; k++) {
+    // directions spread over the upper brain; record grey runs that end in CSF on their outer side
+    const th = Math.acos(1 - 2 * ((k + 0.5) / 400)), ph = k * 2.39996;
+    const d = [Math.sin(th) * Math.cos(ph), Math.sin(th) * Math.sin(ph), Math.cos(th)];
+    if (d[2] < -0.2) continue;
+    let prev = -1, start = 0;
+    for (let r = 20; r < 90; r += 0.25) {
+      const l = p.labelAt(d[0] * r, 1 + d[1] * r, 14 + d[2] * r);
+      if (l !== prev) { if (prev === GM && l === CSF) runs.push(r - start); start = r; prev = l; }
+    }
+  }
+  runs.sort((a, b) => a - b);
+  const median = runs[Math.floor(runs.length / 2)];
+  assert.ok(runs.length > 200, `runs ${runs.length}`);
+  assert.ok(median > 2.2 && median < 4.5, `median ${median} mm`); // rays cross the ribbon at an angle, so a little over 2.7
+});
+
+test("named sulci are at their landmarks for every seed", () => {
+  for (const seed of [1, 9]) {
+    const p = createPhantom({ seed });
+    let central = 0, calcarine = 0;
+    // central sulcus: CSF along an anteroposterior line on the convexity near MNI (40, -20, 58)
+    for (let y = -34; y <= -6; y += 0.5) if (p.labelAt(...mni(40, y, 58)) === CSF) central++;
+    // calcarine: CSF in a vertical line on the medial occipital surface near MNI (6, -80, 3)
+    for (let z = -6; z <= 12; z += 0.5) if (p.labelAt(...mni(6, -80, z)) === CSF) calcarine++;
+    assert.ok(central > 0, `seed ${seed}: no central sulcus`);
+    assert.ok(calcarine > 0, `seed ${seed}: no calcarine sulcus`);
+  }
+});
+
 test("phantom is deterministic for a seed and differs between seeds", () => {
   const a = sliceLabels(createPhantom({ seed: 4 }), "axial", 10, 64);
   const b = sliceLabels(createPhantom({ seed: 4 }), "axial", 10, 64);

@@ -149,6 +149,38 @@ const INSULA_C = mni(0, -4, 7).slice(1), INSULA_R = [S * 25, S * 15];
 const sylvianZ = (y) => { const m = (y - OY) / S; return S * (-4 + 0.4 * (12 - m)) + OZ; };
 const SYLVIAN_C = mni(0, -12, 0)[1], SYLVIAN_HALF = S * 36;
 
+// ---- named sulci ----------------------------------------------------------------------------------------------------
+// Distance (mm) from a sulcal sheet whose CSF is hw mm either side of it, running in to depth D, where the cortex wraps
+// round its fundus. dSheet: distance from the sheet; depth: below the pial surface it opens onto.
+function sheetSulcus(dSheet, depth, D, hw) {
+  if (!(D > 0)) return Infinity;
+  if (depth <= D) return dSheet - hw * Math.sqrt(1 - (depth / D) ** 2);
+  return Math.hypot(dSheet, depth - D);
+}
+// Central sulcus on the lateral convexity: from near the midline at the vertex, down and forward to just above the
+// Sylvian fissure, with the posteriorly bulging "hand knob". Its MNI y as a function of MNI |x|.
+const SLOPE_CS = 0.42;
+const MEANDER = makeNoise(977); // fixed (not seeded): the named sulci keep their shape for every seed
+const centralY = (axm) => -36 + SLOPE_CS * axm - 5 * Math.exp(-(((axm - 36) / 7) ** 2)) + 1.5 * Math.sin(axm / 5);
+const CENTRAL = [{ off: 0, D: S * 21 }, { off: 15, D: S * 14 }, { off: -14, D: S * 14 }]; // central, pre-, postcentral
+// Medial sulci, as segments in the midsagittal (y, z) plane (MNI): calcarine, parieto-occipital and marginal ramus.
+const MEDIAL_SULCI = [
+  { pts: [[-102, 6], [-88, 3], [-72, 2], [-60, 4], [-50, 0]], D: S * 17 },
+  { pts: [[-58, 4], [-66, 22], [-74, 38], [-80, 50]], D: S * 18 },
+  { pts: [[-34, 40], [-40, 56], [-44, 70]], D: S * 12 },
+].map(({ pts, D }) => ({ pts: pts.map(([y, z]) => mni(0, y, z).slice(1)), D }));
+function segDist2(py, pz, pts) {
+  let best = Infinity, along = 0, total = 0, at = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ay, az] = pts[i], [by, bz] = pts[i + 1], dy = by - ay, dz = bz - az, l = Math.hypot(dy, dz);
+    const t = clamp(((py - ay) * dy + (pz - az) * dz) / (l * l), 0, 1);
+    const d = Math.hypot(py - ay - t * dy, pz - az - t * dz);
+    if (d < best) { best = d; at = total + t * l; }
+    total += l;
+  }
+  return [best, at / total]; // distance and the position along the sulcus, 0..1
+}
+
 // ---- skull base and tentorium ----------------------------------------------------------------------------------------
 // Height of the cranial floor: anterior fossa (orbital roofs either side of a lower cribriform plate), middle fossa
 // (deep laterally, the sphenoid body medially), the petrous ridge, and the bowl of the posterior fossa with the clivus.
@@ -248,7 +280,8 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
         pial = Math.min(pial, cal);
       }
       if (ax < 16 && y > mni(0, -42, 0)[1] && z > mni(0, 0, -6)[2]) {
-        const cing = Math.abs(dcc - S * 11.5 - 1.2 * Math.sin(y / 9)) - 0.75 * Math.sqrt(1 - (ax / 16) ** 2);
+        const dm = CC(0, y + 3 * MEANDER(ax / 6, y / 14, z / 14), z + 3 * MEANDER(ax / 6 + 5, y / 14, z / 14));
+        const cing = Math.abs(dm - S * 11.5) - 0.75 * Math.sqrt(1 - (ax / 16) ** 2);
         if (cing < 0) return CSF;
         pial = Math.min(pial, cing);
       }
@@ -269,9 +302,33 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
       pial = Math.min(pial, syl);
     }
 
+    // named sulci: the central region on the convexity, and the calcarine, parieto-occipital and marginal sulci medially
+    let named = Infinity, quiet = false;
+    if (depthScale > 0) {
+      const axm = ax / S, ym = (y - OY) / S;
+      if (depth < S * 21 + CORTEX + 1 && axm > 2 && axm < 62 && z > sylvianZ(y) + 3) {
+        const u = (axm - 32) / 30, fade = Math.sqrt(Math.max(0, 1 - u ** 4)); // shallow at both ends
+        const dy = ym - centralY(axm) - 3.5 * MEANDER(axm / 11, z / 11, 3.7) - 1.5 * MEANDER(axm / 4, z / 4, 8.1);
+        quiet = Math.abs(dy) < 21; // no random folds across the pre- and postcentral gyri
+        for (const { off, D } of CENTRAL) {
+          const d = (Math.abs(dy - off) * S) / Math.hypot(1, SLOPE_CS);
+          named = Math.min(named, sheetSulcus(d, depth, D * depthScale * fade, 0.8));
+        }
+      }
+      if (medial < S * 18 + CORTEX + 1) {
+        const wy = y + 2.5 * MEANDER(ax / 7, y / 16, z / 16), wz = z + 2.5 * MEANDER(ax / 7 + 5, y / 16, z / 16);
+        for (const { pts, D } of MEDIAL_SULCI) {
+          const [d, t] = segDist2(wy, wz, pts);
+          if (d < 6) quiet = true;
+          named = Math.min(named, sheetSulcus(d, medial, D * depthScale * Math.sqrt(Math.max(0, 1 - (2 * t - 1) ** 6)), 0.8));
+        }
+      }
+      if (named < 0) return CSF;
+    }
+
     let s = Infinity;
     const cortical = Math.min(depth, medial);
-    if (depthScale > 0 && cortical < 20 * depthScale + CORTEX + 1) {
+    if (depthScale > 0 && !quiet && cortical < 20 * depthScale + CORTEX + 1) {
       let qx, qy, qz;
       if (medial < depth) {
         // medial surface: the pattern lies in the sagittal plane, so the sulci run straight in from the midline
@@ -302,7 +359,7 @@ export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } 
     }
     if (VENT_MAIN(ax, y, z) < 0 || VENT_TEMPORAL(ax, y, z) < 0) return CSF;
 
-    if (pial < CORTEX || s < CORTEX) return GM;
+    if (pial < CORTEX || s < CORTEX || named < CORTEX) return GM;
     if (lesionList.length && inside(lesionList, x, y, z)) return LESION;
     return WM;
   }
