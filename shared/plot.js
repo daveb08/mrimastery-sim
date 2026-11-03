@@ -47,7 +47,7 @@ export function draw(id, traces, lay, cfg = config) {
   lastDraw.set(id, [traces, lay, cfg]);
   const el = document.getElementById(id);
   const s = textScale();
-  const result = Plotly.react(el, scaleFonts(traces, s), scaleFonts(lay, s), { ...cfg, scrollZoom: el.classList.contains("plot-active") });
+  const result = Plotly.react(el, scaleFonts(traces, s), withLiveCameras(el, scaleFonts(lay, s)), { ...cfg, scrollZoom: el.classList.contains("plot-active") });
   wireScrollZoom(el);
   return result;
 }
@@ -57,9 +57,19 @@ function setScrollZoom(el, on) {
   if (!el.data || el.classList.contains("plot-active") === on) return;
   el.classList.toggle("plot-active", on);
   const cfg = lastDraw.get(el.id)?.[2] ?? config;
-  Plotly.react(el, el.data, el.layout, { ...cfg, scrollZoom: on });
+  Plotly.react(el, el.data, withLiveCameras(el), { ...cfg, scrollZoom: on });
   if (on) document.addEventListener("pointermove", el._zoomWatch);
   else document.removeEventListener("pointermove", el._zoomWatch);
+}
+
+// The layout with each 3D scene's camera as it is now. Plotly writes a rotated or zoomed 3D view back to the layout
+// only some of the time, so redrawing from el.layout alone can jump back to an older view.
+function withLiveCameras(el, base = el.layout) {
+  const lay = { ...base };
+  for (const [key, scene] of Object.entries(el._fullLayout ?? {})) {
+    if (/^scene\d*$/.test(key) && scene?._scene?.getCamera) lay[key] = { ...lay[key], camera: scene._scene.getCamera() };
+  }
+  return lay;
 }
 
 let hint = null, hintTimer = 0;
