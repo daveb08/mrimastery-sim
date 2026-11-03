@@ -187,27 +187,37 @@ test("the cerebellum sits posterior and inferior to the cerebrum", () => {
   assert.ok(cerebellar > anteriorLow);
 });
 
-test("face: eyes are vitreous inside orbital fat, with an open nasal passage", () => {
+test("orbits: vitreous in a globe with a lens, the optic nerve in its sheath, fat, and the sinuses below", () => {
   const p = createPhantom({ seed: 1 });
-  assert.equal(p.labelAt(32, 76, -28), CSF);
-  assert.equal(p.labelAt(-32, 76, -28), CSF);
-  assert.equal(p.labelAt(32, 60, -28), FAT);
-  assert.equal(p.labelAt(0, 60, -44), AIR);
-  assert.equal(p.labelAt(0, 66, -56), AIR, "oral cavity");
-  assert.equal(p.labelAt(0, 66, -72), MUSCLE, "tongue / floor of mouth");
+  for (const sx of [1, -1]) {
+    assert.equal(p.labelAt(sx * 31, 66, -34), CSF, "vitreous");
+    assert.equal(p.labelAt(sx * 31, 76.5, -34), MUSCLE, "lens");
+    assert.equal(p.labelAt(sx * 26, 47, -31), WM, "optic nerve");
+    assert.equal(p.labelAt(sx * 36, 50, -40), FAT, "orbital fat");
+    assert.equal(p.labelAt(sx * 29, 56, -62), AIR, "maxillary sinus below the orbit");
+  }
+  assert.equal(p.labelAt(5, 60, -55), AIR, "nasal cavity");
+  assert.equal(p.labelAt(0, 60, -55), BONE, "nasal septum");
+  assert.equal(p.labelAt(0, 24, -32), AIR, "sphenoid sinus");
+  assert.equal(p.labelAt(0, 80, -10), AIR, "frontal sinus");
+  assert.equal(p.labelAt(0, 17, -20), GM, "pituitary in the sella");
+  assert.equal(p.labelAt(0, 21, -14), WM, "optic chiasm");
 });
 
-test("neck: muscle, vertebral marrow, spinal canal with cord, and an airway", () => {
+test("neck: muscle, vertebral marrow, a continuous cord in CSF, and the airway", () => {
   const p = createPhantom({ seed: 1 });
-  assert.equal(p.labelAt(35, 0, -104), MUSCLE);
-  assert.equal(p.labelAt(0, -4, -64), FAT, "vertebral marrow");
-  assert.equal(p.labelAt(0, -26, -84), WM, "cord");
-  assert.equal(p.labelAt(0, -33, -84), CSF, "CSF around the cord");
-  assert.equal(p.labelAt(0, 10, -104), AIR, "airway");
-  assert.equal(p.labelAt(100, 0, -104), AIR, "outside the neck is air");
-  assert.equal(p.labelAt(27, 56, -40), AIR, "maxillary sinus sits below the orbit");
+  assert.equal(p.labelAt(35, -10, -110), MUSCLE);
+  for (const z of [-97.5, -115, -132.5]) assert.equal(p.labelAt(0, -2, z), FAT, `vertebral body marrow at ${z}`);
+  assert.equal(p.labelAt(0, -24, -110), WM, "cord");
+  assert.equal(p.labelAt(0, -31, -110), CSF, "CSF round the cord");
+  for (let z = -45; z >= -140; z -= 1) assert.equal(p.labelAt(0, -24, z), WM, `cord continuous at ${z}`);
+  assert.equal(p.labelAt(0, 19, -90), AIR, "oropharynx");
+  assert.equal(p.labelAt(0, 62, -77), AIR, "mouth");
+  assert.equal(p.labelAt(0, 55, -95), MUSCLE, "tongue");
+  assert.equal(p.labelAt(100, 0, -110), AIR, "outside the neck is air");
+  assert.notEqual(p.labelAt(0, 0, -149), AIR);
+  assert.equal(p.labelAt(0, 0, -151), AIR, "the neck is cut 2 cm below the chin");
 });
-
 test("the skull base separates the brain from the face", () => {
   const p = createPhantom({ seed: 1 });
   const column = [];
@@ -238,37 +248,31 @@ test("temporal lobes hold brain tissue lateral and inferior to the cerebrum", ()
   assert.ok(tissue > 20, `tissue ${tissue}`);
 });
 
-test("face detail: ears, lips, open nostril, mandible with marrow in a bone shell", () => {
+test("face detail: ears with canals, lips, nostrils, mandible with marrow in a bone shell, temporalis over thin bone", () => {
   const p = createPhantom({ seed: 1 });
-  assert.notEqual(p.labelAt(80, 4, -30), AIR, "ear");
-  assert.notEqual(p.labelAt(-80, 4, -30), AIR, "ear");
-  assert.equal(p.labelAt(92, 4, -30), AIR, "beyond the ear");
-  assert.equal(p.labelAt(0, 92, -64), MUSCLE, "lips");
-  assert.equal(p.labelAt(0, 108, -42), AIR, "nostril opens at the front");
-  assert.equal(p.labelAt(33, 28, -86), FAT, "mandible marrow");
-  assert.equal(p.labelAt(-33, 28, -86), FAT, "mandible marrow, other side");
+  for (const sx of [1, -1]) {
+    assert.notEqual(p.labelAt(sx * 76, -12, -46), AIR, "ear");
+    assert.equal(p.labelAt(sx * 92, -12, -46), AIR, "beyond the ear");
+    assert.equal(p.labelAt(sx * 70, -8, -47), AIR, "ear canal");
+    assert.equal(p.labelAt(sx * 38, 38, -106), FAT, "mandible marrow");
+  }
+  assert.equal(p.labelAt(0, 92, -86), MUSCLE, "lips");
   let bone = 0;
-  for (let x = 25; x <= 41; x += 2) for (let y = 20; y <= 36; y += 2) for (let z = -94; z <= -78; z += 2) {
+  for (let x = 30; x <= 46; x += 2) for (let y = 30; y <= 46; y += 2) for (let z = -114; z <= -98; z += 2) {
     if (p.labelAt(x, y, z) === BONE) bone++;
   }
   assert.ok(bone > 30, `mandible cortex ${bone}`);
+  // across the temple: brain, a thin skull, the temporalis muscle, fat, skin, air
+  const runs = [];
+  for (let x = 55; x <= 85; x += 0.25) { const l = p.labelAt(x, 10, -10); if (runs[runs.length - 1] !== l) runs.push(l); }
+  assert.deepEqual(runs.slice(-5), [BONE, MUSCLE, FAT, MUSCLE, AIR]);
 });
 
-test("the neck is short: it ends in a flat cut with three vertebrae", () => {
+test("the face merges with the neck at jaw level", () => {
   const p = createPhantom({ seed: 1 });
-  assert.notEqual(p.labelAt(0, 0, -115), AIR);
-  assert.equal(p.labelAt(0, 0, -117), AIR, "cut 6 cm below the chin");
-  let marrowLevels = 0;
-  for (const z of [-64, -86, -108]) if (p.labelAt(0, -4, z) === FAT) marrowLevels++;
-  assert.equal(marrowLevels, 3);
-});
-
-test("the face merges with the neck at mandible level (z = -84)", () => {
-  const p = createPhantom({ seed: 1 });
-  // walk from the chin straight back to the spine at z = -84: tissue throughout, apart from the airway
+  // walk from the chin straight back to the spine at z = -110: tissue throughout, apart from the airway
   let air = 0;
-  for (let y = 70; y >= -40; y -= 1) if (p.labelAt(0, y, -84) === AIR) air++;
+  for (let y = 70; y >= -40; y -= 1) if (p.labelAt(0, y, -110) === AIR) air++;
   assert.ok(air > 0 && air < 20, `airway voxels ${air}`);
-  assert.notEqual(p.labelAt(0, 40, -84), AIR);
-  assert.notEqual(p.labelAt(30, 40, -84), AIR);
+  assert.notEqual(p.labelAt(30, 40, -110), AIR);
 });

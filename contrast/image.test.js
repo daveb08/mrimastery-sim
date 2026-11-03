@@ -80,7 +80,7 @@ test("screen/patient mapping round-trips and clamps", () => {
     const back = screenToPatient(plane, r, u);
     for (const [k, v] of Object.entries(back)) assert.equal(v, pos[k]);
   }
-  assert.deepEqual(clampPos({ x: 500, z: -500 }), { x: 70, z: -90 });
+  assert.deepEqual(clampPos({ x: 500, z: -500 }), { x: 70, z: -150 });
 });
 
 test("auto window scales with voxel volume", () => {

@@ -4,7 +4,7 @@ import { tissuesAt } from "../contrast/physics.js";
 const $ = (id) => document.getElementById(id);
 const FOV = 250;
 // View centre [screen-right, screen-up] in mm: shifts the frame to include the face and neck.
-const CENTER = { axial: [0, 8], coronal: [0, -2], sagittal: [-8, -2] };
+const CENTER = { axial: [0, 8], coronal: [0, -25], sagittal: [-8, -25] };
 
 // WM, GM, CSF and fat come from the contrast simulator's 3.0 T table (T1/T2 in ms, PD 0-1).
 // Bone is treated as signal void; lesion and muscle rows are illustrative.

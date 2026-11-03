@@ -10,9 +10,9 @@ export { unitNoise };
 
 export const PLANES = ["axial", "coronal", "sagittal"];
 // View centre [screen-right, screen-up] in mm, framing the head with a little neck (same as the phantom viewer).
-export const CENTER = { axial: [0, 8], coronal: [0, -2], sagittal: [-8, -2] };
+export const CENTER = { axial: [0, 8], coronal: [0, -25], sagittal: [-8, -25] };
 // Slice-position ranges (mm) per patient axis, and the phantom's approximate extent along each plane's phase direction.
-export const POS_RANGE = { x: [-70, 70], y: [-105, 115], z: [-90, 95] };
+export const POS_RANGE = { x: [-70, 70], y: [-105, 115], z: [-150, 95] };
 export const OBJECT_EXTENT = { axial: 230, coronal: 300, sagittal: 300 };
 const NORMAL_AXIS = { axial: "z", coronal: "y", sagittal: "x" };
 
