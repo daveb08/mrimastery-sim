@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runProgram, meanTransverse, blochStep, equilibrium } from "./bloch.js";
+import { runProgram, meanTransverse, blochStep, equilibrium, flipFromB1, b1ForFlip, shapeFraction } from "./bloch.js";
 
 const near = (a, b, tol = 1e-3) =>
   assert.ok(Math.abs(a - b) <= tol, `${a} != ${b} (tol ${tol})`);
@@ -84,4 +84,24 @@ test("spoiled steady state matches the gre_signal closed form", () => {
     M0 = f;
   }
   near(signal, expected, 5e-4); // small bias from relaxation during the 10 us pulse
+});
+
+test("flip angle = 360 deg x gamma-bar x B1 x tau: 11.74 uT for 0.5 ms is a 90-degree rectangle", () => {
+  assert.ok(Math.abs(flipFromB1(11.74, 0.5) - 90) < 0.1);
+  // fixed B1: the flip angle is proportional to the duration; fixed duration: proportional to B1
+  assert.ok(Math.abs(flipFromB1(11.74, 1.0) - 180) < 0.2);
+  assert.ok(Math.abs(flipFromB1(5.87, 0.5) - 45) < 0.1);
+  for (const shape of ["rect", "sinc", "gaussian"]) {
+    assert.ok(Math.abs(flipFromB1(b1ForFlip(70, 1.2, shape), 1.2, shape) - 70) < 1e-9, shape);
+  }
+  // a shaped pulse needs a higher peak B1 than a rectangle for the same flip
+  assert.equal(shapeFraction("rect"), 1);
+  assert.ok(shapeFraction("sinc") < 0.5 && shapeFraction("gaussian") < 1);
+});
+
+test("a pulse built from B1 and duration tips the spin by the predicted angle", () => {
+  const flip = flipFromB1(8, 0.75); // about 92 degrees
+  const run = runProgram([{ type: "rf", flipDeg: flip, durMs: 0.75, dtMs: 0.005 }], { T1: 1e9, T2: 1e9, offResHz: [0] });
+  const M = run.frames[run.frames.length - 1];
+  assert.ok(Math.abs(Math.acos(M[2]) * (180 / Math.PI) - flip) < 0.2);
 });

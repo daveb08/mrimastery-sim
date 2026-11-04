@@ -51,14 +51,22 @@
         <option value="se">Spin echo (90x, τ, 180y, τ)</option>
         <option value="ir">Inversion recovery (180, TI, 90)</option>
       </select>
+      <label for="pmode">Set the pulse by</label>
+      <select id="pmode">
+        <option value="flip">Flip angle (B1 follows)</option>
+        <option value="b1">B1 amplitude (flip angle follows)</option>
+      </select>
       <label for="flip">Flip angle <span class="v" id="flipV"></span></label>
       <input id="flip" type="range" min="1" max="360" step="1" value="90">
-      <label for="phase">RF phase <span class="v" id="phaseV"></span></label>
-      <input id="phase" type="range" min="0" max="360" step="5" value="0">
-      <label for="shape">Pulse shape</label>
-      <select id="shape"><option value="rect">Rectangular</option><option value="sinc">Sinc</option><option value="gaussian">Gaussian</option></select>
+      <label for="b1">B1 amplitude (peak) <span class="v" id="b1V"></span></label>
+      <input id="b1" type="range" min="0.5" max="50" step="0.1" value="11.7">
       <label for="pdur">Pulse duration <span class="v" id="pdurV"></span></label>
       <input id="pdur" type="range" min="0.05" max="3" step="0.05" value="0.5">
+      <p class="note" id="flipEq" style="margin-top:4px"></p>
+      <label for="shape">Pulse shape</label>
+      <select id="shape"><option value="rect">Rectangular</option><option value="sinc">Sinc</option><option value="gaussian">Gaussian</option></select>
+      <label for="phase">RF phase <span class="v" id="phaseV"></span></label>
+      <input id="phase" type="range" min="0" max="360" step="5" value="0">
       <label for="delay">Delay / τ / TI <span class="v" id="delayV"></span></label>
       <input id="delay" type="range" min="1" max="200" step="1" value="20">
       <label for="off">Center off-resonance <span class="v" id="offV"></span></label>

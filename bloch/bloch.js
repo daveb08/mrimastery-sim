@@ -64,6 +64,21 @@ export function envelope(kind, count, tbw = 4) {
   return out;
 }
 
+// Mean of a pulse shape's envelope relative to its peak (1 for a rectangle): a shaped pulse of peak B1 tips as far as a
+// rectangle of this fraction of B1.
+export function shapeFraction(kind, tbw = 4) {
+  const env = envelope(kind, 2000, tbw);
+  let sum = 0;
+  for (const v of env) sum += v;
+  return sum / env.length;
+}
+// Flip angle (degrees) on resonance from the peak B1 (uT) and duration (ms): theta = 360 deg x gamma-bar x B1 x tau,
+// times the shape's fraction. And the inverse: the peak B1 a requested flip angle needs.
+export const flipFromB1 = (b1uT, durMs, kind = "rect", tbw = 4) =>
+  360 * HZ_PER_MT_M_MM * b1uT * durMs * 1e-3 * shapeFraction(kind, tbw);
+export const b1ForFlip = (flipDeg, durMs, kind = "rect", tbw = 4) =>
+  flipDeg / (360 * HZ_PER_MT_M_MM * durMs * 1e-3 * shapeFraction(kind, tbw));
+
 // Scale an envelope so its integral rotates a spin by flipDeg on resonance.
 export function scaleToFlip(env, durMs, flipDeg) {
   const dt = durMs / env.length;

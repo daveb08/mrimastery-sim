@@ -1,4 +1,4 @@
-import { runProgram, meanTransverse } from "./bloch.js";
+import { runProgram, meanTransverse, flipFromB1, b1ForFlip, shapeFraction } from "./bloch.js";
 import { draw } from "../shared/plot.js";
 
 const $ = (id) => document.getElementById(id);
@@ -21,16 +21,30 @@ let lastStamp = 0;
 
 function readParams() {
   const v = Object.fromEntries(
-    ["flip", "phase", "pdur", "delay", "off", "spread", "t1", "t2"].map((k) => [k, +$(k).value]));
+    ["flip", "b1", "phase", "pdur", "delay", "off", "spread", "t1", "t2"].map((k) => [k, +$(k).value]));
   v.program = $("program").value;
   v.shape = $("shape").value;
   for (const k of Object.keys(FMT)) $(k + "V").textContent = FMT[k](v[k]);
+  // The pulse is set either by its flip angle (B1 follows) or by its B1 amplitude (the flip angle follows); the
+  // follower's slider is disabled and shows the value the pulse actually uses.
+  const byB1 = $("pmode").value === "b1";
+  if (byB1) v.flip = flipFromB1(v.b1, v.pdur, v.shape);
+  else v.b1 = b1ForFlip(v.flip, v.pdur, v.shape);
+  $("flip").disabled = byB1;
+  $("b1").disabled = !byB1;
+  if (byB1) $("flip").value = Math.min(360, v.flip); else $("b1").value = v.b1;
+  $("flipV").textContent = `${Math.round(v.flip)}°`;
+  $("b1V").textContent = `${v.b1.toFixed(v.b1 < 10 ? 2 : 1)} µT`;
+  const frac = shapeFraction(v.shape);
+  $("flipEq").innerHTML = `θ = 360° × γ̄ × B1 × τ${v.shape === "rect" ? "" : " × shape"} = 360° × 42.58 Hz/µT × `
+    + `${v.b1.toFixed(2)} µT × ${v.pdur.toFixed(2)} ms${v.shape === "rect" ? "" : ` × ${frac.toFixed(2)}`} = <b>${Math.round(v.flip)}°</b>`
+    + (byB1 && v.flip > 360 ? " (more than a full turn)" : "");
   return v;
 }
 
 function buildEvents(p) {
   const rf = (flipDeg, phaseDeg) => ({
-    type: "rf", label: `${flipDeg}° RF pulse`, flipDeg, phaseDeg, durMs: p.pdur, shape: p.shape,
+    type: "rf", label: `${Math.round(flipDeg)}° RF pulse`, flipDeg, phaseDeg, durMs: p.pdur, shape: p.shape,
     tbw: 4, dtMs: p.pdur / 80,
   });
   const wait = (durMs) => ({ type: "delay", label: "free precession", durMs, dtMs: Math.max(0.1, durMs / 300) });
@@ -251,7 +265,7 @@ function refresh() {
   showFrame(currentFrame());
 }
 
-for (const id of ["program", "flip", "phase", "shape", "pdur", "delay", "off", "spread", "t1", "t2"]) {
+for (const id of ["program", "pmode", "flip", "b1", "phase", "shape", "pdur", "delay", "off", "spread", "t1", "t2"]) {
   $(id).addEventListener("input", () => { setPlaying(false); refresh(); });
 }
 $("time").addEventListener("input", () => { setPlaying(false); showFrame(currentFrame()); });
