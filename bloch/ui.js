@@ -22,6 +22,9 @@ let lastStamp = 0;
 function readParams() {
   const v = Object.fromEntries(
     ["flip", "b1", "phase", "pdur", "delay", "off", "spread", "t1", "t2"].map((k) => [k, +$(k).value]));
+  // B1 and duration come from the exact-entry boxes (the sliders snap to their steps)
+  v.b1 = +$("b1Num").value;
+  v.pdur = +$("pdurNum").value;
   v.program = $("program").value;
   v.shape = $("shape").value;
   for (const k of Object.keys(FMT)) $(k + "V").textContent = FMT[k](v[k]);
@@ -31,10 +34,11 @@ function readParams() {
   if (byB1) v.flip = flipFromB1(v.b1, v.pdur, v.shape);
   else v.b1 = b1ForFlip(v.flip, v.pdur, v.shape);
   $("flip").disabled = byB1;
-  $("b1").disabled = !byB1;
-  if (byB1) $("flip").value = Math.min(360, v.flip); else $("b1").value = v.b1;
+  $("b1").disabled = $("b1Num").disabled = !byB1;
+  if (byB1) $("flip").value = Math.min(360, v.flip);
+  else { $("b1").value = v.b1; $("b1Num").value = v.b1.toFixed(2); }
   $("flipV").textContent = `${Math.round(v.flip)}°`;
-  $("b1V").textContent = `${v.b1.toFixed(v.b1 < 10 ? 2 : 1)} µT`;
+  $("b1V").textContent = `${v.b1.toFixed(2)} µT`;
   const frac = shapeFraction(v.shape);
   $("flipEq").innerHTML = `θ = 360° × γ̄ × B1 × τ${v.shape === "rect" ? "" : " × shape"} = 360° × 42.58 Hz/µT × `
     + `${v.b1.toFixed(2)} µT × ${v.pdur.toFixed(2)} ms${v.shape === "rect" ? "" : ` × ${frac.toFixed(2)}`} = <b>${Math.round(v.flip)}°</b>`
@@ -265,6 +269,25 @@ function refresh() {
   showFrame(currentFrame());
 }
 
+// Each slider with an exact-entry box: the slider fills the box; a typed value within the box's limits moves the slider
+// (to its nearest step) and is used exactly. Registered before the refresh listeners so the box is current first.
+for (const [slider, box] of [["b1", "b1Num"], ["pdur", "pdurNum"]]) {
+  $(slider).addEventListener("input", () => { $(box).value = $(slider).value; });
+  const valid = () => {
+    const v = +$(box).value, b = $(box);
+    return $(box).value !== "" && Number.isFinite(v) && v >= +b.min && v <= +b.max;
+  };
+  $(box).addEventListener("input", () => {
+    if (!valid()) return;
+    $(slider).value = $(box).value;
+    setPlaying(false); refresh();
+  });
+  $(box).addEventListener("change", () => { // on leaving the box: pull an out-of-range entry back inside the limits
+    const b = $(box), v = Math.min(+b.max, Math.max(+b.min, +b.value || +$(slider).value));
+    b.value = v; $(slider).value = v;
+    setPlaying(false); refresh();
+  });
+}
 for (const id of ["program", "pmode", "flip", "b1", "phase", "shape", "pdur", "delay", "off", "spread", "t1", "t2"]) {
   $(id).addEventListener("input", () => { setPlaying(false); refresh(); });
 }

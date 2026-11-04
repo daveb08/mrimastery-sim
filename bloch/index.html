@@ -35,6 +35,11 @@
   #traces { height: max(220px, 32vh - 50px); margin-top: 8px; }
   @media (max-width: 800px) { #scene { height: 420px; } #traces { height: 260px; } }
   .note { color: var(--muted); font-size: .8rem; margin-top: 12px; }
+  .numrow { display: grid; grid-template-columns: 1fr 5.2em auto; gap: 6px; align-items: center; }
+  .numrow input[type=number] { width: 100%; box-sizing: border-box; padding: 3px 5px; font: inherit; font-size: .9rem;
+    background: #111; color: inherit; border: 1px solid #555; border-radius: 4px; }
+  .numrow input[type=number]:disabled { opacity: .55; }
+  .numrow span { color: var(--muted); font-size: .85rem; }
 </style>
 <script src="../shared/text-size.js"></script>
 </head>
@@ -59,9 +64,11 @@
       <label for="flip">Flip angle <span class="v" id="flipV"></span></label>
       <input id="flip" type="range" min="1" max="360" step="1" value="90">
       <label for="b1">B1 amplitude (peak) <span class="v" id="b1V"></span></label>
-      <input id="b1" type="range" min="0.5" max="50" step="0.1" value="11.7">
+      <div class="numrow"><input id="b1" type="range" min="0.5" max="50" step="0.1" value="11.7">
+        <input id="b1Num" type="number" min="0.1" max="100" step="0.01" value="11.7" aria-label="B1 amplitude in microtesla"><span>µT</span></div>
       <label for="pdur">Pulse duration <span class="v" id="pdurV"></span></label>
-      <input id="pdur" type="range" min="0.05" max="3" step="0.05" value="0.5">
+      <div class="numrow"><input id="pdur" type="range" min="0.05" max="3" step="0.05" value="0.5">
+        <input id="pdurNum" type="number" min="0.01" max="10" step="0.01" value="0.5" aria-label="Pulse duration in milliseconds"><span>ms</span></div>
       <p class="note" id="flipEq" style="margin-top:4px"></p>
       <label for="shape">Pulse shape</label>
       <select id="shape"><option value="rect">Rectangular</option><option value="sinc">Sinc</option><option value="gaussian">Gaussian</option></select>

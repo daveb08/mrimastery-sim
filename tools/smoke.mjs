@@ -58,6 +58,8 @@ const PAGES = [
     ["cycle", "program"], ["set", "flip", 180], ["click", "play"], ["wait", 1500], ["click", "play"],
     ["set", "pmode", "b1"], ["set", "b1", 11.7], ["set", "pdur", 1],
     ["expect", "B1 mode: fixed B1, doubled duration gives about 180 degrees", `Math.abs(parseFloat(document.getElementById("flipV").textContent) - 180) <= 1`],
+    ["set", "b1Num", 11.74], ["set", "pdurNum", 0.37], ["set", "pdurNum", 0.5],
+    ["expect", "typed B1 and duration are used exactly", `document.getElementById("flipEq").textContent.includes("11.74 µT × 0.50 ms") && document.getElementById("flipV").textContent === "90°"`],
     ["set", "pmode", "flip"],
   ] },
   { name: "coil", path: "coil/", steps: [
