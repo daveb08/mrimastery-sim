@@ -284,14 +284,18 @@ export function multiSlice(build) {
       TR = N * block;
     }
     const zs = slicePositions(N, P.sliceMm, P.gapPct, P.stackCenterMm), order = acquisitionOrder(N, P.sliceOrder);
-    const gssAt = (t) => grads.find((g) => g.axis === "z" && t >= g.start + g.rise - 1e-9 && t <= g.start + g.rise + g.flat + 1e-9)?.amp ?? 0;
+    const gssAt = (e) => {
+      const g = grads.find((g) => g.axis === "z" && g.label === "slice select" && e.center >= g.start + g.rise - 1e-9 && e.center <= g.start + g.rise + g.flat + 1e-9);
+      if (!g) throw new Error(`multiSlice: no slice-select lobe under the ${e.role} pulse at ${e.center} ms`);
+      return g.amp;
+    };
     const events = [];
     order.forEach((slice, a) => {
       const dt = a * block, zMm = zs[slice];
       for (const e of img.events) {
         if (e.kind === "adc") events.push({ ...e, tc: e.tc + dt, slice });
         else if (e.kind === "rf") {
-          const gss = gssAt(e.center);
+          const gss = gssAt(e);
           events.push({ ...e, center: e.center + dt, slice, zMm, gss, freqHz: GAMMA_BAR * 1000 * gss * zMm });
         } else events.push({ ...e, start: e.start + dt });
       }

@@ -224,3 +224,35 @@ test("multi-slice forces the inversion off", () => {
   const seq = BUILDERS.FSE({ ...P, ETL: 8, TR: 9000, inversion: "IR", slices: 3 }, rowsAll(8));
   assert.ok(!seq.events.some((e) => e.kind === "rf" && e.role === "invert"));
 });
+
+const MS_CASES = [
+  ["SE", 32], ["GRE", 32], ["FSE", rowsAll(8)], ["EPI", rowsAll(64)],
+];
+test("every RF pulse of every builder sits on a non-zero slice-select lobe at its slice's frequency", () => {
+  for (const [k, rows] of MS_CASES) {
+    const N = 3, seq = BUILDERS[k]({ ...P, ETL: 8, TR: 20000, slices: N }, rows);
+    const zs = slicePositions(N, P.sliceMm, P.gapPct, 14);
+    const rfs = seq.events.filter((e) => e.kind === "rf");
+    assert.ok(rfs.length >= N, k);
+    for (const e of rfs) {
+      const lobe = seq.events.find((g) => g.kind === "grad" && g.axis === "z" && g.label === "slice select"
+        && e.center >= g.start + g.rise - 1e-9 && e.center <= g.start + g.rise + g.flat + 1e-9);
+      assert.ok(lobe, `${k} ${e.role} has a slice-select lobe`);
+      assert.notEqual(e.gss, 0, k);
+      assert.equal(e.gss, lobe.amp, k);
+      assert.equal(e.zMm, zs[e.slice], k);
+      assert.ok(near(e.freqHz, GAMMA_BAR * 1000 * lobe.amp * zs[e.slice]), k);
+    }
+  }
+});
+test("every builder samples the single-slice k positions in each of 3 slice blocks", () => {
+  for (const [k, rows] of MS_CASES) {
+    const prm = { ...P, ETL: 8, TR: 20000 };
+    const s1 = adcSamples(BUILDERS[k](prm, rows)), s3 = adcSamples(BUILDERS[k]({ ...prm, slices: 3 }, rows));
+    for (let j = 0; j < 3; j++) {
+      const mine = s3.filter((s) => s.slice === j);
+      assert.equal(mine.length, s1.length, k);
+      mine.forEach((s, i) => { assert.ok(near(s.colExact, s1[i].colExact, 1e-6), k); assert.ok(near(s.rowExact, s1[i].rowExact, 1e-6), k); });
+    }
+  }
+});
