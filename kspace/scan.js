@@ -5,7 +5,11 @@
 // (tested in shared/sequence.test.js and scan.test.js). The scan therefore keeps only the single-slice shots, which
 // cost the same at any slice count, and builds the full N-block sequence of a TR only when it is displayed
 // (diagram, cursor, playback), keeping a few of those. With one slice the two are the same objects.
-import { BUILDERS, gradEnd } from "../shared/sequence.js";
+//
+// With several concatenations (passes), a scan shows one pass: the one that holds the selected slice. Its sequence
+// plays only that pass's slices (info.slices lists them, each with its full-stack `index`).
+import { BUILDERS, gradEnd, sliceTiming } from "../shared/sequence.js";
+import { crossTalk } from "../shared/crosstalk.js";
 import { prepare, adcSamples } from "../shared/ktraj.js";
 import { echoTrainReadouts, acquiredRows } from "../contrast/acquisition.js";
 
@@ -37,25 +41,38 @@ function shotOf(seq) {
   return { seq, prep, samples, activeEnd: activeEndOf(seq), path: null };
 }
 
-// name: "SE" | "GRE" | "FSE" | "EPI"; P: builder parameters (as the explorer's params()).
-// Returns { first, eff, N, shots, offset(j), full(i) }:
+const rowsArg = (name, rows) => (name === "SE" || name === "GRE" ? rows[0] : rows);
+const stackSize = (P) => Math.max(1, Math.floor(P.slices ?? 1));
+// The pass (concatenation) that holds full-stack slice sel: concatenation k holds slices k, k + C, ...
+const passOf = (sel, C) => (Number.isInteger(sel) && sel >= 0 ? sel % C : 0);
+const concatenationsOf = (name, P, rows) => (stackSize(P) > 1 ? sliceTiming({ ...P, seq: name }, rowsArg(name, rows)).concatenations : 1);
+
+// name: "SE" | "GRE" | "FSE" | "EPI"; P: builder parameters (kspace/settings.js explorerParams); sel: the selected
+// slice (full-stack index), whose pass is played (without sel, P.pass).
+// Returns { first, eff, N, C, pass, shots, offset(j), full(i), scanMs }:
 //   first      the full sequence of the first TR (for timing, errors, info and the cross-talk)
+//   N, C, pass slices in the whole stack, concatenations, and the pass shown
 //   shots[i]   TR i as one slice: { seq, prep, samples [{ t, col, row, slice: 0 }], activeEnd, path }
-//   offset(j)  ms from a single-slice time to the same moment in slice j's block
+//   offset(j)  ms from a single-slice time to the same moment in full-stack slice j's block (null: not in this pass)
 //   full(i)    TR i with every slice block: { seq, prep, samples (time order, with slice), activeEnd, path }
-export function buildShots(name, P) {
-  const { rowsPerShot, eff } = shotRows(name, P);
+//   scanMs     TR x TRs to fill k-space x concatenations
+export function buildShots(name, P0, sel) {
+  const { rowsPerShot, eff } = shotRows(name, P0);
+  const C = concatenationsOf(name, P0, rowsPerShot[0]);
+  const P = sel === undefined ? P0 : { ...P0, pass: passOf(sel, C) };
   const first = buildOne(name, P, rowsPerShot[0]);
-  const slices = first.info.slices, N = slices?.length ?? 1;
+  const slices = first.info.slices, N = stackSize(P), pass = first.info.pass ?? 0;
+  const scanMs = first.tr * rowsPerShot.length * C;
   if (N <= 1) {
     const shots = rowsPerShot.map((rows, i) => shotOf(i === 0 ? first : buildOne(name, P, rows)));
-    return { first, eff, N, shots, offset: () => 0, full: (i) => shots[i] };
+    return { first, eff, N, C, pass, shots, offset: () => 0, full: (i) => shots[i], scanMs };
   }
   const single = { ...P, slices: 1, inversion: "none", TR: first.tr };
   const shots = rowsPerShot.map((rows) => shotOf(buildOne(name, single, rows)));
   const block = first.info.block;
   const byAcq = [...slices].sort((a, b) => a.acq - b.acq).map((s) => s.index); // slice played at each block
-  const offset = (j) => slices[j].acq * block;
+  const byIndex = new Map(slices.map((s) => [s.index, s]));
+  const offset = (j) => (byIndex.has(j) ? byIndex.get(j).acq * block : null);
   const kept = new Map();
   const full = (i) => {
     let shot = kept.get(i);
@@ -71,5 +88,19 @@ export function buildShots(name, P) {
     kept.set(i, shot);
     return shot;
   };
-  return { first, eff, N, shots, offset, full };
+  return { first, eff, N, C, pass, shots, offset, full, scanMs };
+}
+
+// Cross-talk of the whole stack: one crossTalk per pass, each on its own pass's first sequence (slices in other passes
+// are seconds away and count as recovered). Returns null for one slice, else
+//   { slices: [N, by full-stack index: { index, zMm, acq (within its pass), pass, freqHz, factor, mzBefore }],
+//     passes: [C crossTalk results, each with its own z grid, slices and profiles] }
+export function stackCrossTalk(name, P, tissues) {
+  if (stackSize(P) <= 1) return null;
+  const rows = shotRows(name, P).rowsPerShot[0];
+  const C = concatenationsOf(name, P, rows);
+  const passes = Array.from({ length: C }, (_, k) => crossTalk(buildOne(name, { ...P, pass: k }, rows), tissues));
+  const slices = [];
+  passes.forEach((xt, k) => { for (const s of xt.slices) slices[s.index] = { ...s, pass: k }; });
+  return { slices, passes };
 }

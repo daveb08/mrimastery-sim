@@ -1,4 +1,4 @@
-import { DEFAULTS, DEFAULT_LIMITS, gradEnd } from "../shared/sequence.js";
+import { DEFAULTS, gradEnd } from "../shared/sequence.js";
 import { sampleTrajectory } from "../shared/ktraj.js";
 import { diagramSvg, diagramGeometry } from "../shared/seqdiagram.js";
 import { textScale, draw, layout, axisStyle, COLORS } from "../shared/plot.js";
@@ -6,33 +6,20 @@ import { defaultParams, computeModel, tissuesAt, csfNullTi, dirNullTi2 } from ".
 import { sampleSlice, composeSignal, labelSignals, toRgba } from "../contrast/image.js";
 import { kspaceOf, reconstruct, toInferno, autoWindowLevelObject } from "../contrast/kspace.js";
 import { thumbMatrix, thumbRow, createSampleCache, pump } from "./strip.js";
-import { crossTalk, labelFactors, TISSUE_T1 } from "../shared/crosstalk.js";
+import { labelFactors, TISSUE_T1 } from "../shared/crosstalk.js";
 import { createPhantom } from "../phantom/phantom.js";
-import { buildShots } from "./scan.js";
-import { fromQuery, toQuery, contrastNote, applies, clampSel, RANGES, INVERSION_SEQS } from "./settings.js";
+import { buildShots, stackCrossTalk } from "./scan.js";
+import { toQuery, contrastNote, applies, clampSel, initialState, explorerParams, SEQ_DEFAULTS, RANGES, INVERSION_SEQS } from "./settings.js";
 
 const $ = (id) => document.getElementById(id);
 
-const SEQ_DEFAULTS = {
-  SE: { TE: 20, TR: 500, nx: 128, ny: 128 },
-  GRE: { TE: 5, TR: 50, flip: 30, nx: 128, ny: 128 },
-  FSE: { TE: 80, TR: 3000, ETL: 8, nx: 128, ny: 128 },
-  EPI: { TE: 40, TR: 3000, bw: 1500, nx: 64, ny: 64 },
-};
 const NAMES = { SE: "Spin echo", GRE: "Gradient echo (spoiled)", FSE: "Fast spin echo", EPI: "Single-shot EPI" };
 const CONTRAST_SEQ = { SE: "FSE", GRE: "GRE", FSE: "FSE", EPI: "EPI (single-shot)" }; // tissue signal model to use
 const INVERSION_MODEL = { IR: "FLAIR", DIR: "DIR" }; // ... or with an inversion (FLAIR's equation is the same as STIR's)
 const INVERSION_TR = { IR: 9000, DIR: 8000 }; // TR raised to at least this when an inversion is switched on
 
-let state = { seq: "SE", ...DEFAULTS, ...SEQ_DEFAULTS.SE, fov: 240, gMax: DEFAULT_LIMITS.gMax, slew: DEFAULT_LIMITS.slew };
 // settings given in the page address (a shared link, or the contrast simulator's "Open in k-space explorer" button)
-{
-  const q = fromQuery(location.search);
-  if (q.seq) state = { ...state, ...SEQ_DEFAULTS[q.seq], seq: q.seq };
-  state = { ...state, ...q };
-  if (state.slices !== undefined) state.slices = Math.round(state.slices);
-  if (state.gapPct !== undefined) state.gapPct = Math.round(state.gapPct / 10) * 10;
-}
+let state = initialState(location.search);
 
 const CONTROLS = [
   { key: "seq", label: "Sequence", type: "select", options: Object.entries(NAMES) },
@@ -52,28 +39,40 @@ const CONTROLS = [
   { key: "slices", label: "Slices", min: RANGES.slices[0], max: RANGES.slices[1], step: 1, always: true },
   { key: "gapPct", label: "Slice gap (% of thickness)", min: RANGES.gapPct[0], max: RANGES.gapPct[1], step: 10 },
   { key: "sliceOrder", label: "Slice order", type: "select", options: [["sequential", "Sequential"], ["interleaved", "Interleaved"]] },
+  // Auto, 1-4, and a linked protocol's value when it is above 4
+  { key: "conc", label: "Concatenations", type: "select", options: (s) => [["auto", "Auto"], ...[1, 2, 3, 4].map((c) => [c, `${c}`]),
+    ...(Number.isInteger(s.conc) && s.conc > 4 ? [[s.conc, `${s.conc}`]] : [])] },
   { key: "gMax", label: "Max gradient (mT/m)", type: "select", options: [[20, "20"], [40, "40"], [80, "80"]] },
   { key: "slew", label: "Max slew rate (T/m/s)", type: "select", options: [[70, "70"], [150, "150"], [200, "200"]] },
 ];
 
-const inversionOf = (s) => ((s.slices ?? 1) <= 1 && INVERSION_SEQS.includes(s.seq) ? s.inversion ?? "none" : "none");
-const params = () => ({ ...state, slices: state.slices ?? 1, gapPct: state.gapPct ?? 20, sliceOrder: state.sliceOrder ?? "interleaved", concatenations: 1, overflow: "tr", // explorer: as before, until concatenations get a control
- 
-  inversion: inversionOf(state), nx: state.ny, fovRead: state.fov, fovPhase: state.fov,
-  limits: { gMax: +state.gMax, slew: +state.slew } });
+const params = () => explorerParams(state);
 
 // ---- the scan: one sequence per TR, with its k-space samples and path ----
 let scan = null;
 
+// Cross-talk of the whole stack, one crossTalk per pass. It does not depend on which pass is shown, so selecting a
+// slice in another pass reuses it.
+const xtCache = new Map();
+function stackXt(P) {
+  const key = JSON.stringify([state.seq, { ...P, sel: undefined, pass: undefined, from: undefined }]);
+  if (!xtCache.has(key)) {
+    if (xtCache.size > 4) xtCache.clear();
+    xtCache.set(key, stackCrossTalk(state.seq, P, TISSUE_T1()));
+  }
+  return xtCache.get(key);
+}
+
 function buildScan() {
   const P = params();
-  // single-slice shots for every TR; the full N-block sequence of a TR only when it is shown (kspace/scan.js)
-  const { first, eff, N, shots, offset, full } = buildShots(state.seq, P);
+  state.sel = clampSel(state.sel, P.slices);
+  // single-slice shots for every TR of the pass that holds the selected slice; the full N-block sequence of a TR
+  // only when it is shown (kspace/scan.js)
+  const { first, eff, N, C, pass, shots, offset, full, scanMs } = buildShots(state.seq, P, state.sel);
   // FSE: the effective TE is the echo that crosses ky = 0 (the same echo number in every train)
   const te = state.seq === "FSE" ? first.info.esp * (eff + 1) : first.te;
-  scan = { P, shots, full, offset, eff, nx: P.nx, ny: P.ny, errors: first.errors, info: first.info, te, tr: first.tr };
-  state.sel = clampSel(state.sel, N);
-  scan.xt = N > 1 ? crossTalk(first, TISSUE_T1()) : null; // steady-state cross-talk between the slices (once per rebuild)
+  scan = { P, N, C, pass, shots, full, offset, eff, scanMs, nx: P.nx, ny: P.ny, errors: first.errors, info: first.info, te, tr: first.tr };
+  scan.xt = N > 1 ? stackXt(P) : null; // steady-state cross-talk between the slices of each pass
   scan.K = phantomKspace(P, { tr: first.tr, te, ti: first.info.ti }); // the inversion times actually played
   // largest gradient on each axis over the whole scan, so every TR's diagram uses the same heights
   // (every slice block repeats the single-slice gradients, so the single-slice shots give the same peaks)
@@ -93,7 +92,7 @@ function modelParams(P, seq) {
   return { name, p };
 }
 function phantomKspace(P, seq) {
-  const z = scan.xt ? scan.info.slices[state.sel].zMm : 14;
+  const z = scan.xt ? scan.xt.slices[state.sel].zMm : 14;
   const factors = scan.xt ? labelFactors(scan.xt.slices[state.sel].factor) : null;
   const { name, p } = modelParams(P, seq);
   const key = [name, p.TR.toFixed(1), p.TE.toFixed(2), p.FA, p.TI1.toFixed(1), p.TI2.toFixed(1), P.nx, P.fovRead, P.sliceMm, z.toFixed(4), factors ? Array.from(factors, (f) => f.toFixed(4)).join(",") : "-"].join("|");
@@ -144,9 +143,10 @@ function buildControls() {
     const wrap = document.createElement("div"), id = `k_${c.key}`;
     wrap.dataset.key = c.key;
     wrap.hidden = !shown(c, state);
-    const value = c.key === "matrix" ? state.ny : state[c.key] ?? 0;
+    const value = c.key === "matrix" ? state.ny : c.key === "conc" ? state.conc ?? "auto" : state[c.key] ?? 0;
     if (c.type === "select") {
-      wrap.innerHTML = `<label for="${id}">${c.label}</label><select id="${id}">${c.options.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select>`;
+      const options = typeof c.options === "function" ? c.options(state) : c.options;
+      wrap.innerHTML = `<label for="${id}">${c.label}</label><select id="${id}">${options.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select>`;
       wrap.querySelector("select").value = value;
       wrap.querySelector("select").addEventListener("change", (e) => set(c.key, e.target.value));
     } else {
@@ -163,7 +163,7 @@ function syncControls() {
 }
 
 function set(key, value, rebuildControls = true) {
-  if (key === "seq") state = { ...state, ...DEFAULTS, ...SEQ_DEFAULTS[value], seq: value, slices: state.slices, gapPct: state.gapPct, sliceOrder: state.sliceOrder, sel: state.sel, fov: state.fov, gMax: state.gMax, slew: state.slew, from: undefined };
+  if (key === "seq") state = { ...state, ...DEFAULTS, ...SEQ_DEFAULTS[value], seq: value, slices: state.slices, gapPct: state.gapPct, sliceOrder: state.sliceOrder, conc: state.conc, sel: state.sel, fov: state.fov, gMax: state.gMax, slew: state.slew, from: undefined };
   else if (key === "matrix") state.nx = state.ny = Number(value);
   else if (key === "inversion") { state.inversion = value; if (value !== "none") state.TR = Math.max(state.TR, INVERSION_TR[value]); }
   else if (key === "slices") state.slices = Math.max(RANGES.slices[0], Math.min(RANGES.slices[1], Math.round(Number(value))));
@@ -298,7 +298,7 @@ function renderStatus() {
 }
 
 function renderInfo() {
-  const i = scan.info, scanSec = (scan.tr * scan.shots.length) / 1000;
+  const i = scan.info, scanSec = scan.scanMs / 1000; // TR x TRs x concatenations
   const items = [
     ["TE", scan.te !== null ? `${scan.te.toFixed(2)} ms` : "—"], ["TR", `${scan.tr.toFixed(0)} ms`],
     ["Readout gradient", `${i.gRead.toFixed(2)} mT/m`], ["Sample spacing", `${(i.dwell * 1000).toFixed(1)} µs`],
@@ -318,9 +318,10 @@ function renderInfo() {
     items.push(["Minimum TI", `${i.minTI.toFixed(1)} ms`]);
   }
   if (scan.xt) {
-    const N = i.slices.length, sl = scan.xt.slices[state.sel], th = i.sliceMm, gap = state.gapPct * th / 100;
+    const N = scan.N, sl = scan.xt.slices[state.sel], th = i.sliceMm, gap = state.gapPct * th / 100;
     const pct = (t) => { const d = (sl.factor[t] - 1) * 100; return `${Math.abs(d) < 0.05 ? "" : d > 0 ? "+" : "−"}${Math.abs(d).toFixed(1)} %`; };
-    items.push(["Slices", `${N} (max ${i.maxSlices} at TR ${i.requestedTR} ms)`], ["Slice spacing", `${(th + gap).toFixed(1)} mm`],
+    items.push(["Slices", `${N} · max ${i.maxSlices} slices per TR`], ["Concatenations", scan.C > 1 ? `${scan.C} (showing pass ${scan.pass + 1})` : "1"],
+      ["Slice spacing", `${(th + gap).toFixed(1)} mm`],
       ["Coverage", `${(N * th + (N - 1) * gap).toFixed(1)} mm`], ["Selected slice", `${state.sel + 1}`],
       ["RF offset", `${sl.freqHz.toFixed(0)} Hz`]);
     for (const t of ["WM", "GM", "CSF"]) items.push([`Cross-talk signal change, ${t}`, pct(t)]);
@@ -328,12 +329,15 @@ function renderInfo() {
   if (i.minTE !== undefined) items.push(["Minimum TE", `${i.minTE.toFixed(2)} ms`]);
   if (i.esp !== undefined) items.push(["Echo spacing", `${i.esp.toFixed(2)} ms`]);
   if (scan.eff !== undefined) items.push(["Effective echo", `${scan.eff + 1} of ${state.ETL}`]);
-  items.push(["TRs to fill k-space", `${scan.shots.length}`], ["Scan time", `${Math.floor(scanSec / 60)}:${String(Math.round(scanSec % 60)).padStart(2, "0")}`]);
+  items.push(["TRs to fill k-space", `${scan.shots.length}`], ["Scan time", `${Math.floor(scanSec / 60)}:${String(Math.round(scanSec % 60)).padStart(2, "0")}${scan.C > 1 ? ` (TR × TRs × ${scan.C} concatenations)` : ""}`]);
   $("info").innerHTML = items.map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("");
   const note = (state.slices ?? 1) > 1 && INVERSION_SEQS.includes(state.seq)
     ? `<div class="info">Inversion is off with more than one slice: interleaving inversions across slices is not modelled yet.</div>` : "";
   const from = state.from ? `<div class="info">Opened from the contrast simulator (${state.from}) with its settings. ${contrastNote(state.from)}</div>` : "";
-  $("messages").innerHTML = note + from + scan.errors.map((e) => `<div class="alert">${e}. The sequence is drawn at the nearest possible value.</div>`).join("");
+  const passes = (i.messages ?? []).map((m) => `<div class="info">${m}.</div>`).join("");
+  $("passNote").textContent = scan.C > 1 ? `Pass ${scan.pass + 1} of ${scan.C} (slices ${i.slices.map((s) => s.index + 1).sort((a, b) => a - b).join(", ")})` : "";
+  $("passNote").hidden = scan.C <= 1;
+  $("messages").innerHTML = note + from + passes + scan.errors.map((e) => `<div class="alert">${e}. The sequence is drawn at the nearest possible value.</div>`).join("");
 }
 
 function renderFrame(forceRecon = false) {
@@ -345,24 +349,29 @@ function drawProfiles() {
   const panel = $("profilePanel");
   panel.hidden = !scan.xt || typeof Plotly === "undefined"; // without Plotly (CDN down) the strip still works
   if (panel.hidden) return;
-  const xt = scan.xt, N = xt.slices.length, sel = state.sel, th = scan.info.sliceMm, tissue = $("profileTissue").value;
+  // the shown pass: its slices' profiles and the selected slice's Mz (slices in other passes do not act on it)
+  const px = scan.xt.passes[scan.pass], members = px.slices, N = members.length, sel = state.sel, th = scan.info.sliceMm, tissue = $("profileTissue").value;
+  const me = members.findIndex((s) => s.index === sel), other = scan.C > 1 ? "Other slices in this pass" : "Other slices";
   const traces = [];
   // legend: the selected slice, one entry for the other slices, one for the refocusing profiles, and Mz
-  const firstOther = sel === 0 ? 1 : 0;
+  const firstOther = me === 0 ? 1 : 0;
   for (let j = 0; j < N; j++) {
-    traces.push({ x: xt.z, y: xt.profiles.excite[j], mode: "lines", name: j === sel ? `Slice ${j + 1} (selected)` : "Other slices",
-      legendgroup: j === sel ? "sel" : "other", showlegend: j === sel || j === firstOther,
-      line: { color: COLORS.gold, width: j === sel ? 3 : 1 }, opacity: j === sel ? 1 : 0.7, hovertemplate: `Slice ${j + 1}: |Mxy| %{y:.2f} at %{x:.1f} mm<extra></extra>` });
+    const n = members[j].index + 1;
+    traces.push({ x: px.z, y: px.profiles.excite[j], mode: "lines", name: j === me ? `Slice ${n} (selected)` : other,
+      legendgroup: j === me ? "sel" : "other", showlegend: j === me || j === firstOther,
+      line: { color: COLORS.gold, width: j === me ? 3 : 1 }, opacity: j === me ? 1 : 0.7, hovertemplate: `Slice ${n}: |Mxy| %{y:.2f} at %{x:.1f} mm<extra></extra>` });
   }
-  const refocus = xt.profiles.refocus;
+  const refocus = px.profiles.refocus;
   for (let j = 0; j < refocus.length; j++) {
-    traces.push({ x: xt.z, y: Array.from(refocus[j], (zz) => (1 - zz) / 2), mode: "lines", name: "Refocusing", legendgroup: "refocus", showlegend: j === 0,
-      line: { color: COLORS.red, width: j === sel ? 2 : 1, dash: "dash" }, opacity: j === sel ? 1 : 0.6, hovertemplate: `Slice ${j + 1} refocusing: %{y:.2f} at %{x:.1f} mm<extra></extra>` });
+    traces.push({ x: px.z, y: Array.from(refocus[j], (zz) => (1 - zz) / 2), mode: "lines", name: "Refocusing", legendgroup: "refocus", showlegend: j === 0,
+      line: { color: COLORS.red, width: j === me ? 2 : 1, dash: "dash" }, opacity: j === me ? 1 : 0.6, hovertemplate: `Slice ${members[j].index + 1} refocusing: %{y:.2f} at %{x:.1f} mm<extra></extra>` });
   }
-  traces.push({ x: xt.z, y: xt.slices[sel].mzBefore[tissue], mode: "lines", name: `Mz just before slice ${sel + 1}'s excitation`,
+  traces.push({ x: px.z, y: members[me].mzBefore[tissue], mode: "lines", name: `Mz just before slice ${sel + 1}'s excitation`,
     line: { color: COLORS.blue, width: 2.5 }, hovertemplate: "Mz %{y:.2f} at %{x:.1f} mm<extra></extra>" });
-  const shapes = xt.slices.map((s, j) => ({ type: "rect", xref: "x", yref: "paper", x0: s.zMm - th / 2, x1: s.zMm + th / 2, y0: 0, y1: 1,
-    fillcolor: j === sel ? "rgba(255,215,0,0.12)" : "rgba(255,255,255,0.05)", line: { width: 0 }, layer: "below" }));
+  // every slice of the stack as a band; those in other passes fainter
+  const shapes = scan.xt.slices.filter((s) => s.zMm >= px.z[0] && s.zMm <= px.z[px.z.length - 1]).map((s) => ({ type: "rect", xref: "x", yref: "paper",
+    x0: s.zMm - th / 2, x1: s.zMm + th / 2, y0: 0, y1: 1, line: { width: 0 }, layer: "below",
+    fillcolor: s.index === sel ? "rgba(255,215,0,0.12)" : s.pass === scan.pass ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)" }));
   draw("profilePlot", traces, layout({
     xaxis: axisStyle({ title: { text: "Position along the slice direction (mm)" } }),
     yaxis: axisStyle({ title: { text: "Mz, or |Mxy| after the pulse" }, range: [-0.05, 1.1] }),
@@ -373,10 +382,10 @@ function drawProfiles() {
   if (!el._clickWired) {
     el._clickWired = true;
     el.on("plotly_click", (e) => {
-      const p = e.points?.[0];
-      if (!scan.xt || !p || p.curveNumber >= scan.xt.profiles.excite.length + scan.xt.profiles.refocus.length) return;
-      const N2 = scan.xt.slices.length;
-      selectSlice(p.curveNumber < N2 ? p.curveNumber : p.curveNumber - N2);
+      const p = e.points?.[0], px = scan.xt?.passes[scan.pass];
+      if (!px || !p || p.curveNumber >= px.profiles.excite.length + px.profiles.refocus.length) return;
+      const N2 = px.slices.length;
+      selectSlice(px.slices[p.curveNumber < N2 ? p.curveNumber : p.curveNumber - N2].index);
     });
   }
 }
@@ -417,8 +426,11 @@ function markStrip() {
   for (const fig of $("strip").children) {
     const j = Number(fig.dataset.j), sl = scan.xt.slices[j], d = (sl.factor.WM - 1) * 100;
     const sign = Math.abs(d) < 0.05 ? "" : d > 0 ? "+" : "−";
-    fig.querySelector("figcaption").textContent = `S${j + 1} · #${sl.acq + 1} · WM ${sign}${Math.abs(d).toFixed(1)} %`;
+    const where = scan.C > 1 ? `P${sl.pass + 1} #${sl.acq + 1}` : `#${sl.acq + 1}`;
+    fig.querySelector("figcaption").textContent = `S${j + 1} · ${where} · WM ${sign}${Math.abs(d).toFixed(1)} %`;
     fig.classList.toggle("sel", j === state.sel);
+    fig.classList.toggle("other", sl.pass !== scan.pass); // in another pass: not played in the TRs shown
+    fig.title = sl.pass === scan.pass ? "" : sl.pass < scan.pass ? `Pass ${sl.pass + 1}: acquired before this pass` : `Pass ${sl.pass + 1}: acquired after this pass`;
   }
 }
 
@@ -429,6 +441,8 @@ function refreshStrip(force = false) {
   if (!force && key === strip.key) return;
   strip.key = key;
   strip.mask = thumbMask();
+  // slices in other passes: an earlier pass is finished, a later one not started
+  strip.done = new Uint8Array(strip.m * strip.m).fill(1); strip.none = new Uint8Array(strip.m * strip.m);
   // the selected slice first: usually inside the head, so the window rarely has to change during the fill
   strip.queue = [state.sel, ...Array.from({ length: scan.xt.slices.length }, (_, j) => j).filter((j) => j !== state.sel)];
   if (!strip.raf) strip.raf = requestAnimationFrame(stripFrame);
@@ -471,7 +485,8 @@ function renderThumb(j) {
       strip.drawn.clear();
     }
   }
-  const rec = reconstruct(strip.K[j], strip.mask, m, m, 0);
+  const mk = sl.pass === scan.pass ? strip.mask : sl.pass < scan.pass ? strip.done : strip.none;
+  const rec = reconstruct(strip.K[j], mk, m, m, 0);
   fig.querySelector("canvas").getContext("2d").putImageData(new ImageData(imageRgba(rec, strip.wl), m, m), 0, 0);
   strip.drawn.add(j);
 }
@@ -491,9 +506,12 @@ function imageRgba(rec, wl) {
 
 // choose which slice's k-space and image are shown (no new sequence or cross-talk calculation)
 function selectSlice(j) {
-  state.sel = clampSel(j, scan.info.slices?.length ?? 1);
+  state.sel = clampSel(j, scan.N);
   history.replaceState(null, "", `?${toQuery(state)}`);
   stop();
+  if (scan.xt && scan.xt.slices[state.sel].pass !== scan.pass) { // another pass: its own sequence (cross-talk is cached)
+    buildScan(); play.shot = 0; play.t = 0; renderAll(); return;
+  }
   scan.K = phantomKspace(scan.P, { tr: scan.tr, te: scan.te, ti: scan.info.ti });
   renderInfo(); renderDiagram(); renderFrame(true); drawProfiles(); markStrip();
 }

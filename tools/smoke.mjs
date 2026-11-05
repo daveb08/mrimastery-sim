@@ -29,7 +29,8 @@ const VISIBLE_ALERTS = `[...document.querySelectorAll(".alert")].filter((e) => e
 // ---- what each page is checked for -----------------------------------------------------------------------------
 // Steps: ["set", id, value] sets an input or select; ["cycle", id] steps a select through every option;
 // ["click", id]; ["wait", ms]; ["url", query] reloads the page with a query string; ["expect", label, js] fails if
-// the expression is not truthy. Screenshots are taken of the page as first loaded, before any steps.
+// the expression is not truthy; ["open", js] goes to the address the expression gives (a link on the page) and runs the
+// remaining steps there. Screenshots are taken of the page as first loaded, before any steps.
 const PAGES = [
   { name: "landing", path: "", plots: false, steps: [
     ["expect", "every card links to a page that loads", `(async () => {
@@ -66,6 +67,15 @@ const PAGES = [
     ["expect", "FLAIR: slices input disabled, note visible", `document.getElementById("c_slices").disabled && document.getElementById("sliceNote").innerText.includes("coming next")`],
     ["set", "seq", "MPRAGE"],
     ["expect", "MPRAGE: no slice controls", `!document.getElementById("c_slices")`],
+    // the link to the explorer carries the stack and the resolved concatenations; the explorer opens on the middle slice
+    ["set", "seq", "GRE"], ["click", "tabBtnGeometry"], ["set", "c_slices", 32], ["set", "c_TR", 500], ["set", "c_TE", 100], ["click", "tabBtnKspace"],
+    ["expect", "the explorer link carries 32 slices and the concatenations", `(() => { const q = new URL(document.getElementById("kExplorer").href).searchParams;
+      return (q.get("slices") === "32" && Number(q.get("conc")) > 1 && q.get("sel") === "15") || document.getElementById("kExplorer").href; })()`],
+    ["open", `document.getElementById("kExplorer").href`],
+    ["expect", "explorer from the link: 'Pass k of C' with the linked C, and the strip dims the other passes", `(() => {
+      const C = new URLSearchParams(location.search).get("conc"), t = document.getElementById("passNote").innerText;
+      return (document.getElementById("passNote").checkVisibility() && t.startsWith("Pass ") && t.includes(" of " + C + " (")
+        && document.querySelectorAll("#strip figure").length === 32 && document.querySelectorAll("#strip figure.other").length > 0) || t; })()`],
   ] },
   { name: "kspace", path: "kspace/", steps: [
     ["click", "play"], ["wait", 1500], ["click", "play"], ["click", "nextTr"], ["click", "fillAll"], ["click", "reset"],
@@ -79,6 +89,13 @@ const PAGES = [
     ["url", "?seq=EPI&slices=4&order=sequential"], ["click", "fillAll"],
     ["url", "?seq=SE&slices=5&order=interleaved"], ["click", "fillAll"],
     ["expect", "strip shows five slices", `document.querySelectorAll('#strip canvas').length === 5`],
+    ["url", "?slices=6&conc=2"], ["click", "fillAll"],
+    ["expect", "concatenations 2: 'Pass 1 of 2' (the middle slice, S3, is in pass 1) and a dimmed strip", `document.getElementById("passNote").innerText.startsWith("Pass 1 of 2")
+      && document.querySelectorAll("#strip figure.other").length === 3 && document.getElementById("k_conc").value === "2"`],
+    ["expect", "concatenations 2: info gives the scan time with 2 concatenations and max slices per TR", `(() => { const t = document.getElementById("info").innerText;
+      return (t.includes("2 concatenations") && t.includes("slices per TR")) || t; })()`],
+    ["expect", "selecting a slice in the other pass plays that pass", `(() => { document.querySelector('#strip figure[data-j="1"]').click();
+      return (document.getElementById("passNote").innerText.startsWith("Pass 2 of 2") && document.querySelector("#strip figure.sel")?.dataset.j === "1") || document.getElementById("passNote").innerText; })()`],
     ["expect", "profile plot drawn", `!!document.querySelector('#profilePlot .main-svg')`],
     ["expect", "no sequence error shown", `(${VISIBLE_ALERTS}) || true`],
     // dragging Slices across 1 shows the gap and order and hides the inversion, without a rebuild of the slider
@@ -210,8 +227,8 @@ async function runPage(cdp, base, page, outDir) {
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text);
     return r.result.value;
   };
-  const load = async (query = "") => {
-    await cdp.send("Page.navigate", { url: `${base}/${page.path}${query}` });
+  const load = async (query = "", url = `${base}/${page.path}${query}`) => {
+    await cdp.send("Page.navigate", { url });
     // wait for the load event, then until the number of drawn plots stops changing
     for (let i = 0; i < 60 && (await evaluate("document.readyState")) !== "complete"; i++) await sleep(150);
     let last = -1;
@@ -248,6 +265,7 @@ async function runPage(cdp, base, page, outDir) {
     try {
       if (kind === "wait") await sleep(a);
       else if (kind === "url") await load(a);
+      else if (kind === "open") await load("", await evaluate(a));
       else if (kind === "click") await evaluate(`(() => { const e = document.getElementById(${JSON.stringify(a)});
         if (!e) throw new Error("no element #${a}"); e.click(); })()`);
       else if (kind === "set") await evaluate(`(() => { const e = document.getElementById(${JSON.stringify(a)});

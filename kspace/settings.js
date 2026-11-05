@@ -1,5 +1,7 @@
 // DOM-free settings for the k-space explorer: reading and writing them in the page address, and translating the
-// contrast simulator's parameters into explorer settings (used by its "Open in k-space explorer" button).
+// contrast simulator's parameters into explorer settings (used by its "Open in k-space explorer" button), and the
+// explorer's settings into builder parameters.
+import { DEFAULTS, DEFAULT_LIMITS } from "../shared/sequence.js";
 
 export const EPI_MIN_TIMING_BW = 1500; // Hz/px: EPI reads each line in well under a millisecond
 export const SEQS = ["SE", "GRE", "FSE", "EPI"];
@@ -14,7 +16,7 @@ export const RANGES = {
 const KEYS = {
   seq: "seq", TE: "te", TR: "tr", flip: "flip", ETL: "etl", inversion: "inv", TI: "ti", TI1: "ti1", TI2: "ti2",
   ny: "matrix", fov: "fov", bw: "bw", sliceMm: "slice", gMax: "gmax", slew: "slew", from: "from",
-  slices: "slices", gapPct: "gap", sliceOrder: "order", sel: "sel",
+  slices: "slices", gapPct: "gap", sliceOrder: "order", conc: "conc", sel: "sel",
 };
 const NUMERIC = ["TE", "TR", "flip", "ETL", "TI", "TI1", "TI2", "fov", "bw", "sliceMm", "slices", "gapPct"];
 
@@ -34,6 +36,10 @@ export function fromQuery(search) {
     if (q.has(KEYS[key]) && Number.isFinite(v)) out[key] = clamp(v, RANGES[key]);
   }
   if (ORDERS.includes(q.get(KEYS.sliceOrder))) out.sliceOrder = q.get(KEYS.sliceOrder);
+  // concatenations: "auto", or any whole number of passes from 1 (a linked protocol may need more than the control's 4)
+  const conc = q.get(KEYS.conc);
+  if (conc === "auto") out.conc = "auto";
+  else if (conc !== null && /^\d+$/.test(conc) && Number(conc) >= 1) out.conc = Math.min(Number(conc), RANGES.slices[1]);
   if (q.has(KEYS.sel) && Number.isFinite(Number(q.get(KEYS.sel)))) out.sel = clamp(Math.round(Number(q.get(KEYS.sel))), [0, 31]);
   if (q.has(KEYS.ny)) { const n = nearestMatrix(Number(q.get(KEYS.ny)) || 128); out.nx = out.ny = n; }
   if (["20", "40", "80"].includes(q.get(KEYS.gMax))) out.gMax = Number(q.get(KEYS.gMax));
@@ -47,7 +53,7 @@ export function applies(key, s) {
   const inv = INVERSION_SEQS.includes(s.seq) ? s.inversion ?? "none" : "none";
   const multi = (s.slices ?? 1) > 1;
   if (key === "slices") return multi;
-  if (key === "gapPct" || key === "sliceOrder" || key === "sel") return multi;
+  if (key === "gapPct" || key === "sliceOrder" || key === "sel" || key === "conc") return multi;
   if (multi && (key === "inversion" || key === "TI" || key === "TI1" || key === "TI2")) return false;
   if (key === "flip") return s.seq === "GRE";
   if (key === "ETL") return s.seq === "FSE";
@@ -80,8 +86,10 @@ const FROM_CONTRAST = {
 };
 export const contrastNote = (from) => FROM_CONTRAST[from]?.note ?? "";
 
-// p: the contrast simulator's parameters ({ seq, TR, TE, TI, TI1, TI2, FA, ETL, phaseMatrix, fovRead, BW, sliceMm }).
-export function fromContrast(p) {
+// p: the contrast simulator's parameters ({ seq, TR, TE, TI, TI1, TI2, FA, ETL, phaseMatrix, fovRead, BW, sliceMm,
+// slices, gapPct, sliceOrder }); timing: its protocolTiming(p). A packed stack of more than one slice carries over with
+// the resolved number of concatenations (not "auto") and the middle slice selected; anything else opens one slice.
+export function fromContrast(p, timing) {
   const map = FROM_CONTRAST[p.seq] ?? { seq: "GRE" };
   let seq = map.seq;
   if (seq === "FSE" && p.seq === "FSE" && (p.ETL ?? 1) <= 1) seq = "SE"; // a one-echo train is a spin echo
@@ -96,7 +104,41 @@ export function fromContrast(p) {
   if (seq === "EPI") out.bw = Math.max(out.bw, EPI_MIN_TIMING_BW);
   if (map.inversion === "IR") Object.assign(out, { inversion: "IR", TI: clamp(p.TI, RANGES.TI) });
   if (map.inversion === "DIR") Object.assign(out, { inversion: "DIR", TI1: clamp(p.TI1, RANGES.TI1), TI2: clamp(p.TI2, RANGES.TI2) });
+  if (timing?.mode === "packed" && timing.N > 1) {
+    const N = clamp(timing.N, RANGES.slices);
+    Object.assign(out, { slices: N, gapPct: clamp(Math.round((p.gapPct ?? 20) / 10) * 10, RANGES.gapPct),
+      sliceOrder: ORDERS.includes(p.sliceOrder) ? p.sliceOrder : "interleaved", conc: timing.concatenations, sel: Math.floor((N - 1) / 2) });
+  }
   return out;
 }
 
-export const explorerUrl = (base, p) => `${base}?${toQuery(fromContrast(p))}`;
+export const explorerUrl = (base, p, timing) => `${base}?${toQuery(fromContrast(p, timing))}`;
+
+// ---- the explorer's state and its builder parameters ----
+export const SEQ_DEFAULTS = {
+  SE: { TE: 20, TR: 500, nx: 128, ny: 128 },
+  GRE: { TE: 5, TR: 50, flip: 30, nx: 128, ny: 128 },
+  FSE: { TE: 80, TR: 3000, ETL: 8, nx: 128, ny: 128 },
+  EPI: { TE: 40, TR: 3000, bw: 1500, nx: 64, ny: 64 },
+};
+
+// The explorer's settings on opening, from its address (search: location.search).
+export function initialState(search) {
+  let state = { seq: "SE", ...DEFAULTS, ...SEQ_DEFAULTS.SE, fov: 240, gMax: DEFAULT_LIMITS.gMax, slew: DEFAULT_LIMITS.slew };
+  const q = fromQuery(search);
+  if (q.seq) state = { ...state, ...SEQ_DEFAULTS[q.seq], seq: q.seq };
+  state = { ...state, ...q };
+  if (state.slices !== undefined) state.slices = Math.round(state.slices);
+  if (state.gapPct !== undefined) state.gapPct = Math.round(state.gapPct / 10) * 10;
+  return state;
+}
+
+const inversionOf = (s) => ((s.slices ?? 1) <= 1 && INVERSION_SEQS.includes(s.seq) ? s.inversion ?? "none" : "none");
+// Builder parameters for the explorer's settings s (no pass: kspace/scan.js buildShots picks the selected slice's).
+// Concatenations 1 keeps one pass and raises TR to fit; Auto or 2 and more make more passes when the slices do not fit.
+export function explorerParams(s) {
+  const conc = s.conc ?? "auto";
+  return { ...s, slices: s.slices ?? 1, gapPct: s.gapPct ?? 20, sliceOrder: s.sliceOrder ?? "interleaved",
+    concatenations: conc, overflow: conc === 1 ? "tr" : "passes",
+    inversion: inversionOf(s), nx: s.ny, fovRead: s.fov, fovPhase: s.fov, limits: { gMax: +s.gMax, slew: +s.slew } };
+}

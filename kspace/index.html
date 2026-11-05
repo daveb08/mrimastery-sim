@@ -29,6 +29,8 @@
   #strip figure { margin: 0; width: 112px; cursor: pointer; text-align: center; }
   #strip canvas { display: block; width: 112px; height: 112px; background: #000; border-radius: 4px; image-rendering: pixelated; outline: 2px solid transparent; }
   #strip figure.sel canvas { outline-color: #7fd8ff; }
+  #strip figure.other { opacity: .45; }
+  #passNote { font-size: .9rem; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
   #strip figcaption { font-size: .72rem; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
   @media (max-width: 800px) { .kpanels { grid-template-columns: 1fr; } }
 </style>
@@ -68,6 +70,7 @@
         <button class="btn" id="play">▶ Play</button>
         <button class="btn" id="prevTr" title="Previous TR">◀ TR</button>
         <button class="btn" id="nextTr" title="Next TR">TR ▶</button>
+        <span id="passNote" hidden></span>
         <button class="btn" id="fillAll" title="Acquire every TR">Fill all</button>
         <button class="btn" id="reset">Reset</button>
         <input type="range" id="time" min="0" max="1000" step="1" value="0" aria-label="Time within this TR">
@@ -91,7 +94,9 @@
       <h2 style="margin:0 0 6px">Slices in spatial order (click one to select it)</h2>
       <div id="strip"></div>
       <p class="caption">Each thumbnail is built from the same TRs as the main image, with the signal change its neighbours' pulses cause. All use one window and level, so a dimmer slice has lost signal.
-        Labels give the slice number, its place in the acquisition order and the white-matter signal change.</p>
+        Labels give the slice number, its place in the acquisition order and the white-matter signal change.
+        With several concatenations, P gives each slice's pass; the TRs shown play the selected slice's pass, and the slices of other
+        passes are dimmed (an earlier pass is already acquired, a later one has not started).</p>
     </div>
     <div class="panel" id="profilePanel" style="margin-bottom:12px" hidden>
       <div class="viewbar">

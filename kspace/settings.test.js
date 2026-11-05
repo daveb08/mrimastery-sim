@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fromQuery, toQuery, fromContrast, contrastNote, nearestMatrix, explorerUrl, clampSel } from "./settings.js";
+import { fromQuery, toQuery, fromContrast, contrastNote, nearestMatrix, explorerUrl, clampSel, initialState, explorerParams } from "./settings.js";
 import { defaultParams } from "../contrast/physics.js";
+import { protocolTiming, PROTOCOL_DEFAULTS } from "../contrast/protocol.js";
 
 test("settings round-trip through the page address", () => {
   const s = { seq: "GRE", TE: 6, TR: 40, flip: 25, ny: 128, fov: 260, bw: 400, sliceMm: 3, gMax: 80, slew: 200 };
@@ -83,4 +84,36 @@ test("clampSel", () => {
   assert.equal(clampSel(7, 5), 2);
   assert.equal(clampSel(undefined, 4), 1);
   assert.equal(clampSel(3, 5), 3);
+});
+
+test("conc round-trips, is absent at N = 1, and takes any integer from the address", () => {
+  for (const conc of ["auto", 1, 3]) assert.equal(fromQuery(`?${toQuery({ seq: "GRE", slices: 6, conc })}`).conc, conc);
+  assert.ok(!toQuery({ seq: "GRE", slices: 1, conc: 2 }).includes("conc"));
+  assert.equal(fromQuery("?conc=7").conc, 7);
+  assert.equal(fromQuery("?conc=0").conc, undefined);
+  assert.equal(fromQuery("?conc=two").conc, undefined);
+});
+
+test("fromContrast carries the slice settings and the resolved concatenations of a packed protocol", () => {
+  const p = { ...defaultParams("GRE", "3.0T"), ...PROTOCOL_DEFAULTS, freqMatrix: 128, phaseMatrix: 128, fovRead: 240, fovPhase: 240,
+    BW: 260, TR: 500, TE: 100, slices: 20, gapPct: 30, sliceOrder: "sequential" };
+  const timing = protocolTiming(p);
+  assert.ok(timing.concatenations > 1);
+  const s = fromContrast(p, timing);
+  assert.deepEqual([s.slices, s.gapPct, s.sliceOrder, s.conc, s.sel], [20, 30, "sequential", timing.concatenations, 9]);
+  const back = fromQuery(explorerUrl("../kspace/", p, timing).split("?")[1]);
+  assert.deepEqual([back.slices, back.conc, back.sel], [20, timing.concatenations, 9]);
+  // one slice, or no timing, or an inversion protocol: one slice as before
+  assert.equal(fromContrast(p).slices, undefined);
+  assert.equal(fromContrast({ ...p, slices: 1 }, protocolTiming({ ...p, slices: 1 })).slices, undefined);
+  const flair = { ...defaultParams("FLAIR", "3.0T"), ...PROTOCOL_DEFAULTS, slices: 20 };
+  assert.equal(fromContrast(flair, protocolTiming(flair)).slices, undefined);
+});
+
+test("explorerParams: concatenation 1 raises TR, anything else makes passes", () => {
+  const st = initialState("?seq=GRE&slices=6&conc=1");
+  assert.deepEqual([explorerParams(st).concatenations, explorerParams(st).overflow], [1, "tr"]);
+  const auto = explorerParams(initialState("?seq=GRE&slices=6"));
+  assert.deepEqual([auto.concatenations, auto.overflow], ["auto", "passes"]);
+  assert.deepEqual([explorerParams(initialState("?seq=GRE&slices=6&conc=2")).overflow], ["passes"]);
 });

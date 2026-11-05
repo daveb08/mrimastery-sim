@@ -662,7 +662,7 @@ function renderKspace() {
   fit($("kCanvas").parentElement, nx / ny);
   fit($("rCanvas").parentElement, p.fovRead / p.fovPhase);
   $("kSize").textContent = `${nx} kx × ${ny} ky`;
-  $("kExplorer").href = explorerUrl("../kspace/", p);
+  $("kExplorer").href = explorerUrl("../kspace/", p, timing);
   $("kNote").textContent = note + ` Rendered in ${(performance.now() - t0).toFixed(0)} ms.`;
   setAnimControls();
 }
