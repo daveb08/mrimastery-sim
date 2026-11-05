@@ -283,10 +283,12 @@ function packSlices(P, N, slotMs) {
   let C;
   if (P.concatenations === "auto" || P.concatenations == null) C = need;
   else {
-    const c = Math.min(4, Math.max(1, Math.floor(+P.concatenations)));
-    C = Math.max(c, need);
+    // any whole number (the controls offer 1-4; a linked protocol can carry more), but never more passes than slices
+    const c = Math.max(1, Math.floor(+P.concatenations) || 1);
+    C = Math.min(N, Math.max(c, need));
     if (c === 1 && P.overflow === "tr") C = 1; // the caller raises TR instead
     else if (C > c) messages.push(`${c} concatenation${c > 1 ? "s" : ""} cannot hold ${N} slices at TR ${P.TR} ms: using ${C}`);
+    else if (C < c && N > 1) messages.push(`${c} concatenations for ${N} slices: using ${C}`);
   }
   return { slotMs, maxSlices, concatenations: C, passes: concatenationSlices(N, C), scanFactor: C, messages };
 }

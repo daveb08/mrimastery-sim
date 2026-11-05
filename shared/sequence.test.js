@@ -302,6 +302,18 @@ test("manual too few concatenations is raised, with a message", () => {
   assert.match(t.messages[0], /cannot hold 12 slices/);
   assert.match(t.messages[0], /^1 concatenation cannot hold/);
 });
+test("manual concatenations: any whole number (a linked protocol may need more than 4), never more passes than slices", () => {
+  const t = sliceTiming({ ...P, seq: "GRE", TR: 50, slices: 12, concatenations: 7 }, 32);
+  assert.ok(Math.ceil(12 / t.maxSlices) <= 7);
+  assert.equal(t.concatenations, 7);
+  assert.deepEqual(t.messages, []);
+  const two = sliceTiming({ ...P, seq: "GRE", TR: 5000, slices: 2, concatenations: 4 }, 32);
+  assert.equal(two.concatenations, 2);
+  assert.ok(two.passes.every((s) => s.length > 0));
+  assert.match(two.messages[0], /^4 concatenations for 2 slices: using 2/);
+  const one = sliceTiming({ ...P, seq: "GRE", TR: 5000, slices: 1, concatenations: 4 }, 32);
+  assert.deepEqual([one.concatenations, one.scanFactor, one.messages], [1, 1, []]);
+});
 test("overflow tr keeps one pass and raises TR", () => {
   const prm = { ...P, seq: "GRE", TR: 50, slices: 12, concatenations: 1, overflow: "tr" };
   const t = sliceTiming(prm, 32);
