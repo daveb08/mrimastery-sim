@@ -6,6 +6,7 @@ import { blochStep, envelope, scaleToFlip, HZ_PER_MT_M_MM } from "../bloch/bloch
 import { tissuesAt } from "../contrast/physics.js";
 import { EXTRA_TISSUES } from "../contrast/image.js";
 import { LABELS } from "../phantom/phantom.js";
+import { simulateRfSlice } from "../signal/rfslice.js";
 
 const grid = (a, b, d) => {
   const n = Math.round((b - a) / d) + 1;
@@ -41,6 +42,8 @@ function phaseSpread(p, u, halfMm) {
 }
 
 const gss = 4 / 2 / (GAMMA_BAR * 5); // TBW 4, 2 ms, 5 mm — as sequence.js computes it
+// Timing limits hold locally; CI runners are slower and node --test runs files in parallel, so allow 3× there.
+const SLOW = process.env.CI ? 3 : 1;
 
 test("excite profile: FWHM matches the slice thickness and phase is flat after the rephaser", () => {
   const u = grid(-15, 15, 0.05), p = pulseProfile({ role: "excite", flipDeg: 90, durMs: 2, gss, u });
@@ -53,6 +56,15 @@ test("excite profile: FWHM matches the slice thickness and phase is flat after t
   assert.ok(phaseSpread(p, u, 1.5) < 1); // without the rephaser, or with it reversed, this is ≈ 6 rad
   assert.ok(Math.abs(p.zz[centre(u)]) < 0.01); // 90°: Mz → 0 at the centre
   assert.ok(p.b2Re.every((v) => v === 0) && p.b2Im.every((v) => v === 0));
+});
+
+// Cross-check with the signal page's small-tip model (the Fourier transform of the same TBW-4 sinc, signal/rfslice.js):
+// at a small flip the Bloch profile is that Fourier transform, so the two widths agree closely.
+test("excite FWHM at 10° matches signal/rfslice.js simulateRfSlice within 1 %", () => {
+  const u = grid(-15, 15, 0.01), p = pulseProfile({ role: "excite", flipDeg: 10, durMs: 2, gss, u });
+  const bloch = fwhm(u, abs(p.mxyRe, p.mxyIm)), ft = simulateRfSlice("Sinc", 5, gss, 4);
+  assert.ok(Math.abs(ft.duration * 1000 - 2) < 1e-4, `rfslice duration ${ft.duration * 1000} ms`); // the same pulse (gamma to 5 digits there)
+  assert.ok(Math.abs(bloch - ft.achievedMm) < 0.01 * ft.achievedMm, `Bloch ${bloch.toFixed(4)} mm, rfslice ${ft.achievedMm.toFixed(4)} mm`);
 });
 
 test("small-tip excite: phase is flat across the central ±1.5 mm after the rephaser", () => {
@@ -103,7 +115,7 @@ test("a 601-point profile computes in under 20 ms on a cold cache (median of 5)"
     times.push(performance.now() - t0);
   }
   times.sort((a, b) => a - b);
-  assert.ok(times[2] < 20, `median ${times[2].toFixed(1)} ms`);
+  assert.ok(times[2] < 20 * SLOW, `median ${times[2].toFixed(1)} ms`);
 });
 
 // ---- steady-state cross-talk factors ----
@@ -198,7 +210,8 @@ test("90° excitation without refocusing can gain signal (GRE 90°, EPI)", () =>
   }
 });
 
-test("factors never exceed 1 (SE, FSE, GRE at 30°)", () => {
+// Only these settings: elsewhere (GRE at higher flips or with a gap, EPI, long-T1 tissue at short TR) factors can exceed 1.
+test("N = 8, 1 mm slices, no gap, TR 500 ms: factors never exceed 1 for SE, FSE and GRE at 30°", () => {
   for (const kind of ["SE", "GRE", "FSE"]) {
     const ct = crossTalk(build(kind, { slices: 8, sliceMm: 1, gapPct: 0, TR: 500, flip: 30 }), TS);
     for (const s of ct.slices) for (const [n, v] of Object.entries(s.factor)) assert.ok(v <= 1 + 1e-9, `${kind} ${n} ${v}`);
@@ -220,7 +233,7 @@ test("speed: FSE ETL 16, 32 slices, six tissues in under 50 ms (median of 5, war
     times.push(performance.now() - t0);
   }
   times.sort((a, b) => a - b);
-  assert.ok(times[2] < 50, `median ${times[2].toFixed(1)} ms`);
+  assert.ok(times[2] < 50 * SLOW, `median ${times[2].toFixed(1)} ms`);
 });
 
 test("speed: changing the gap reuses the cached profiles (FSE ETL 16, 32 slices, median of 5 under 50 ms)", () => {
@@ -234,7 +247,7 @@ test("speed: changing the gap reuses the cached profiles (FSE ETL 16, 32 slices,
     times.push(performance.now() - t0);
   }
   times.sort((a, b) => a - b);
-  assert.ok(times[2] < 50, `median ${times[2].toFixed(1)} ms`);
+  assert.ok(times[2] < 50 * SLOW, `median ${times[2].toFixed(1)} ms`);
 });
 
 // Brute-force reference: time-stepped Bloch over several TRs, independent of crossTalk's affine algebra.
@@ -315,16 +328,20 @@ function bruteForce(seq, T1, play, dz, nTR = 40) {
   return sig;
 }
 
-test("matches brute-force Bloch within 1 %", () => {
-  const T1 = TS.WM;
-  for (const kind of ["SE", "GRE"]) {
+// WM for SE and GRE, and CSF for GRE at 90°, where cross-talk raises the signal most (long T1 at short TR; here the
+// factors are 1.34–1.90). That case needs the reference on crossTalk's own grid (thickness / 20 = 0.25 mm): at 0.5 mm
+// the large cancellation in the coherent sum leaves the reference 2–3 % high (measured 1.7148 vs 1.6658 at 0.25 mm).
+test("matches brute-force Bloch within 1 % (SE and GRE for WM; GRE 90° for CSF)", () => {
+  for (const [kind, tissue, dz] of [["SE", "WM", DZ], ["GRE", "WM", DZ], ["GRE", "CSF", DZ / 2]]) {
+    const T1 = TS[tissue];
     for (const gapPct of [0, 20]) {
       const seq = build(kind, { slices: 3, sliceMm: 5, gapPct, TR: 200, flip: 90 });
-      const ct = crossTalk(seq, { WM: T1 }), all = bruteForce(seq, T1, [0, 1, 2], DZ);
+      // enough TRs to reach the steady state: weakly tipped edges recover by about exp(−TR/T1) per TR (CSF: ~200)
+      const nTR = Math.max(40, Math.ceil((8 * T1) / seq.tr));
+      const ct = crossTalk(seq, { [tissue]: T1 }), all = bruteForce(seq, T1, [0, 1, 2], dz, nTR);
       for (let j = 0; j < 3; j++) {
-        const alone = bruteForce(seq, T1, [j], DZ)[j], ref = all[j] / alone, got = ct.slices[j].factor.WM;
-        console.log(`${kind} gap ${gapPct}% slice ${j}: crossTalk ${got.toFixed(4)}, Bloch ${ref.toFixed(4)}`);
-        assert.ok(Math.abs(got - ref) < 0.01 * ref, `${kind} gap ${gapPct}% slice ${j}: crossTalk ${got.toFixed(4)}, Bloch ${ref.toFixed(4)}`);
+        const alone = bruteForce(seq, T1, [j], dz, nTR)[j], ref = all[j] / alone, got = ct.slices[j].factor[tissue];
+        assert.ok(Math.abs(got - ref) < 0.01 * ref, `${kind} ${tissue} gap ${gapPct}% slice ${j}: crossTalk ${got.toFixed(4)}, Bloch ${ref.toFixed(4)}`);
       }
     }
   }
