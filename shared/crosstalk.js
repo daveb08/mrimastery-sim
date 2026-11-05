@@ -3,7 +3,7 @@
 // Units: ms, mm, mT/m, Hz. Uses the bloch/bloch.js convention dM/dt = gamma M x B: +x RF tips Mz toward +y, positive
 // off-resonance precesses clockwise seen from +z.
 
-import { envelope, scaleToFlip, blochStep, HZ_PER_MT_M_MM } from "../bloch/bloch.js";
+import { envelope, scaleToFlip, HZ_PER_MT_M_MM } from "../bloch/bloch.js";
 
 const STEPS = 400; // RF samples per pulse
 const cache = new Map();
@@ -24,27 +24,35 @@ export function pulseProfile({ role, flipDeg, durMs, gss, tbw = 4, shape = "sinc
   const hit = cache.get(key);
   if (hit) return hit;
 
-  // Three isochromats per position, started at unit x, y and z.
-  const M = new Float64Array(9 * n);
-  const df = new Float64Array(3 * n);
-  for (let i = 0; i < n; i++) {
-    M[9 * i] = 1; M[9 * i + 4] = 1; M[9 * i + 8] = 1;
-    df[3 * i] = df[3 * i + 1] = df[3 * i + 2] = HZ_PER_MT_M_MM * gss * u[i];
-  }
+  // One rotation per position per step, composed as a unit quaternion (w, x, y, z). Each step is the same rotation
+  // bloch.js blochStep applies (right-handed by −2π|B|dt about B = (b1x, b1y, Δf), relaxation off), so the result
+  // equals stepping three isochromats from unit x, y, z, at a third of the trig cost.
   const wave = scaleToFlip(envelope(shape, STEPS, tbw), durMs, flipDeg);
   const ph = (phaseDeg * Math.PI) / 180, cp = Math.cos(ph), sp = Math.sin(ph);
-  const h = durMs / STEPS;
-  for (let k = 0; k < STEPS; k++) blochStep(M, wave[k] * cp, wave[k] * sp, df, h, Infinity, Infinity, 1);
-
+  const h = durMs / STEPS, k2 = -Math.PI * h * 1e-3; // half-angle per Hz of field
   const zz = new Float64Array(n);
   const mxyRe = new Float64Array(n), mxyIm = new Float64Array(n);
   const b2Re = new Float64Array(n), b2Im = new Float64Array(n);
   for (let i = 0; i < n; i++) {
-    const o = 9 * i;
-    // Column j of R is the image of start vector j.
-    const Rxx = M[o], Ryx = M[o + 1];
-    const Rxy = M[o + 3], Ryy = M[o + 4];
-    const Rxz = M[o + 6], Ryz = M[o + 7], Rzz = M[o + 8];
+    const df = HZ_PER_MT_M_MM * gss * u[i];
+    let qw = 1, qx = 0, qy = 0, qz = 0;
+    for (let k = 0; k < STEPS; k++) {
+      const bx = wave[k] * cp, by = wave[k] * sp;
+      const b = Math.sqrt(bx * bx + by * by + df * df);
+      if (b === 0) continue;
+      const half = k2 * b, s = Math.sin(half) / b;
+      const aw = Math.cos(half), ax = bx * s, ay = by * s, az = df * s;
+      // q ← step ⊗ q (Hamilton product; the later rotation on the left)
+      const w = aw * qw - ax * qx - ay * qy - az * qz;
+      const x = aw * qx + ax * qw + ay * qz - az * qy;
+      const y = aw * qy - ax * qz + ay * qw + az * qx;
+      const z = aw * qz + ax * qy - ay * qx + az * qw;
+      qw = w; qx = x; qy = y; qz = z;
+    }
+    // Rotation matrix; column j is the image of unit vector j.
+    const Rxx = 1 - 2 * (qy * qy + qz * qz), Rxy = 2 * (qx * qy - qw * qz);
+    const Ryx = 2 * (qx * qy + qw * qz), Ryy = 1 - 2 * (qx * qx + qz * qz);
+    const Rxz = 2 * (qx * qz + qw * qy), Ryz = 2 * (qy * qz - qw * qx), Rzz = 1 - 2 * (qx * qx + qy * qy);
     zz[i] = Rzz;
     if (role === "excite") {
       // The rephaser (−half the slice-select area) undoes the precession after the pulse's centre. Positive

@@ -88,3 +88,14 @@ test("profiles are cached by their inputs", () => {
   assert.equal(pulseProfile({ role: "excite", flipDeg: 30, durMs: 2, gss, u: grid(-5, 5, 0.5) }), a);
   assert.notEqual(pulseProfile({ role: "excite", flipDeg: 40, durMs: 2, gss, u }), a);
 });
+
+test("a 601-point profile computes in under 12 ms on a cold cache (median of 3)", () => {
+  const u = grid(-15, 15, 0.05), times = [];
+  for (let k = 0; k < 3; k++) {
+    const t0 = performance.now();
+    pulseProfile({ role: "excite", flipDeg: 90, durMs: 2, gss: gss * (1 + 1e-6 * (k + 1)), u }); // fresh cache keys
+    times.push(performance.now() - t0);
+  }
+  times.sort((a, b) => a - b);
+  assert.ok(times[1] < 12, `median ${times[1].toFixed(1)} ms`);
+});
