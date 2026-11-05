@@ -17,6 +17,8 @@ import {
 } from "./kspace.js";
 import { acquisitionPlan, maskAt, progressLabel, stepProgress, trajectory } from "./acquisition.js";
 import { explorerUrl } from "../kspace/settings.js";
+import { trStripLayout } from "./trstrip.js";
+import { slicePositions } from "../shared/sequence.js";
 import { PROTOCOL_DEFAULTS, protocolMode, protocolTiming, middleSliceFactors } from "./protocol.js";
 
 const $ = (id) => document.getElementById(id);
@@ -301,12 +303,45 @@ function renderPsd(m) {
     : `${p.seq} has no pulse-sequence diagram yet.`;
 }
 
+// TR timeline strip: one bar per concatenation (at most four), one block per slice in acquisition order.
+const SVGNS = "http://www.w3.org/2000/svg";
+function renderTrStrip(m) {
+  const L = trStripLayout(timing, p.TR, p.sliceOrder, m.scanSec);
+  $("trstrip").hidden = !L;
+  if (!L) return;
+  const W = 1000, ROW = 30, GAP = 8, LEFT = L.rows.length > 1 ? 70 : 0, X = W - LEFT - 4;
+  const H = L.rows.length * (ROW + GAP) + (L.more ? 26 : 0) + 4;
+  const svg = $("trstripSvg");
+  svg.replaceChildren();
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const el = (tag, attrs, text) => {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+    if (text != null) e.textContent = text;
+    svg.append(e);
+  };
+  L.rows.forEach((row, r) => {
+    const y = 2 + r * (ROW + GAP), ty = y + ROW * 0.7;
+    if (LEFT) el("text", { x: 0, y: ty, fill: "#aaa", "font-size": 20 }, `Pass ${r + 1}`);
+    el("rect", { x: LEFT, y, width: X, height: ROW, fill: "#1a1a1a", stroke: "#444", "stroke-width": 1 });
+    for (const b of row.blocks) {
+      const w = (b.x1 - b.x0) * X;
+      el("rect", { x: LEFT + b.x0 * X, y, width: Math.max(0.5, w), height: ROW, fill: "#6699FF", "fill-opacity": 0.75, stroke: "#1a1a1a", "stroke-width": 1 });
+      if (w >= 34) el("text", { x: LEFT + b.x0 * X + w / 2, y: ty, fill: "#fff", "font-size": 19, "text-anchor": "middle" }, `S${b.slice}`);
+    }
+    if (row.idleFrom < 0.9) el("text", { x: LEFT + (row.idleFrom + 1) / 2 * X, y: ty, fill: "#aaa", "font-size": 18, "text-anchor": "middle" }, "idle");
+  });
+  if (L.more) el("text", { x: LEFT, y: H - 6, fill: "#FFAA44", "font-size": 20 }, `+ ${L.more} more pass${L.more > 1 ? "es" : ""}`);
+  $("trCaption").textContent = L.caption + " (each bar is one TR)";
+}
+
 function update() {
   normalize(p);
   timing = protocolTiming(p);
   model = computeModel(p, { scanFactor: timing.scanFactor, crossTalk: middleSliceFactors(p) });
   syncSliceControls();
-  renderMeters(model); renderChips(model); renderMessages(model); renderNotes(model); renderPlots(model); renderPsd(model); scheduleImages();
+  $("stackWrap").hidden = !(timing.N > 1 && timing.mode !== "3d");
+  renderMeters(model); renderChips(model); renderMessages(model); renderNotes(model); renderPlots(model); renderPsd(model); renderTrStrip(model); scheduleImages();
 }
 
 // ---- phantom images ----
@@ -332,7 +367,7 @@ for (const plane of PLANES) {
     + `<span class="ol" style="left:3px;top:50%">${o.left}</span><span class="ol" style="right:3px;top:50%">${o.right}</span></div>`
     + `<div class="vpos"><input type="range" id="slice_${plane}" min="${POS_RANGE[ax][0]}" max="${POS_RANGE[ax][1]}" step="1" aria-label="${o.name} slice position (mm)"></div>`;
   $("views").append(el);
-  views[plane] = { canvas: $(`cv_${plane}`), frame: $(`frame_${plane}`), vline: el.querySelector(".xh.v"), hline: el.querySelector(".xh.h") };
+  views[plane] = { canvas: $(`cv_${plane}`), frame: $(`frame_${plane}`), vline: el.querySelector(".xh.v"), hline: el.querySelector(".xh.h"), stack: [] };
   $(`slice_${plane}`).addEventListener("input", (e) => { pos[ax] = Number(e.target.value); scheduleImages(); });
   const pick = (e) => {
     const r = views[plane].frame.getBoundingClientRect();
@@ -372,6 +407,22 @@ function scheduleImages() {
   requestAnimationFrame(() => { imagePending = false; renderImages(); });
 }
 
+// Slice-stack planning lines on the coronal and sagittal views: one thin line per slice at its z, the middle one brighter.
+function drawStackLines(plane, v, cu) {
+  const show = plane !== "axial" && timing.N > 1 && timing.mode !== "3d" && $("showStack").checked;
+  const zs = show ? slicePositions(timing.N, p.sliceMm, p.gapPct, pos.z) : [];
+  while (v.stack.length > zs.length) v.stack.pop().remove();
+  while (v.stack.length < zs.length) { const i = document.createElement("i"); i.className = "sl"; v.frame.append(i); v.stack.push(i); }
+  const mid = Math.floor((zs.length - 1) / 2);
+  zs.forEach((z, k) => {
+    const top = ((cu + p.fovPhase / 2 - z) / p.fovPhase) * 100;
+    v.stack[k].style.top = `${top}%`;
+    v.stack[k].style.display = top < 0 || top > 100 ? "none" : "";
+    v.stack[k].classList.toggle("mid", k === mid);
+  });
+}
+$("showStack").addEventListener("change", scheduleImages);
+
 function renderImages() {
   if (!model) return;
   const auto = autoWindowLevel(p, model);
@@ -390,6 +441,7 @@ function renderImages() {
     const [cr, cu] = CENTER[plane], [r, u] = patientToScreen(plane, pos);
     v.vline.style.left = `${((r - (cr - p.fovRead / 2)) / p.fovRead) * 100}%`;
     v.hline.style.top = `${((cu + p.fovPhase / 2 - u) / p.fovPhase) * 100}%`;
+    drawStackLines(plane, v, cu);
     $(`slice_${plane}`).value = pos[ax];
     $(`vpos_${plane}`).textContent = `${ax} = ${pos[ax]} mm`;
   }

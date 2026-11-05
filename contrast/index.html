@@ -33,6 +33,7 @@
           <button role="tab" id="tabBtnKspace" aria-selected="false" aria-controls="tabKspace">K-space</button>
         </div>
         <div id="tabImages" role="tabpanel">
+          <div class="check stackck" id="stackWrap" hidden><input type="checkbox" id="showStack" checked><label for="showStack" style="margin:0;color:var(--text)">Show slice stack</label></div>
           <div class="viewer-grid" id="views"></div>
           <div class="wl" id="wl">
             <div class="check"><input type="checkbox" id="autoWl" checked><label for="autoWl" style="margin:0;color:var(--text)">Auto window/level</label></div>
@@ -81,6 +82,10 @@
 
       <div class="panel psd" aria-label="Pulse sequence diagram">
         <div id="psd"></div>
+        <div id="trstrip" class="trstrip" hidden>
+          <svg id="trstripSvg" role="img" aria-label="TR timeline: how the slices fill each TR"></svg>
+          <p class="caption" id="trCaption"></p>
+        </div>
         <p class="caption" id="psdNote">Schematic: the spacing between events is illustrative; the labels give the real TR, TE and TI.</p>
       </div>
     </section>
