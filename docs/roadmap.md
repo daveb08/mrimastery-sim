@@ -5,7 +5,8 @@ Recorded 2026-11-01; order agreed 2026-11-04 (basic ideas first). Nothing here s
 **Done:** the k-space explorer (`docs/kspace-module-plan.md`, phases 1–5, including inversion recovery and TR up to
 12 s).
 
-0. **Head phantom realism (procedural, option A, chosen 2026-11-03)** — keep the phantom generated in code, so it still
+0. **Head phantom realism (procedural, option A, chosen 2026-11-03)** — **done (2026-11-04, commit b5216e2).** The aim
+   was to keep the phantom generated in code, so it still
    works at any slice and resolution and keeps its seeds and lesions, but make it look anatomical:
    - a brain outline with frontal and occipital poles and temporal lobes;
    - a cortical ribbon of even thickness that follows the gyri;
@@ -15,7 +16,8 @@ Recorded 2026-11-01; order agreed 2026-11-04 (basic ideas first). Nothing here s
    - a better skull, scalp, face and neck;
    - partial-volume edges.
    Comes first because multi-slice and 3D will show much more of the phantom. Plan it with the user before building.
-1. **Multi-slice imaging** — interleaving several slices within one TR: slice order (sequential, interleaved), slice
+1. **Multi-slice imaging** — k-space explorer part done (2D only; design `docs/superpowers/specs/2026-11-04-multislice-design.md`);
+   contrast simulator next. Scope: interleaving several slices within one TR: slice order (sequential, interleaved), slice
    gap and cross-talk from imperfect slice profiles, and how TR sets the number of slices. Fits the k-space explorer
    (per-slice RF frequency offsets in the event model) and the contrast simulator (slice count and scan time).
 2. **3D imaging** — a second phase-encode axis (partition encoding along z): a 3D k-space volume, the scan-time and SNR

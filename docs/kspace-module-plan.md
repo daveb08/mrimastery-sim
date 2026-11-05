@@ -51,6 +51,13 @@ hand-made path. Agreed with the user on 2026-11-01.
    phantom contrast uses the FLAIR/STIR or DIR signal equations; the info panel shows the CSF, fat or WM null TI. The
    contrast simulator's FLAIR, STIR and DIR now open with their real TI values instead of an approximation note.
 
+6. **Multi-slice imaging, 2D** (2026-11-04) — N slices per TR, each with its own RF frequency offset; slice gap and
+   order (sequential or interleaved). TR is raised to N × block when the slices do not fit, and the page shows the
+   maximum N for the TR asked for. Cross-talk comes from Bloch-simulated excite and refocus profiles, per tissue
+   (`shared/crosstalk.js`), and is shown as a signed signal change (it can be positive for gradient echo at high flip
+   angles and EPI). Slice-profile plot and slice strip. Inversion recovery is off with more than one slice. Design:
+   `docs/superpowers/specs/2026-11-04-multislice-design.md`. **Done** for the k-space explorer; 3D is roadmap item 2.
+
 ## Later
 
 Spiral and PROPELLER (with regridding); driving the Bloch simulator from the same events; possibly replacing the contrast
