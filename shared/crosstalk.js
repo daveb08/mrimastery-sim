@@ -191,6 +191,7 @@ export function crossTalk(seq, tissues) {
       for (let k = 0; k < ps.length; k++) step(k ? Math.exp(-(ps[k].t - ps[k - 1].t) / T1) : 1, ps[k].zz);
       step(Math.exp(-(TR - (ps[ps.length - 1].t - t0)) / T1), null);
       for (let i = 0; i < nz; i++) m[i] = b[i] / (1 - a[i]);
+      // Can exceed 1: neighbours may saturate edges whose transverse phase opposes the centre's (coherent sum).
       const den = signal(m, j);
       slices[j].factor[name] = den > 0 ? signal(slices[j].mzBefore[name], j) / den : 1;
     }
