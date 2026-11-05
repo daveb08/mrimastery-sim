@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fromQuery, toQuery, fromContrast, contrastNote, nearestMatrix, explorerUrl } from "./settings.js";
+import { fromQuery, toQuery, fromContrast, contrastNote, nearestMatrix, explorerUrl, clampSel } from "./settings.js";
 import { defaultParams } from "../contrast/physics.js";
 
 test("settings round-trip through the page address", () => {
@@ -68,4 +68,19 @@ test("the contrast settings carry over: TE, TR, flip, ETL, matrix, FOV, bandwidt
   const url = explorerUrl("../kspace/", p);
   assert.ok(url.startsWith("../kspace/?seq=GRE&te=12&tr=300&flip=20"));
   assert.deepEqual(fromQuery(url.split("?")[1]).from, "GRE");
+});
+
+const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
+
+test("multi-slice settings round-trip and vanish when there is one slice", () => {
+  const s = { seq: "SE", slices: 7, gapPct: 30, sliceOrder: "sequential", sel: 2 };
+  assert.deepEqual(pick(fromQuery(`?${toQuery(s)}`), ["slices", "gapPct", "sliceOrder", "sel"]), pick(s, ["slices", "gapPct", "sliceOrder", "sel"]));
+  assert.equal(toQuery({ seq: "SE", slices: 1, gapPct: 30, sliceOrder: "sequential", sel: 0 }), "seq=SE");
+  assert.equal(fromQuery("?slices=99").slices, 32);
+});
+
+test("clampSel", () => {
+  assert.equal(clampSel(7, 5), 2);
+  assert.equal(clampSel(undefined, 4), 1);
+  assert.equal(clampSel(3, 5), 3);
 });

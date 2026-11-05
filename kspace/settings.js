@@ -5,17 +5,21 @@ export const SEQS = ["SE", "GRE", "FSE", "EPI"];
 export const MATRICES = [32, 64, 128, 256];
 export const INVERSIONS = ["none", "IR", "DIR"];
 export const INVERSION_SEQS = ["SE", "FSE"]; // spin-echo readouts, as in FLAIR, STIR and DIR
+export const ORDERS = ["sequential", "interleaved"];
 export const RANGES = {
   TE: [1, 200], TR: [10, 12000], flip: [5, 90], ETL: [2, 32], fov: [120, 400], bw: [50, 3000], sliceMm: [1, 10],
-  TI: [20, 4000], TI1: [300, 5000], TI2: [20, 2500],
+  TI: [20, 4000], TI1: [300, 5000], TI2: [20, 2500], slices: [1, 32], gapPct: [0, 100],
 };
 const KEYS = {
   seq: "seq", TE: "te", TR: "tr", flip: "flip", ETL: "etl", inversion: "inv", TI: "ti", TI1: "ti1", TI2: "ti2",
   ny: "matrix", fov: "fov", bw: "bw", sliceMm: "slice", gMax: "gmax", slew: "slew", from: "from",
+  slices: "slices", gapPct: "gap", sliceOrder: "order", sel: "sel",
 };
-const NUMERIC = ["TE", "TR", "flip", "ETL", "TI", "TI1", "TI2", "fov", "bw", "sliceMm"];
+const NUMERIC = ["TE", "TR", "flip", "ETL", "TI", "TI1", "TI2", "fov", "bw", "sliceMm", "slices", "gapPct"];
 
 const clamp = (v, [lo, hi]) => Math.min(hi, Math.max(lo, v));
+// The selected slice (an index into the stack of n): an integer in 0..n-1, else the middle one.
+export const clampSel = (sel, n) => (Number.isInteger(sel) && sel >= 0 && sel < n ? sel : Math.floor((n - 1) / 2));
 export const nearestMatrix = (n) => MATRICES.reduce((best, m) => (Math.abs(Math.log(m / n)) < Math.abs(Math.log(best / n)) ? m : best), 128);
 
 // Settings found in a query string (unknown or out-of-range values are ignored or clamped).
@@ -28,6 +32,8 @@ export function fromQuery(search) {
     const v = Number(q.get(KEYS[key]));
     if (q.has(KEYS[key]) && Number.isFinite(v)) out[key] = clamp(v, RANGES[key]);
   }
+  if (ORDERS.includes(q.get(KEYS.sliceOrder))) out.sliceOrder = q.get(KEYS.sliceOrder);
+  if (q.has(KEYS.sel) && Number.isFinite(Number(q.get(KEYS.sel)))) out.sel = clamp(Math.round(Number(q.get(KEYS.sel))), [0, 31]);
   if (q.has(KEYS.ny)) { const n = nearestMatrix(Number(q.get(KEYS.ny)) || 128); out.nx = out.ny = n; }
   if (["20", "40", "80"].includes(q.get(KEYS.gMax))) out.gMax = Number(q.get(KEYS.gMax));
   if (["70", "150", "200"].includes(q.get(KEYS.slew))) out.slew = Number(q.get(KEYS.slew));
@@ -38,6 +44,10 @@ export function fromQuery(search) {
 // Whether a setting applies to the chosen sequence (and inversion).
 export function applies(key, s) {
   const inv = INVERSION_SEQS.includes(s.seq) ? s.inversion ?? "none" : "none";
+  const multi = (s.slices ?? 1) > 1;
+  if (key === "slices") return multi;
+  if (key === "gapPct" || key === "sliceOrder" || key === "sel") return multi;
+  if (multi && (key === "inversion" || key === "TI" || key === "TI1" || key === "TI2")) return false;
   if (key === "flip") return s.seq === "GRE";
   if (key === "ETL") return s.seq === "FSE";
   if (key === "inversion") return inv !== "none";
