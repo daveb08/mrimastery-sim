@@ -49,10 +49,11 @@ test("odd matrices stay finite", () => {
   }
 });
 
-test("pages agree on representable protocols", () => {
+// The true two-page check (the explorer's own scan.tr and shot count, with its concatenations control) belongs to Task 7.
+test("parameter mapping matches the explorer's", () => {
   const p = mk("GRE", { freqMatrix: 128, phaseMatrix: 128, fovRead: 240, fovPhase: 240, BW: 260, TR: 100, slices: 20, NEX: 1, pfFraction: 1 });
   const t = protocolTiming(p);
-  // as kspace/ui.js params() builds them
+  // the builder inputs the explorer would use for the same protocol (hand-built here, not kspace/ui.js params()); builderParams must map to them and give the same sliceTiming
   const P = { seq: "GRE", nx: 128, ny: 128, fovRead: 240, fovPhase: 240, bw: 260, TE: p.TE, TR: 100, ETL: p.ETL, flip: p.FA, sliceMm: p.sliceMm,
     slices: 20, gapPct: 20, sliceOrder: "interleaved", concatenations: "auto", overflow: "passes", inversion: "none" };
   const e = sliceTiming(P, shotRows("GRE", P).rowsPerShot[0][0]);
