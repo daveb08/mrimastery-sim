@@ -202,7 +202,7 @@ test("loss grows as the gap shrinks", () => {
 // (N = 5, gap 0, TR 500: CSF 0.9998, WM 0.9967). The windowed pulse's edges are cleaner and SE follows the rule too
 // (CSF 0.968, GM 0.982, WM 0.987), so it is included.
 test("longer T1 loses more (SE, FSE, and GRE at 30°)", () => {
-  for (const [kind, P] of [["SE", { TR: 500 }], ["FSE", { TR: 3000 }], ["GRE", { TR: 100, flip: 30 }]]) {
+  for (const [kind, P] of [["SE", { TR: 500 }], ["FSE", { TR: 3000 }], ["GRE", { TR: 100, flip: 30, concatenations: 1, overflow: "tr" }]]) { // GRE: TR 100 holds < 5 slices; spec section 5: keep one pass, raise TR
     const s = crossTalk(build(kind, { slices: 5, gapPct: 0, ...P }), TS).slices[2];
     assert.ok(s.factor.CSF < s.factor.GM && s.factor.GM < s.factor.WM, `${kind}: ${JSON.stringify(s.factor)}`);
   }
@@ -365,5 +365,17 @@ test("matches brute-force Bloch within 1 % (SE and GRE for WM; GRE 90° for CSF,
         assert.ok(Math.abs(got - ref) < 0.01 * ref, `${kind} ${tissue} gap ${gapPct}% slice ${j}: crossTalk ${got.toFixed(4)}, Bloch ${ref.toFixed(4)}`);
       }
     }
+  }
+});
+
+test("per-pass cross-talk: each pass has less neighbour interaction than the single pass", () => {
+  const prm = { slices: 6, gapPct: 0, TR: 20000 };
+  const one = crossTalk(build("SE", { ...prm, concatenations: 1, overflow: "tr", TR: 600 }), TS);
+  const base = Object.fromEntries(one.slices.map((s) => [s.index, s.factor.WM]));
+  for (const pass of [0, 1]) {
+    const seq = build("SE", { ...prm, TR: 600, concatenations: 2, pass });
+    const ct = crossTalk(seq, TS);
+    assert.equal(ct.slices.length, 3);
+    for (const s of ct.slices) assert.ok(Math.abs(s.factor.WM - 1) < Math.abs(base[s.index] - 1), `pass ${pass} slice ${s.index}`);
   }
 });

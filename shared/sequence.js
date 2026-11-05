@@ -15,6 +15,7 @@ export const DEFAULTS = {
   fovRead: 240, fovPhase: 240, nx: 128, ny: 128, bw: 260, sliceMm: 5, TE: 20, TR: 500, ETL: 8, flip: 90,
   rfExcite: 2.0, rfRefocus: 2.0, rfInvert: 4.0, inversion: "none", TI: 2500, TI1: 3400, TI2: 800, limits: DEFAULT_LIMITS,
   slices: 1, gapPct: 20, sliceOrder: "interleaved", stackCenterMm: 14,
+  concatenations: "auto", overflow: "passes", pass: 0, // overflow "passes": too many slices make more passes; "tr": one pass, longer TR
 };
 
 // ---- trapezoids ----
@@ -270,6 +271,36 @@ export function acquisitionOrder(n, order) {
   return [...idx.filter((i) => i % 2 === 0), ...idx.filter((i) => i % 2 === 1)];
 }
 
+// Concatenation k holds the spatial slices k, k + c, k + 2c, ... (ascending).
+export function concatenationSlices(n, c) {
+  return Array.from({ length: c }, (_, k) => Array.from({ length: Math.ceil((n - k) / c) }, (_, i) => k + i * c).filter((i) => i < n));
+}
+
+// Packing from the slot (one slice's latest gradient end): how many slices fit in TR, and how many passes N slices need.
+function packSlices(P, N, slotMs) {
+  const maxSlices = Math.max(1, Math.floor(P.TR / slotMs));
+  const need = Math.ceil(N / maxSlices), messages = [];
+  let C;
+  if (P.concatenations === "auto" || P.concatenations == null) C = need;
+  else {
+    const c = Math.min(4, Math.max(1, Math.floor(+P.concatenations)));
+    C = Math.max(c, need);
+    if (c === 1 && P.overflow === "tr") C = 1; // the caller raises TR instead
+    else if (C > c) messages.push(`${c} concatenation${c > 1 ? "s" : ""} cannot hold ${N} slices at TR ${P.TR} ms: using ${C}`);
+  }
+  return { slotMs, maxSlices, concatenations: C, passes: concatenationSlices(N, C), scanFactor: C, messages };
+}
+
+const RAW_BUILDERS = { SE: spinEcho, GRE: gradientEcho, FSE: fastSpinEcho, EPI: epi };
+// Slice timing for the sequence named by P.seq (SE, GRE, FSE or EPI; GRE when absent). Never inversion recovery.
+export function sliceTiming(P0, rows, build = RAW_BUILDERS[P0.seq] ?? gradientEcho) {
+  const P = { ...DEFAULTS, ...P0 };
+  if (P.inversion !== "none") throw new Error("sliceTiming: inversion recovery is not handled here");
+  const img = build({ ...P0, slices: 1, TR: Infinity, inversion: "none" }, rows);
+  const slotMs = Math.max(...img.events.filter((e) => e.kind === "grad").map(gradEnd));
+  return packSlices(P, Math.max(1, Math.floor(P.slices ?? 1)), slotMs);
+}
+
 export function multiSlice(build) {
   return (P0, rows) => {
     const P = { ...DEFAULTS, ...P0 }, N = Math.floor(P.slices ?? 1);
@@ -277,22 +308,24 @@ export function multiSlice(build) {
     const img = build({ ...P0, TR: Infinity, inversion: "none" }, rows);
     const grads = img.events.filter((e) => e.kind === "grad");
     const block = Math.max(...grads.map(gradEnd));
+    const timing = packSlices(P, N, block), max = timing.maxSlices;
     const errors = [...img.errors];
-    const max = Math.floor(P.TR / block);
+    const pass = Math.min(timing.concatenations - 1, Math.max(0, Math.floor(P.pass ?? 0)));
+    const members = timing.passes[pass], m = members.length;
     let TR = P.TR;
-    if (TR < N * block - 1e-9) {
+    if (timing.concatenations === 1 && TR < m * block - 1e-9) { // only overflow "tr" can get here
       errors.push(`TR too short for ${N} slices: the minimum TR is ${Math.ceil(N * block)} ms (at most ${max} slices fit in TR ${P.TR} ms)`);
-      TR = N * block;
+      TR = m * block;
     }
-    const zs = slicePositions(N, P.sliceMm, P.gapPct, P.stackCenterMm), order = acquisitionOrder(N, P.sliceOrder);
+    const zs = slicePositions(N, P.sliceMm, P.gapPct, P.stackCenterMm), order = acquisitionOrder(m, P.sliceOrder);
     const gssAt = (e) => {
       const g = grads.find((g) => g.axis === "z" && g.label === "slice select" && e.center >= g.start + g.rise - 1e-9 && e.center <= g.start + g.rise + g.flat + 1e-9);
       if (!g) throw new Error(`multiSlice: no slice-select lobe under the ${e.role} pulse at ${e.center} ms`);
       return g.amp;
     };
     const events = [];
-    order.forEach((slice, a) => {
-      const dt = a * block, zMm = zs[slice];
+    order.forEach((member, a) => {
+      const dt = a * block, slice = members[member], zMm = zs[slice];
       for (const e of img.events) {
         if (e.kind === "adc") events.push({ ...e, tc: e.tc + dt, slice });
         else if (e.kind === "rf") {
@@ -302,8 +335,9 @@ export function multiSlice(build) {
       }
     });
     events.sort((x, y) => (x.start ?? x.center ?? x.tc) - (y.start ?? y.center ?? y.tc));
-    const slices = zs.map((zMm, index) => ({ index, zMm, acq: order.indexOf(index) }));
-    return { events, te: img.te, tr: TR, errors, info: { ...img.info, slices, block, maxSlices: max, requestedTR: P.TR, sliceMm: P.sliceMm, order: P.sliceOrder } };
+    const slices = members.map((index, i) => ({ index, zMm: zs[index], acq: order.indexOf(i) }));
+    return { events, te: img.te, tr: TR, errors, info: { ...img.info, slices, block, maxSlices: max, requestedTR: P.TR, sliceMm: P.sliceMm, order: P.sliceOrder,
+      passes: timing.passes, pass, concatenations: timing.concatenations, scanFactor: timing.scanFactor, slotMs: block, messages: timing.messages } };
   };
 }
 

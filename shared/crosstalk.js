@@ -131,24 +131,27 @@ export function crossTalk(seq, tissues) {
     for (let i = from; i < to; i++) out[i] = arr[i0 + i] * (1 - f) + arr[i0 + i + 1] * f;
     return out;
   };
+  // A pass plays only some slices of the stack: RF events carry the full-stack index, info.slices lists the pass.
+  const posOf = new Map(info.slices.map((s, j) => [s.index, j]));
+  if (rf.some((e) => !posOf.has(e.slice))) throw new Error("crossTalk: an RF event belongs to a slice outside info.slices");
   const zzCache = new Map(); // zz on z per (slice, pulse)
   const zzOf = (e) => {
     const key = [e.slice, e.role, e.flip, e.duration, e.gss, e.phase, e.shape].join("|");
     let v = zzCache.get(key);
-    if (!v) { v = shift(profile(e).zz, zs[e.slice], 1); zzCache.set(key, v); }
+    if (!v) { v = shift(profile(e).zz, zs[posOf.get(e.slice)], 1); zzCache.set(key, v); }
     return v;
   };
-  const pulses = rf.map((e) => ({ t: e.center, slice: e.slice, excite: e.role === "excite", zz: zzOf(e) }));
+  const pulses = rf.map((e) => ({ t: e.center, slice: posOf.get(e.slice), excite: e.role === "excite", zz: zzOf(e) }));
 
   // Per slice: the complex signal weight w on z, and the plot profiles.
   const excite = [], refocus = [], wRe = [], wIm = [], freqHz = [];
   for (let j = 0; j < N; j++) {
-    const ex = rf.find((e) => e.slice === j && e.role === "excite");
+    const ex = rf.find((e) => e.slice === info.slices[j].index && e.role === "excite");
     if (!ex) throw new Error(`crossTalk: no excitation for slice ${j}`);
     const p = profile(ex), mRe = shift(p.mxyRe, zs[j]), mIm = shift(p.mxyIm, zs[j]);
     freqHz.push(ex.freqHz);
     excite.push(mRe.map((v, i) => Math.hypot(v, mIm[i])));
-    const ref = rf.find((e) => e.slice === j && e.role === "refocus");
+    const ref = rf.find((e) => e.slice === info.slices[j].index && e.role === "refocus");
     if (ref) {
       const q = profile(ref), bRe = shift(q.b2Re, zs[j]), bIm = shift(q.b2Im, zs[j]);
       refocus.push(zzOf(ref));

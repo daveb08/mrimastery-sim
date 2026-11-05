@@ -57,7 +57,8 @@ const CONTROLS = [
 ];
 
 const inversionOf = (s) => ((s.slices ?? 1) <= 1 && INVERSION_SEQS.includes(s.seq) ? s.inversion ?? "none" : "none");
-const params = () => ({ ...state, slices: state.slices ?? 1, gapPct: state.gapPct ?? 20, sliceOrder: state.sliceOrder ?? "interleaved",
+const params = () => ({ ...state, slices: state.slices ?? 1, gapPct: state.gapPct ?? 20, sliceOrder: state.sliceOrder ?? "interleaved", concatenations: 1, overflow: "tr", // explorer: as before, until concatenations get a control
+ 
   inversion: inversionOf(state), nx: state.ny, fovRead: state.fov, fovPhase: state.fov,
   limits: { gMax: +state.gMax, slew: +state.slew } });
 

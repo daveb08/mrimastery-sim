@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   GAMMA_BAR, DEFAULTS, DEFAULT_LIMITS, gradArea, gradEnd, shortestTrap, spinEcho, gradientEcho, fastSpinEcho, epi, BUILDERS,
-  withInversion, slicePositions, acquisitionOrder, RF_SHAPE,
+  withInversion, slicePositions, acquisitionOrder, RF_SHAPE, concatenationSlices, sliceTiming,
 } from "./sequence.js";
 import { areaUpTo, prepare, adcSamples, adcTimes } from "./ktraj.js";
 import { echoTrainReadouts, acquiredRows } from "../contrast/acquisition.js";
@@ -214,8 +214,10 @@ test("N slice blocks back to back, each with its own offset and the same k-space
   }
 });
 test("too many slices raises TR to N x block and names the limit; requested TR is kept in info", () => {
-  const probe = BUILDERS.GRE({ ...P, TR: 50, slices: 2 }, 32);
-  const n = probe.info.maxSlices + 3, seq = BUILDERS.GRE({ ...P, TR: 50, slices: n }, 32);
+  // Spec section 5: the default is now Auto (more passes, not a longer TR), so this case asks for the TR-raising mode.
+  const TRMODE = { concatenations: 1, overflow: "tr" };
+  const probe = BUILDERS.GRE({ ...P, ...TRMODE, TR: 50, slices: 2 }, 32);
+  const n = probe.info.maxSlices + 3, seq = BUILDERS.GRE({ ...P, ...TRMODE, TR: 50, slices: n }, 32);
   assert.ok(near(seq.tr, n * seq.info.block));
   assert.equal(seq.info.requestedTR, 50);
   assert.match(seq.errors.join(" "), new RegExp(`TR too short for ${n} slices.*at most ${probe.info.maxSlices} slices`));
@@ -271,4 +273,65 @@ test("every RF pulse the builders emit carries the shared shape (Hann-windowed s
   const rfs = inv.events.filter((e) => e.kind === "rf");
   assert.ok(rfs.some((e) => e.role === "invert"));
   for (const e of rfs) assert.equal(e.shape, RF_SHAPE, `FSE IR ${e.role}`);
+});
+
+// ---- slice packing and concatenations ----
+const KINDS = [["SE", 32], ["GRE", 32], ["FSE", rowsAll(8)], ["EPI", rowsAll(64)]];
+test("concatenationSlices deals slices out round-robin, ascending", () => {
+  assert.deepEqual(concatenationSlices(5, 2), [[0, 2, 4], [1, 3]]);
+  assert.deepEqual(concatenationSlices(3, 1), [[0, 1, 2]]);
+});
+test("slot equals the multi-slice block", () => {
+  for (const [k, rows] of KINDS) {
+    const ref = BUILDERS[k]({ ...P, ETL: 8, slices: 3, TR: 1e6 }, rows).info.block;
+    assert.ok(near(sliceTiming({ ...P, seq: k, ETL: 8, TR: 1e6 }, rows).slotMs, ref), k);
+  }
+});
+test("auto concatenations: ceil(N / maxSlices), no message", () => {
+  const t = sliceTiming({ ...P, TR: 50, slices: 12, concatenations: "auto" }, 32);
+  assert.equal(t.concatenations, Math.ceil(12 / t.maxSlices));
+  assert.ok(t.concatenations > 1);
+  assert.deepEqual(t.messages, []);
+  assert.equal(t.scanFactor, t.concatenations);
+  assert.equal(t.passes.length, t.concatenations);
+});
+test("manual too few concatenations is raised, with a message", () => {
+  const t = sliceTiming({ ...P, TR: 50, slices: 12, concatenations: 1 }, 32);
+  assert.equal(t.concatenations, Math.ceil(12 / t.maxSlices));
+  assert.equal(t.messages.length, 1);
+  assert.match(t.messages[0], /cannot hold 12 slices/);
+  assert.match(t.messages[0], /^1 concatenation cannot hold/);
+});
+test("overflow tr keeps one pass and raises TR", () => {
+  const prm = { ...P, TR: 50, slices: 12, concatenations: 1, overflow: "tr" };
+  const t = sliceTiming(prm, 32);
+  assert.equal(t.concatenations, 1);
+  assert.deepEqual(t.messages, []);
+  const seq = BUILDERS.GRE(prm, 32);
+  assert.ok(seq.tr > 50 && near(seq.tr, 12 * seq.info.block));
+});
+test("TR shorter than one block: every number stays finite", () => {
+  const t = sliceTiming({ ...P, TR: 10, slices: 32 }, 32);
+  assert.equal(t.maxSlices, 1);
+  assert.equal(t.concatenations, 32);
+  for (const v of [t.slotMs, t.maxSlices, t.concatenations, t.scanFactor]) assert.ok(Number.isFinite(v));
+});
+test("sliceTiming refuses inversion recovery", () => {
+  assert.throws(() => sliceTiming({ ...P, inversion: "IR" }, 32), /inversion recovery is not handled here/);
+});
+test("a pass plays only its slices, at their full-stack positions", () => {
+  const prm = { ...P, TR: 20000, slices: 5, concatenations: 2, overflow: "passes" };
+  const zs = slicePositions(5, P.sliceMm, P.gapPct, P.stackCenterMm);
+  const seq = BUILDERS.SE({ ...prm, pass: 1 }, 32);
+  const ex = seq.events.filter((e) => e.kind === "rf" && e.role === "excite");
+  assert.equal(ex.length, 2);
+  assert.deepEqual(ex.map((e) => e.slice).sort(), [1, 3]);
+  for (const e of ex) assert.ok(near(e.zMm, zs[e.slice]));
+  assert.deepEqual(seq.info.slices.map((s) => s.index), [1, 3]);
+  assert.deepEqual(seq.info.slices.map((s) => s.acq).sort(), [0, 1]);
+  assert.equal(seq.info.concatenations, 2);
+  assert.equal(seq.info.pass, 1);
+  assert.equal(seq.info.scanFactor, 2);
+  assert.deepEqual(seq.info.passes, [[0, 2, 4], [1, 3]]);
+  assert.ok(near(seq.info.slotMs, seq.info.block));
 });
