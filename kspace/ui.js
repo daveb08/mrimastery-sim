@@ -6,6 +6,7 @@ import { echoTrainReadouts, acquiredRows } from "../contrast/acquisition.js";
 import { defaultParams, computeModel, tissuesAt, csfNullTi, dirNullTi2 } from "../contrast/physics.js";
 import { sampleSlice, composeSignal, labelSignals, toRgba } from "../contrast/image.js";
 import { kspaceOf, reconstruct, toInferno, autoWindowLevelObject } from "../contrast/kspace.js";
+import { thumbMatrix, thumbRow, createSampleCache, pump } from "./strip.js";
 import { crossTalk, labelFactors, TISSUE_T1 } from "../shared/crosstalk.js";
 import { createPhantom } from "../phantom/phantom.js";
 import { fromQuery, toQuery, contrastNote, applies, clampSel, RANGES, INVERSION_SEQS } from "./settings.js";
@@ -100,13 +101,18 @@ function buildScan() {
 // k-space of the noise-free phantom slice with this sequence's contrast
 const phantom = createPhantom({ seed: 1, sulcalDepthMm: 14 });
 const kCache = new Map();
-function phantomKspace(P, seq) {
-  const z = scan.xt ? scan.info.slices[state.sel].zMm : 14;
-  const factors = scan.xt ? labelFactors(scan.xt.slices[state.sel].factor) : null;
+// the contrast model's parameters for this scan (shared by the main image and the strip thumbnails)
+function modelParams(P, seq) {
   const name = INVERSION_MODEL[P.inversion] ?? CONTRAST_SEQ[state.seq];
   const [ti1, ti2] = seq.ti ?? [];
   const p = { ...defaultParams(name, "3.0T"), TR: seq.tr, TE: seq.te ?? P.TE, FA: P.flip ?? 90, freqMatrix: P.nx, phaseMatrix: P.ny,
     fovRead: P.fovRead, fovPhase: P.fovPhase, sliceMm: P.sliceMm, ETL: P.ETL ?? 1, TI: ti1 ?? 0, TI1: ti1 ?? 0, TI2: ti2 ?? 0 };
+  return { name, p };
+}
+function phantomKspace(P, seq) {
+  const z = scan.xt ? scan.info.slices[state.sel].zMm : 14;
+  const factors = scan.xt ? labelFactors(scan.xt.slices[state.sel].factor) : null;
+  const { name, p } = modelParams(P, seq);
   const key = [name, p.TR.toFixed(1), p.TE.toFixed(2), p.FA, p.TI1.toFixed(1), p.TI2.toFixed(1), P.nx, P.fovRead, P.sliceMm, z.toFixed(4), factors ? Array.from(factors, (f) => f.toFixed(4)).join(",") : "-"].join("|");
   if (!kCache.has(key)) {
     const sampled = sampleSlice(phantom, "axial", z, { nx: P.nx, ny: P.ny, fovRead: P.fovRead, fovPhase: P.fovPhase, thicknessMm: P.sliceMm });
@@ -334,9 +340,9 @@ function renderInfo() {
 }
 
 function renderFrame(forceRecon = false) {
-  renderCursor(); drawKspace(); drawRecon(forceRecon); renderStatus();
+  renderCursor(); drawKspace(); drawRecon(forceRecon); renderStatus(); refreshStrip();
 }
-function renderAll() { renderInfo(); renderDiagram(); renderFrame(true); drawProfiles(); }
+function renderAll() { renderInfo(); renderDiagram(); renderFrame(true); drawProfiles(); buildStrip(); }
 // ---- slice-profile panel (only with more than one slice) ----
 function drawProfiles() {
   const panel = $("profilePanel");
@@ -377,13 +383,91 @@ function drawProfiles() {
 $("profileTissue").addEventListener("change", drawProfiles);
 
 
+// ---- slice strip (only with more than one slice): every slice's image, filled in a few thumbnails per frame ----
+const strip = { queue: [], key: null, lut: null, wl: null, m: 0, raf: 0, cache: createSampleCache((z, th, fov, m) =>
+  sampleSlice(phantom, "axial", z, { nx: m, ny: m, fovRead: fov[0], fovPhase: fov[1], thicknessMm: th })) };
+
+function buildStrip() {
+  const el = $("strip");
+  $("stripPanel").hidden = !scan.xt;
+  strip.queue = []; strip.key = null;
+  if (!scan.xt) { el.innerHTML = ""; return; }
+  const P = scan.P, N = scan.xt.slices.length, m = thumbMatrix(P.ny);
+  const { p } = modelParams(P, { tr: scan.tr, te: scan.te, ti: scan.info.ti });
+  strip.m = m;
+  strip.lut = labelSignals(computeModel(p), p);
+  if (strip.cache.size > 80) strip.cache.clear();
+  // one window/level for every thumbnail, from the isolated first slice, so a slice that loses signal looks dimmer
+  const ref = composeSignal(strip.cache.get(scan.xt.slices[0].zMm, P.sliceMm, [P.fovRead, P.fovPhase], m), strip.lut);
+  strip.wl = autoWindowLevelObject(ref);
+  el.innerHTML = "";
+  for (let j = 0; j < N; j++) {
+    const fig = document.createElement("figure");
+    fig.dataset.j = j;
+    fig.innerHTML = `<canvas width="${m}" height="${m}"></canvas><figcaption></figcaption>`;
+    fig.addEventListener("click", () => selectSlice(j));
+    el.appendChild(fig);
+  }
+  markStrip();
+  refreshStrip(true);
+}
+
+// signed WM change and acquisition order under each thumbnail; outline the selected slice
+function markStrip() {
+  if (!scan.xt) return;
+  for (const fig of $("strip").children) {
+    const j = Number(fig.dataset.j), sl = scan.xt.slices[j], d = (sl.factor.WM - 1) * 100;
+    const sign = Math.abs(d) < 0.05 ? "" : d > 0 ? "+" : "−";
+    fig.querySelector("figcaption").textContent = `S${j + 1} · #${sl.acq + 1} · WM ${sign}${Math.abs(d).toFixed(1)} %`;
+    fig.classList.toggle("sel", j === state.sel);
+  }
+}
+
+// queue every thumbnail again when the acquired rows have changed (a TR boundary, Fill all, Reset)
+function refreshStrip(force = false) {
+  if (!scan.xt) return;
+  const key = play.shot * 2 + (play.t >= shotNow().seq.tr ? 1 : 0);
+  if (!force && key === strip.key) return;
+  strip.key = key;
+  strip.queue = Array.from({ length: scan.xt.slices.length }, (_, j) => j);
+  if (!strip.raf) strip.raf = requestAnimationFrame(stripFrame);
+}
+
+function stripFrame() {
+  strip.raf = 0;
+  pump(strip.queue, renderThumb, 40);
+  if (strip.queue.length) strip.raf = requestAnimationFrame(stripFrame);
+}
+
+// rows taken so far, as thumbnail rows (every slice is read on the same phase-encode rows each TR)
+function thumbMask() {
+  const ny = scan.ny, m = strip.m, out = new Uint8Array(m * m), taken = new Uint8Array(ny);
+  for (let s = 0; s < play.shot; s++) for (const p of scan.shots[s].samples) taken[p.row] = 1;
+  for (const p of shotNow().samples) if (p.t <= play.t) taken[p.row] = 1;
+  for (let r = 0; r < ny; r++) {
+    const t = taken[r] ? thumbRow(r, ny, m) : -1;
+    if (t >= 0) out.fill(1, t * m, (t + 1) * m);
+  }
+  return out;
+}
+
+function renderThumb(j) {
+  const fig = $("strip").children[j];
+  if (!fig || !strip.lut) return;
+  const P = scan.P, m = strip.m, sl = scan.xt.slices[j], factors = labelFactors(sl.factor);
+  const lut = Float32Array.from(strip.lut, (v, i) => v * factors[i]);
+  const v = composeSignal(strip.cache.get(sl.zMm, P.sliceMm, [P.fovRead, P.fovPhase], m), lut);
+  const rec = reconstruct(kspaceOf(v, m, m), thumbMask(), m, m, 0);
+  fig.querySelector("canvas").getContext("2d").putImageData(new ImageData(toRgba(rec, strip.wl.window, strip.wl.level), m, m), 0, 0);
+}
+
 // choose which slice's k-space and image are shown (no new sequence or cross-talk calculation)
 function selectSlice(j) {
   state.sel = clampSel(j, scan.info.slices?.length ?? 1);
   history.replaceState(null, "", `?${toQuery(state)}`);
   stop();
   scan.K = phantomKspace(scan.P, { tr: scan.tr, te: scan.te, ti: scan.info.ti });
-  renderInfo(); renderDiagram(); renderFrame(true); drawProfiles();
+  renderInfo(); renderDiagram(); renderFrame(true); drawProfiles(); markStrip();
 }
 
 // ---- playback ----
