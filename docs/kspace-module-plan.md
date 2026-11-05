@@ -54,9 +54,17 @@ hand-made path. Agreed with the user on 2026-11-01.
 6. **Multi-slice imaging, 2D** (2026-11-04) — N slices per TR, each with its own RF frequency offset; slice gap and
    order (sequential or interleaved). TR is raised to N × block when the slices do not fit, and the page shows the
    maximum N for the TR asked for. Cross-talk comes from Bloch-simulated excite and refocus profiles, per tissue
-   (`shared/crosstalk.js`), and is shown as a signed signal change (it can be positive for gradient echo at high flip
-   angles and EPI). Slice-profile plot and slice strip. Inversion recovery is off with more than one slice. Design:
-   `docs/superpowers/specs/2026-11-04-multislice-design.md`. **Done** for the k-space explorer; 3D is roadmap item 2.
+   (`shared/crosstalk.js`), and is shown as a signed signal change. It can raise a slice's signal in several cases,
+   most strongly for gradient echo and EPI, especially for long-T1 tissue such as CSF at short TR, and also at moderate
+   gaps: the unwindowed TBW-4 sinc tips the edges of each slice out of phase with its centre, and neighbours that
+   saturate those edges cancel less of the coherent sum. Measured at 8 slices of 5 mm, 3 T: GRE 90°, TR 300 ms, gap 0:
+   WM +4 to +10 %, CSF +39 %; gap 20 %: CSF +50 %; EPI TR 3000 ms, gap 0: CSF +7 %; spin echo, gap 20 %: CSF +0.2 %
+   (the engine matches a brute-force Bloch run, including CSF at GRE 90°). Slice-profile plot and slice strip.
+   Inversion recovery is off with more than one slice. Design: `docs/superpowers/specs/2026-11-04-multislice-design.md`.
+   **Done** for the k-space explorer; 3D is roadmap item 2.
+   - Per-pixel tissue fractions: the image side scales each tissue's signal through the label lookup table (one label
+     per pixel, with `sampleSlice`'s slab partial volume), not the spec's map of tissue fractions per pixel. Composing
+     from per-pixel fractions is a prerequisite for bringing BrainWeb back as a phantom.
 
 ## Later
 
