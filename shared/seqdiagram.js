@@ -151,12 +151,17 @@ export function diagramSvg(seq, opts = {}) {
       return `${f(X(rf.center + (u * rf.duration) / 2))},${f(rowMid(0) - s * a * rowH * 0.42)}`;
     });
     const role = { excite: "excitation", refocus: "refocusing", invert: "inversion" }[rf.role];
-    body.push(`<polyline points="${pts.join(" ")}" fill="none" stroke="#FFD700" stroke-width="1.5"><title>${role} ${rf.flip}°, ${rf.duration} ms</title></polyline>`);
+    body.push(`<polyline points="${pts.join(" ")}" fill="none" stroke="#FFD700" stroke-width="1.5"><title>${role} ${rf.flip}°, ${rf.duration} ms${rf.slice !== undefined ? `, slice ${rf.slice + 1}, offset ${rf.freqHz.toFixed(0)} Hz` : ""}</title></polyline>`);
     if (rf.center >= t0 && rf.center <= t1) {
       const label = `${rf.flip}°${rf.role === "invert" ? " inv" : ""}`;
       const halfW = label.length * fs * 0.27; // rough half width of the bold label, so one at the edge is not clipped
       const x = Math.min(W - right - halfW, Math.max(left + halfW, X(rf.center)));
       body.push(`<text x="${f(x)}" y="${f(top - 4)}" fill="#FFD700" font-size="${f(fs * 0.9)}" text-anchor="middle" font-weight="bold">${label}</text>`);
+      if (rf.slice !== undefined && rf.role === "excite") {
+        const sl = `S${rf.slice + 1}`, sfs = fs * 0.8, sw = sl.length * sfs * 0.6;
+        const sx = Math.min(W - right - sw, x + halfW + 3); // beside the flip label, kept inside the plot
+        body.push(`<text x="${f(sx)}" y="${f(top - 4)}" fill="#FFD700" fill-opacity=".75" font-size="${f(sfs)}" text-anchor="start">${sl}</text>`);
+      }
     }
   }
   // ADC windows

@@ -97,3 +97,12 @@ test("pulse labels sit above the RF row, clear of even a full-height 180", () =>
   const pulseTop = Math.min(...svg.match(/<polyline points="([^"]+)"/g).flatMap((p) => p.match(/,[\d.]+/g).map((v) => Number(v.slice(1)))));
   assert.ok(labelY < pulseTop - 2, `label baseline ${labelY}, pulse top ${pulseTop}`);
 });
+
+test("multi-slice RF pulses carry a slice label and offset; single-slice diagrams do not", () => {
+  const multi = diagramSvg(BUILDERS.SE({ ...P, TR: 3000, slices: 3 }, 32));
+  assert.ok(multi.includes("S3"));
+  assert.ok(multi.includes("offset"));
+  const single = diagramSvg(BUILDERS.SE({ ...P, TR: 3000, slices: 1 }, 32));
+  assert.ok(!single.includes("S3"));
+  assert.ok(!single.includes("offset"));
+});
