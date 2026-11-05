@@ -188,11 +188,12 @@ function syncSliceControls() {
   sl.disabled = single;
   sl.value = single ? 1 : p.slices;
   $("c_slicesV").textContent = sl.value;
-  $("c_gapPctV").textContent = `${(p.gapPct * p.sliceMm / 100).toFixed(1)} mm`;
+  $("c_gapPctV").textContent = `${p.gapPct} % · ${(p.gapPct * p.sliceMm / 100).toFixed(1)} mm`;
   $("sliceNote").textContent = single
     ? "Multi-slice inversion recovery (interleaved inversions, CSF nulling and concatenations) is coming next."
     : p.seq === "bSSFP" ? "bSSFP keeps one slice in steady state at a time, so slices are acquired one after another."
-    : p.seq === "DWI" ? "Slice timing uses the EPI readout; the diffusion gradients are not timed here." : "";
+    : p.seq === "DWI" ? "Slice timing uses an EPI readout bandwidth of at least 1500 Hz/px; the diffusion gradients are not timed here."
+    : p.seq === "EPI (single-shot)" ? "Slice timing uses an EPI readout bandwidth of at least 1500 Hz/px." : "";
 }
 
 // ---- tabs ----
@@ -336,7 +337,7 @@ function renderTrStrip(m) {
     if ((1 - row.idleFrom) * X > FS * 5) el("text", { x: LEFT + (row.idleFrom + 1) / 2 * X, y: ty, fill: "#aaa", "font-size": FS, "text-anchor": "middle" }, "idle");
   });
   if (L.more) el("text", { x: LEFT, y: H - 4, fill: "#FFAA44", "font-size": FS }, `+ ${L.more} more pass${L.more > 1 ? "es" : ""}`);
-  $("trCaption").textContent = L.caption + " (each bar is one TR)";
+  $("trCaption").textContent = L.caption + (timing.mode === "packed" ? " (each bar is one TR)" : " (each block is one slice's whole acquisition)");
 }
 window.addEventListener("resize", () => { if (model) renderTrStrip(model); });
 
