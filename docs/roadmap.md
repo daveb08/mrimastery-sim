@@ -2,12 +2,11 @@
 
 Recorded 2026-11-01; order agreed 2026-11-04 (basic ideas first). Nothing here starts without the user's go-ahead.
 
-**Done:** the k-space explorer (`docs/kspace-module-plan.md`, phases 1–5, including inversion recovery and TR up to
-12 s).
+**Done:** the k-space explorer (`docs/kspace-module-plan.md`, phases 1–6, including inversion recovery, TR up to
+12 s and 2D multi-slice imaging).
 
-0. **Head phantom realism (procedural, option A, chosen 2026-11-03)** — **done (2026-11-04, commit b5216e2).** The aim
-   was to keep the phantom generated in code, so it still
-   works at any slice and resolution and keeps its seeds and lesions, but make it look anatomical:
+0. **Head phantom realism (procedural, option A, chosen 2026-11-03)** — **done (commit b5216e2).** The phantom stayed generated in code, so it still works at any slice and resolution and
+   keeps its seeds and lesions; it now looks anatomical:
    - a brain outline with frontal and occipital poles and temporal lobes;
    - a cortical ribbon of even thickness that follows the gyri;
    - curved lateral ventricles and a third ventricle;
@@ -15,7 +14,7 @@ Recorded 2026-11-01; order agreed 2026-11-04 (basic ideas first). Nothing here s
    - a folded cerebellum and a brainstem;
    - a better skull, scalp, face and neck;
    - partial-volume edges.
-   Comes first because multi-slice and 3D will show much more of the phantom. Plan it with the user before building.
+   It came first because multi-slice and 3D show much more of the phantom.
 1. **Multi-slice imaging** — k-space explorer part done (2D only; design `docs/superpowers/specs/2026-11-04-multislice-design.md`);
    contrast simulator next. Scope: interleaving several slices within one TR: slice order (sequential, interleaved), slice
    gap and cross-talk from imperfect slice profiles, and how TR sets the number of slices. Fits the k-space explorer
