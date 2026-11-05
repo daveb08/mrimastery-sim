@@ -89,3 +89,12 @@ test("auto window scales with voxel volume", () => {
   const b = autoWindowLevel({ ...p, freqMatrix: 128 }, computeModel({ ...p, freqMatrix: 128 }));
   assert.ok(b.window > a.window);
 });
+
+test("cross-talk factors scale the muscle and lesion label signals", () => {
+  const p = defaultParams("FSE", "3.0T");
+  const a = labelSignals(computeModel(p), p);
+  const b = labelSignals(computeModel(p, { crossTalk: { WM: 1, GM: 1, CSF: 1, Fat: 1, muscle: 0.25, lesion: 0.5 } }), p);
+  assert.ok(Math.abs(b[LABELS.LESION] - a[LABELS.LESION] * 0.5) < 1e-6);
+  assert.ok(Math.abs(b[LABELS.MUSCLE] - a[LABELS.MUSCLE] * 0.25) < 1e-6);
+  assert.ok(Math.abs(b[LABELS.WM] - a[LABELS.WM]) < 1e-6);
+});

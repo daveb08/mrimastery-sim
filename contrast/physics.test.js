@@ -283,3 +283,28 @@ test("scan-time display splits into minutes and seconds", () => {
   assert.equal(m.scanSec, 64);
   assert.equal(m.scanMinutes, 1); assert.equal(m.scanSeconds, 4);
 });
+
+test("extras default to today", () => {
+  for (const seq of ["FSE", "GRE", "FLAIR", "STIR", "bSSFP", "DIR", "DWI", "MPRAGE", "EPI (single-shot)"]) {
+    const p = P.defaultParams(seq, "3.0T");
+    assert.deepEqual(P.computeModel(p), P.computeModel(p, {}));
+  }
+});
+
+test("scan factor multiplies scan time", () => {
+  const p = P.defaultParams("FSE", "3.0T");
+  assert.equal(P.computeModel(p, { scanFactor: 3 }).scanSec, 3 * P.computeModel(p).scanSec);
+  assert.equal(P.computeModel(p, { scanFactor: 3 }).scanFactor, 3);
+});
+
+test("cross-talk scales signal not noise", () => {
+  const p = P.defaultParams("FSE", "3.0T");
+  const crossTalk = { WM: 0.9, GM: 0.8, CSF: 0.7, Fat: 0.6, muscle: 0.5, lesion: 0.4 };
+  const a = P.computeModel(p), b = P.computeModel(p, { crossTalk });
+  assert.equal(b.noiseFloor, a.noiseFloor);
+  assert.deepEqual(b.crossTalk, crossTalk);
+  for (const n of ["WM", "GM", "CSF", "Fat"]) {
+    assert.ok(Math.abs(b.signals[n] - a.signals[n] * crossTalk[n]) <= 0.01, n);
+    assert.ok(Math.abs(b.snrs[n] - a.snrs[n] * crossTalk[n]) <= 0.02 / a.noiseFloor, n);
+  }
+});

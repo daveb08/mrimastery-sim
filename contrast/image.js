@@ -91,8 +91,8 @@ export function labelSignals(model, p) {
   out[LABELS.GM] = model.baseSignals.GM * f;
   out[LABELS.CSF] = model.baseSignals.CSF * f;
   out[LABELS.FAT] = model.baseSignals.Fat * f;
-  out[LABELS.MUSCLE] = tissueSignal(p.seq, p, EXTRA_TISSUES.muscle, false) * f;
-  out[LABELS.LESION] = tissueSignal(p.seq, p, EXTRA_TISSUES.lesion, false) * f;
+  out[LABELS.MUSCLE] = tissueSignal(p.seq, p, EXTRA_TISSUES.muscle, false) * f * (model.crossTalk?.muscle ?? 1);
+  out[LABELS.LESION] = tissueSignal(p.seq, p, EXTRA_TISSUES.lesion, false) * f * (model.crossTalk?.lesion ?? 1);
   return out; // AIR and BONE stay 0 (bone is a signal void)
 }
 

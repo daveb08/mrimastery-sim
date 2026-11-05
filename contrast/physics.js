@@ -191,7 +191,7 @@ export function derivedTiming(seq, p) {
 // ---- the full model: Signal -> Noise -> SNR, plus scan time and contrast metrics ----
 // p: {seq, field, TR, TE, TI, TI1, TI2, FA, b, ETL, NEX, BW, fovRead, fovPhase, freqMatrix, phaseMatrix,
 //     sliceMm, nPartitions, fatSat, pfFraction}
-export function computeModel(p) {
+export function computeModel(p, { scanFactor = 1, crossTalk = null } = {}) {
   const seq = p.seq;
   const tissues = tissuesAt(p.field);
   const is3d = seq === "MPRAGE";
@@ -199,6 +199,7 @@ export function computeModel(p) {
   // Step 1: pure physics signals, then the voxel-volume scale (and sqrt of partial-Fourier fraction).
   const baseSignals = {};
   for (const name of TISSUE_NAMES) baseSignals[name] = tissueSignal(seq, p, tissues[name], name === "Fat");
+  if (crossTalk) for (const name of TISSUE_NAMES) baseSignals[name] *= crossTalk[name];
   const sliceForVol = is3d ? MPRAGE_SLAB_MM / p.nPartitions : p.sliceMm;
   const refSlice = is3d ? MPRAGE_SLAB_MM / MPRAGE_NPART_DEFAULT : 5.0;
   const refVox = (240.0 / 256.0) ** 2 * refSlice;
@@ -214,9 +215,9 @@ export function computeModel(p) {
   const snrs = {};
   for (const name of TISSUE_NAMES) snrs[name] = noiseFloor > 0 ? signals[name] / noiseFloor : 0.0;
 
-  const scanSec = calcScanTime(p.TR, p.phaseMatrix, p.ETL, p.NEX, seq, p.nPartitions) * p.pfFraction;
+  const scanSec = calcScanTime(p.TR, p.phaseMatrix, p.ETL, p.NEX, seq, p.nPartitions) * p.pfFraction * scanFactor;
   return {
-    seq, tissues, is3d, baseSignals, signals, noiseFloor, snrs, voxelVol, volScale, scanSec,
+    scanFactor, crossTalk, seq, tissues, is3d, baseSignals, signals, noiseFloor, snrs, voxelVol, volScale, scanSec,
     scanMinutes: Math.trunc(scanSec / 60), scanSeconds: Math.trunc(scanSec % 60),
     cnr: {
       wmGm: Math.abs(snrs.WM - snrs.GM), wmCsf: Math.abs(snrs.WM - snrs.CSF), gmCsf: Math.abs(snrs.GM - snrs.CSF),
