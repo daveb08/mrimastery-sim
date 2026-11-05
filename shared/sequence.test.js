@@ -222,6 +222,17 @@ test("too many slices raises TR to N x block and names the limit; requested TR i
   assert.equal(seq.info.requestedTR, 50);
   assert.match(seq.errors.join(" "), new RegExp(`TR too short for ${n} slices.*at most ${probe.info.maxSlices} slices`));
 });
+test("a TR below one block is raised with an error whatever the concatenations (Auto too)", () => {
+  const seq = BUILDERS.FSE({ ...P, ETL: 8, TR: 50, slices: 3 }, rowsAll(8));
+  assert.ok(seq.tr >= seq.info.block - 1e-9, `tr ${seq.tr} block ${seq.info.block}`);
+  assert.ok(seq.errors.some((e) => e.startsWith("TR too short")));
+  assert.equal(seq.info.requestedTR, 50);
+});
+test("sliceTiming reports a TR shorter than one slice", () => {
+  const t = sliceTiming({ seq: "FSE", ...P, ETL: 8, TR: 50, slices: 3 }, rowsAll(8));
+  assert.ok(t.messages.some((m) => /shorter than one slice/.test(m)), t.messages.join("|"));
+  assert.ok(!sliceTiming({ seq: "FSE", ...P, ETL: 8, TR: 5000, slices: 3 }, rowsAll(8)).messages.some((m) => /shorter than one slice/.test(m)));
+});
 test("multi-slice forces the inversion off", () => {
   const seq = BUILDERS.FSE({ ...P, ETL: 8, TR: 9000, inversion: "IR", slices: 3 }, rowsAll(8));
   assert.ok(!seq.events.some((e) => e.kind === "rf" && e.role === "invert"));

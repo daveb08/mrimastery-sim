@@ -1,6 +1,6 @@
 // Event-list pulse sequences in real units (ms, mT/m, mm), built from imaging parameters within scanner limits.
 // A sequence is { events, te, tr, errors, info } where events are
-//   { kind: "rf",   role: "excite" | "refocus" | "invert", center, duration, flip, phase }
+//   { kind: "rf",   role: "excite" | "refocus" | "invert", center, duration, flip, phase, shape }
 //   { kind: "grad", axis: "x" | "y" | "z", start, rise, flat, fall, amp, label }   (trapezoid; amp in mT/m)
 //   { kind: "adc",  tc, n, dwell, dir, row }  (k crosses kx = 0 at tc; sample i maps to grid column i, or n - 1 - i if dir < 0)
 // x is the frequency-encode (readout) axis, y phase encode, z slice select. k(t) is computed in shared/ktraj.js.
@@ -304,7 +304,9 @@ export function sliceTiming(P0, rows, build) {
   if (P.inversion !== "none") throw new Error("sliceTiming: inversion recovery is not handled here");
   const img = build({ ...P0, slices: 1, TR: Infinity, inversion: "none" }, rows);
   const slotMs = Math.max(...img.events.filter((e) => e.kind === "grad").map(gradEnd));
-  return packSlices(P, Math.max(1, Math.floor(P.slices ?? 1)), slotMs);
+  const timing = packSlices(P, Math.max(1, Math.floor(P.slices ?? 1)), slotMs);
+  if (P.TR < slotMs - 1e-9) timing.messages.push(`TR ${P.TR} ms is shorter than one slice (${Math.ceil(slotMs)} ms)`);
+  return timing;
 }
 
 export function multiSlice(build) {
@@ -319,8 +321,8 @@ export function multiSlice(build) {
     const pass = Math.min(timing.concatenations - 1, Math.max(0, Math.floor(P.pass ?? 0)));
     const members = timing.passes[pass], m = members.length;
     let TR = P.TR;
-    if (timing.concatenations === 1 && TR < m * block - 1e-9) { // only overflow "tr" can get here
-      errors.push(`TR too short for ${N} slices: the minimum TR is ${Math.ceil(N * block)} ms (at most ${max} slices fit in TR ${P.TR} ms)`);
+    if (TR < m * block - 1e-9) { // overflow "tr", or a TR below one block (then every pass holds a single slice)
+      errors.push(`TR too short for ${m} slice${m > 1 ? "s" : ""}: the minimum TR is ${Math.ceil(m * block)} ms (at most ${max} slice${max > 1 ? "s" : ""} fit in TR ${P.TR} ms)`);
       TR = m * block;
     }
     const zs = slicePositions(N, P.sliceMm, P.gapPct, P.stackCenterMm), order = acquisitionOrder(m, P.sliceOrder);
