@@ -24,7 +24,7 @@
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .95rem; color: var(--muted); margin: 4px 0 8px; }
 .chips b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-#messages .alert, #messages .warn { padding: 5px 10px; margin: 4px 0; font-size: .88rem; }
+#messages .alert, #messages .warn, #messages .info { padding: 5px 10px; margin: 4px 0; font-size: .88rem; }
 
 .viewer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .plot.short { height: 215px; }

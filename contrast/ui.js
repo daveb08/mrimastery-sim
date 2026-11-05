@@ -17,15 +17,18 @@ import {
 } from "./kspace.js";
 import { acquisitionPlan, maskAt, progressLabel, stepProgress, trajectory } from "./acquisition.js";
 import { explorerUrl } from "../kspace/settings.js";
+import { PROTOCOL_DEFAULTS, protocolMode, protocolTiming, middleSliceFactors } from "./protocol.js";
 
 const $ = (id) => document.getElementById(id);
 const COLOR = Object.fromEntries(TISSUE_NAMES.map((n) => [n, TISSUES_BASE[n].color]));
-const GEOMETRY_KEEP = ["freqMatrix", "phaseMatrix", "fovRead", "fovPhase", "sliceMm", "NEX", "BW", "fatSat", "pfFraction"];
+const GEOMETRY_KEEP = ["freqMatrix", "phaseMatrix", "fovRead", "fovPhase", "sliceMm", "NEX", "BW", "fatSat", "pfFraction",
+  ...Object.keys(PROTOCOL_DEFAULTS)];
 
-let p = freshStart(defaultParams("FSE", "3.0T"));
+let p = { ...PROTOCOL_DEFAULTS, ...freshStart(defaultParams("FSE", "3.0T")) };
 p.fovRead = p.fovPhase = 280; // a head-sized FOV; the original default (400 mm) shows the whole upper body
 let baseline = null; // pinned meter values
 let model = null;
+let timing = null; // the latest protocolTiming(p)
 
 // Parameters that follow from others, applied before every computation.
 function normalize(q) {
@@ -70,7 +73,7 @@ $("field").addEventListener("change", () => {
 $("preset").addEventListener("change", () => {
   const key = $("preset").value;
   if (!key) return;
-  p = defaultParams(null, p.field, key);
+  p = { ...PROTOCOL_DEFAULTS, ...defaultParams(null, p.field, key) }; // protocol presets are single-slice
   $("seq").value = p.seq;
   buildControls(); update();
 });
@@ -127,6 +130,7 @@ function buildControls() {
   if (p.seq === "MPRAGE") geometry.append(slider("nPartitions", "Partitions (3D slab)", 32, 256, 8));
   else geometry.append(slider("sliceMm", "Slice thickness (mm)", 1, 10, 1));
   geometry.append(note("geomNote"));
+  if (protocolMode(p.seq) !== "3d") buildSliceControls(geometry);
 
   signal.append(slider("NEX", "NEX (averages)", 1, 8, 1));
   signal.append(slider("BW", "Bandwidth (Hz/px)", 50, 500, 10));
@@ -143,6 +147,50 @@ function buildControls() {
     signal.append(wrap);
   }
   signal.append(note("signalNote"));
+}
+
+// Slice controls. The ones the slice count hides are built hidden, so dragging Slices across 1 only toggles `hidden`
+// (syncSliceControls) and the slider being dragged keeps focus.
+function selectControl(key, label, options) {
+  const wrap = document.createElement("div");
+  wrap.className = "ctl";
+  wrap.innerHTML = `<label for="c_${key}">${label}</label><select id="c_${key}">`
+    + `${options.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select>`;
+  const sel = wrap.querySelector("select");
+  sel.value = String(p[key]);
+  sel.addEventListener("change", () => { p[key] = sel.value === "auto" || isNaN(sel.value) ? sel.value : Number(sel.value); clearPreset(); update(); });
+  return wrap;
+}
+
+function buildSliceControls(geometry) {
+  const wraps = {
+    slices: slider("slices", "Slices", 1, 32, 1),
+    gapPct: slider("gapPct", "Slice gap (% of thickness)", 0, 100, 10),
+    sliceOrder: selectControl("sliceOrder", "Order", [["interleaved", "Interleaved"], ["sequential", "Sequential"]]),
+    concatenations: selectControl("concatenations", "Concatenations", [["auto", "Auto"], [1, "1"], [2, "2"], [3, "3"], [4, "4"]]),
+    crossTalkOn: checkbox("crossTalkOn", "Include cross-talk (Bloch-simulated slice profiles)"),
+  };
+  for (const [k, w] of Object.entries(wraps)) { w.dataset.key = k; geometry.append(w); }
+  geometry.append(note("sliceNote"));
+}
+
+function syncSliceControls() {
+  const g = $("paneGeometry");
+  if (!g.querySelector('[data-key="slices"]')) return;
+  const mode = protocolMode(p.seq), many = timing.N > 1;
+  const show = {
+    slices: true, gapPct: many, sliceOrder: many, concatenations: many && mode === "packed", crossTalkOn: many && mode === "packed",
+  };
+  for (const [k, on] of Object.entries(show)) g.querySelector(`[data-key="${k}"]`).hidden = !on;
+  const sl = $("c_slices"), single = mode === "single";
+  sl.disabled = single;
+  sl.value = single ? 1 : p.slices;
+  $("c_slicesV").textContent = sl.value;
+  $("c_gapPctV").textContent = `${(p.gapPct * p.sliceMm / 100).toFixed(1)} mm`;
+  $("sliceNote").textContent = single
+    ? "Multi-slice inversion recovery (interleaved inversions, CSF nulling and concatenations) is coming next."
+    : p.seq === "bSSFP" ? "bSSFP keeps one slice in steady state at a time, so slices are acquired one after another."
+    : p.seq === "DWI" ? "Slice timing uses the EPI readout; the diffusion gradients are not timed here." : "";
 }
 
 // ---- tabs ----
@@ -167,13 +215,20 @@ function meterHtml(kind, big, sub, current) {
     + `<div class="delta">${delta ? "vs pinned: " + delta : ""}</div></div>`;
 }
 
+function sliceMeterText() {
+  if (timing.N <= 1) return "";
+  const C = timing.concatenations;
+  return timing.mode === "sequential" ? `Slices: ${timing.N} · one after another`
+    : `Slices: ${timing.N} (max ${timing.maxSlices} per TR) · ${C} concatenation${C > 1 ? "s" : ""}`;
+}
+
 function renderMeters(m) {
   const v = meterValues(m);
   const [px, py] = m.pixelMm;
   $("meters").innerHTML =
     meterHtml("snr", v.snr.toFixed(1), `GM ${m.snrs.GM.toFixed(1)} · CSF ${m.snrs.CSF.toFixed(1)}`, v.snr)
     + meterHtml("resolution", `${v.resolution.toFixed(2)} mm`, `${px.toFixed(2)} × ${py.toFixed(2)} mm, voxel ${m.voxelVol.toFixed(1)} mm³`, v.resolution)
-    + meterHtml("time", formatTime(m.scanSec), `${m.scanSec.toFixed(0)} s total`, v.time)
+    + meterHtml("time", formatTime(m.scanSec), `${m.scanSec.toFixed(0)} s total${timing.N > 1 ? "<br>" + sliceMeterText() : ""}`, v.time)
     + `<div class="baseline-row"><button class="btn" id="pin">${baseline ? "Clear pinned baseline" : "Pin current as baseline"}</button>`
     + `<span>${baseline ? "Percent changes compare with the pinned settings." : "Pin a setting, then change others to see the trade-off."}</span></div>`;
   $("pin").addEventListener("click", () => { baseline = baseline ? null : meterValues(model); renderMeters(model); });
@@ -189,7 +244,8 @@ function renderChips(m) {
 
 function renderMessages(m) {
   $("messages").innerHTML = m.timing.messages
-    .map((x) => `<div class="${x.level === "error" ? "alert" : "warn"}">${x.text}</div>`).join("");
+    .map((x) => `<div class="${x.level === "error" ? "alert" : "warn"}">${x.text}</div>`).join("")
+    + timing.messages.map((x) => `<div class="info">${x}</div>`).join("");
 }
 
 function renderNotes(m) {
@@ -247,7 +303,9 @@ function renderPsd(m) {
 
 function update() {
   normalize(p);
-  model = computeModel(p);
+  timing = protocolTiming(p);
+  model = computeModel(p, { scanFactor: timing.scanFactor, crossTalk: middleSliceFactors(p) });
+  syncSliceControls();
   renderMeters(model); renderChips(model); renderMessages(model); renderNotes(model); renderPlots(model); renderPsd(model); scheduleImages();
 }
 
