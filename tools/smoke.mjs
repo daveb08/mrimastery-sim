@@ -60,6 +60,26 @@ const PAGES = [
     ["expect", "strip shows five slices", `document.querySelectorAll('#strip canvas').length === 5`],
     ["expect", "profile plot drawn", `!!document.querySelector('#profilePlot .main-svg')`],
     ["expect", "no sequence error shown", `(${VISIBLE_ALERTS}) || true`],
+    // dragging Slices across 1 shows the gap and order and hides the inversion, without a rebuild of the slider
+    ["url", "?seq=SE"], ["set", "k_slices", 5],
+    ["expect", "slices 5: gap and order shown", `!!document.getElementById("k_gapPct")?.checkVisibility() && !!document.getElementById("k_sliceOrder")?.checkVisibility()`],
+    ["expect", "slices 5: inversion hidden", `!document.getElementById("k_inversion")?.checkVisibility()`],
+    ["set", "k_slices", 1],
+    ["expect", "slices 1: inversion shown, gap hidden", `!!document.getElementById("k_inversion")?.checkVisibility() && !document.getElementById("k_gapPct")?.checkVisibility()`],
+    // a tall stack reaching into the air: thumbnails share a window from the brightest slice, air is black
+    ["url", "?seq=FSE&slices=32&slice=10&gap=100"], ["wait", 3000],
+    ["expect", "tall stack: a thumbnail has a black corner", `[...document.querySelectorAll("#strip canvas")].some((c) => {
+      const d = c.getContext("2d").getImageData(0, 0, 1, 1).data; return d[0] === 0 && d[1] === 0 && d[2] === 0; })`],
+    ["expect", "tall stack: no NaN in the diagram", `!document.getElementById("diagram").innerHTML.includes("NaN")`],
+    ["expect", "tall stack: four legend entries (selected, other slices, refocusing, Mz)", `document.querySelectorAll("#profilePlot .legend .traces").length === 4`],
+    ["url", "?seq=FSE&slices=32&slice=10&gap=100&sel=0"], ["click", "fillAll"],
+    ["expect", "selected slice in air: no NaN in the diagram", `!document.getElementById("diagram").innerHTML.includes("NaN")`],
+    ["expect", "selected slice in air: image is black", `(() => { const d = document.getElementById("rCanvas").getContext("2d").getImageData(0, 0, 1, 1).data; return d[0] === 0 && d[1] === 0 && d[2] === 0; })()`],
+    // the slice-select slider at the largest stack stays fast (finding: a rebuild took about a second at 32 slices)
+    ["url", "?seq=GRE&slices=32&matrix=128"],
+    ["expect", "32 slices, matrix 128: a slider change redraws in under 500 ms", `(() => {
+      const e = document.getElementById("k_TE"), t0 = performance.now(); e.value = "6"; e.dispatchEvent(new Event("input", { bubbles: true }));
+      const ms = performance.now() - t0; return ms < 500 || "took " + ms.toFixed(0) + " ms"; })()`],
   ] },
   { name: "bloch", path: "bloch/", steps: [
     ["cycle", "program"], ["set", "flip", 180], ["click", "play"], ["wait", 1500], ["click", "play"],

@@ -1,14 +1,14 @@
-import { BUILDERS, DEFAULTS, DEFAULT_LIMITS, gradEnd } from "../shared/sequence.js";
-import { prepare, adcSamples, sampleTrajectory } from "../shared/ktraj.js";
+import { DEFAULTS, DEFAULT_LIMITS, gradEnd } from "../shared/sequence.js";
+import { sampleTrajectory } from "../shared/ktraj.js";
 import { diagramSvg, diagramGeometry } from "../shared/seqdiagram.js";
 import { textScale, draw, layout, axisStyle, COLORS } from "../shared/plot.js";
-import { echoTrainReadouts, acquiredRows } from "../contrast/acquisition.js";
 import { defaultParams, computeModel, tissuesAt, csfNullTi, dirNullTi2 } from "../contrast/physics.js";
 import { sampleSlice, composeSignal, labelSignals, toRgba } from "../contrast/image.js";
 import { kspaceOf, reconstruct, toInferno, autoWindowLevelObject } from "../contrast/kspace.js";
 import { thumbMatrix, thumbRow, createSampleCache, pump } from "./strip.js";
 import { crossTalk, labelFactors, TISSUE_T1 } from "../shared/crosstalk.js";
 import { createPhantom } from "../phantom/phantom.js";
+import { buildShots } from "./scan.js";
 import { fromQuery, toQuery, contrastNote, applies, clampSel, RANGES, INVERSION_SEQS } from "./settings.js";
 
 const $ = (id) => document.getElementById(id);
@@ -64,36 +64,18 @@ const params = () => ({ ...state, slices: state.slices ?? 1, gapPct: state.gapPc
 // ---- the scan: one sequence per TR, with its k-space samples and path ----
 let scan = null;
 
-function fseShots(P) {
-  const probe = BUILDERS.FSE(P, Array.from({ length: P.ETL }, (_, i) => i));
-  const eff = Math.max(0, Math.min(P.ETL - 1, Math.round(P.TE / probe.info.esp) - 1));
-  const ro = echoTrainReadouts(acquiredRows(P.ny, 1), P.ETL, eff);
-  return { rows: [...new Set(ro.map((r) => r.group))].map((g) => ro.filter((r) => r.group === g).map((r) => r.row)), eff };
-}
-
 function buildScan() {
   const P = params();
-  let rowsPerShot, eff;
-  if (state.seq === "SE" || state.seq === "GRE") rowsPerShot = acquiredRows(P.ny, 1).map((r) => [r]);
-  else if (state.seq === "EPI") rowsPerShot = [acquiredRows(P.ny, 1)];
-  else ({ rows: rowsPerShot, eff } = fseShots(P));
-  const build = (rows) => (state.seq === "SE" ? BUILDERS.SE(P, rows[0]) : state.seq === "GRE" ? BUILDERS.GRE(P, rows[0])
-    : state.seq === "EPI" ? BUILDERS.EPI(P, rows) : BUILDERS.FSE(P, rows));
-  const shots = rowsPerShot.map((rows) => {
-    const seq = build(rows), prep = prepare(seq);
-    const samples = adcSamples(seq, prep).map((s) => ({ t: s.t, col: Math.round(s.colExact), row: Math.round(s.rowExact), slice: s.slice ?? 0 }));
-    const activeEnd = Math.max(...seq.events.filter((e) => e.kind === "grad").map(gradEnd));
-    return { seq, prep, samples, activeEnd, path: null };
-  });
-  const first = shots[0].seq;
+  // single-slice shots for every TR; the full N-block sequence of a TR only when it is shown (kspace/scan.js)
+  const { first, eff, N, shots, offset, full } = buildShots(state.seq, P);
   // FSE: the effective TE is the echo that crosses ky = 0 (the same echo number in every train)
   const te = state.seq === "FSE" ? first.info.esp * (eff + 1) : first.te;
-  scan = { P, shots, eff, nx: P.nx, ny: P.ny, errors: first.errors, info: first.info, te, tr: first.tr };
-  const N = first.info.slices?.length ?? 1;
+  scan = { P, shots, full, offset, eff, nx: P.nx, ny: P.ny, errors: first.errors, info: first.info, te, tr: first.tr };
   state.sel = clampSel(state.sel, N);
   scan.xt = N > 1 ? crossTalk(first, TISSUE_T1()) : null; // steady-state cross-talk between the slices (once per rebuild)
   scan.K = phantomKspace(P, { tr: first.tr, te, ti: first.info.ti }); // the inversion times actually played
   // largest gradient on each axis over the whole scan, so every TR's diagram uses the same heights
+  // (every slice block repeats the single-slice gradients, so the single-slice shots give the same peaks)
   scan.peaks = { x: 0, y: 0, z: 0 };
   for (const s of shots) for (const g of s.seq.events) if (g.kind === "grad") scan.peaks[g.axis] = Math.max(scan.peaks[g.axis], Math.abs(g.amp));
 }
@@ -130,27 +112,37 @@ function phantomKspace(P, seq) {
 
 // ---- playback state: TR index and time within that TR ----
 const play = { shot: 0, t: 0, playing: false, lastT: 0 };
-const shotNow = () => scan.shots[play.shot];
+const shotNow = () => scan.full(play.shot); // this TR with every slice block
 
 function pathOf(shot) {
   if (!shot.path) shot.path = sampleTrajectory(shot.seq, 0, shot.activeEnd, 2500, shot.prep);
   return shot.path;
 }
 
+// the selected slice's samples taken so far: the single-slice samples, offset to the slice's block in the current TR
 function mask() {
-  const m = new Uint8Array(scan.nx * scan.ny);
-  for (let s = 0; s < play.shot; s++) for (const p of scan.shots[s].samples) if (p.slice === state.sel) m[p.row * scan.nx + p.col] = 1;
-  for (const p of shotNow().samples) if (p.slice === state.sel && p.t <= play.t) m[p.row * scan.nx + p.col] = 1;
+  const m = new Uint8Array(scan.nx * scan.ny), dt = scan.offset(state.sel);
+  for (let s = 0; s < play.shot; s++) for (const p of scan.shots[s].samples) m[p.row * scan.nx + p.col] = 1;
+  for (const p of scan.shots[play.shot].samples) if (p.t + dt <= play.t) m[p.row * scan.nx + p.col] = 1;
   return m;
 }
 
 // ---- controls ----
+// whether control c is shown for settings s
+const shown = (c, s) => (c.when ? c.when.includes(s.seq) && (s.slices ?? 1) <= 1 : c.always || applies(c.key, s));
+// settings s with the slice count on the other side of 1 (the controls the Slices slider can show or hide)
+const otherSide = (s) => ({ ...s, slices: (s.slices ?? 1) > 1 ? 1 : 2 });
+
+// Controls that only the slice count hides are built too, hidden, so that dragging the Slices slider across 1 can
+// show or hide them (syncControls) without rebuilding the slider being dragged.
 function buildControls() {
   const box = $("controls");
   box.innerHTML = "";
   for (const c of CONTROLS) {
-    if (c.when ? !c.when.includes(state.seq) || (state.slices ?? 1) > 1 : !c.always && !applies(c.key, state)) continue;
+    if (!shown(c, state) && !shown(c, otherSide(state))) continue;
     const wrap = document.createElement("div"), id = `k_${c.key}`;
+    wrap.dataset.key = c.key;
+    wrap.hidden = !shown(c, state);
     const value = c.key === "matrix" ? state.ny : state[c.key] ?? 0;
     if (c.type === "select") {
       wrap.innerHTML = `<label for="${id}">${c.label}</label><select id="${id}">${c.options.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select>`;
@@ -165,6 +157,10 @@ function buildControls() {
   }
 }
 
+function syncControls() {
+  for (const wrap of $("controls").children) wrap.hidden = !shown(CONTROLS.find((c) => c.key === wrap.dataset.key), state);
+}
+
 function set(key, value, rebuildControls = true) {
   if (key === "seq") state = { ...state, ...DEFAULTS, ...SEQ_DEFAULTS[value], seq: value, slices: state.slices, gapPct: state.gapPct, sliceOrder: state.sliceOrder, sel: state.sel, fov: state.fov, gMax: state.gMax, slew: state.slew, from: undefined };
   else if (key === "matrix") state.nx = state.ny = Number(value);
@@ -173,6 +169,7 @@ function set(key, value, rebuildControls = true) {
   else if (key === "gapPct") state.gapPct = Math.round(Number(value) / 10) * 10;
   else state[key] = typeof value === "string" && !isNaN(value) ? Number(value) : value;
   if (rebuildControls) buildControls();
+  else syncControls(); // a slider: only the slice count changes which controls are shown
   history.replaceState(null, "", `?${toQuery(state)}`); // the address always describes what is shown, so it can be shared
   stop();
   buildScan();
@@ -200,7 +197,7 @@ function renderDiagram() {
   // received signal: |S| at each sample, from the phantom's k-space (square root so weak echoes stay visible)
   const signal = shot.samples.map((p) => {
     const i = p.row * scan.nx + p.col;
-    return { t: p.t, v: Math.sqrt(Math.hypot(scan.K.re[i], scan.K.im[i]) / scan.K.max) };
+    return { t: p.t, v: Math.sqrt(Math.hypot(scan.K.re[i], scan.K.im[i]) / (scan.K.max || 1)) }; // max is 0 for a slice in air
   });
   const width = Math.max(700, $("diagram").clientWidth || 1000);
   const opts = { width, rowHeight: 42, window, fontScale: textScale(), scale: $("scale").value, signal, peaks: scan.peaks };
@@ -271,8 +268,7 @@ function drawRecon(force = false) {
   const ctx = cv.getContext("2d");
   if (count === 0) { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, scan.nx, scan.ny); return; } // nothing acquired yet
   const rec = reconstruct(scan.K, m, scan.nx, scan.ny, 0);
-  const wl = autoWindowLevelObject(rec);
-  ctx.putImageData(new ImageData(toRgba(rec, wl.window, wl.level), scan.nx, scan.ny), 0, 0);
+  ctx.putImageData(new ImageData(imageRgba(rec, autoWindowLevelObject(rec)), scan.nx, scan.ny), 0, 0);
 }
 
 function renderStatus() {
@@ -346,17 +342,20 @@ function renderAll() { renderInfo(); renderDiagram(); renderFrame(true); drawPro
 // ---- slice-profile panel (only with more than one slice) ----
 function drawProfiles() {
   const panel = $("profilePanel");
-  panel.hidden = !scan.xt;
-  if (!scan.xt) return;
+  panel.hidden = !scan.xt || typeof Plotly === "undefined"; // without Plotly (CDN down) the strip still works
+  if (panel.hidden) return;
   const xt = scan.xt, N = xt.slices.length, sel = state.sel, th = scan.info.sliceMm, tissue = $("profileTissue").value;
   const traces = [];
+  // legend: the selected slice, one entry for the other slices, one for the refocusing profiles, and Mz
+  const firstOther = sel === 0 ? 1 : 0;
   for (let j = 0; j < N; j++) {
-    traces.push({ x: xt.z, y: xt.profiles.excite[j], mode: "lines", name: j === sel ? `Slice ${j + 1} (selected)` : `Slice ${j + 1}`,
+    traces.push({ x: xt.z, y: xt.profiles.excite[j], mode: "lines", name: j === sel ? `Slice ${j + 1} (selected)` : "Other slices",
+      legendgroup: j === sel ? "sel" : "other", showlegend: j === sel || j === firstOther,
       line: { color: COLORS.gold, width: j === sel ? 3 : 1 }, opacity: j === sel ? 1 : 0.7, hovertemplate: `Slice ${j + 1}: |Mxy| %{y:.2f} at %{x:.1f} mm<extra></extra>` });
   }
   const refocus = xt.profiles.refocus;
   for (let j = 0; j < refocus.length; j++) {
-    traces.push({ x: xt.z, y: Array.from(refocus[j], (zz) => (1 - zz) / 2), mode: "lines", name: j === 0 ? "Refocusing profile" : `Refocusing, slice ${j + 1}`, showlegend: j === 0,
+    traces.push({ x: xt.z, y: Array.from(refocus[j], (zz) => (1 - zz) / 2), mode: "lines", name: "Refocusing", legendgroup: "refocus", showlegend: j === 0,
       line: { color: COLORS.red, width: j === sel ? 2 : 1, dash: "dash" }, opacity: j === sel ? 1 : 0.6, hovertemplate: `Slice ${j + 1} refocusing: %{y:.2f} at %{x:.1f} mm<extra></extra>` });
   }
   traces.push({ x: xt.z, y: xt.slices[sel].mzBefore[tissue], mode: "lines", name: `Mz just before slice ${sel + 1}'s excitation`,
@@ -384,22 +383,21 @@ $("profileTissue").addEventListener("change", drawProfiles);
 
 
 // ---- slice strip (only with more than one slice): every slice's image, filled in a few thumbnails per frame ----
-const strip = { queue: [], key: null, K: [], mask: null, lut: null, wl: null, m: 0, raf: 0, cache: createSampleCache((z, th, fov, m) =>
+const strip = { queue: [], key: null, K: [], mask: null, lut: null, wl: null, refP99: -1, drawn: new Set(), m: 0, raf: 0, cache: createSampleCache((z, th, fov, m) =>
   sampleSlice(phantom, "axial", z, { nx: m, ny: m, fovRead: fov[0], fovPhase: fov[1], thicknessMm: th })) };
 
 function buildStrip() {
   const el = $("strip");
   $("stripPanel").hidden = !scan.xt;
-  strip.queue = []; strip.key = null; strip.K = []; strip.mask = null;
+  strip.queue = []; strip.key = null; strip.K = []; strip.mask = null; strip.wl = null; strip.refP99 = -1; strip.drawn.clear();
   if (!scan.xt) { el.innerHTML = ""; return; }
   const P = scan.P, N = scan.xt.slices.length, m = thumbMatrix(P.ny);
   const { p } = modelParams(P, { tr: scan.tr, te: scan.te, ti: scan.info.ti });
   strip.m = m;
   strip.lut = labelSignals(computeModel(p), p);
   if (strip.cache.size > 80) strip.cache.clear();
-  // one window/level for every thumbnail, from the isolated first slice, so a slice that loses signal looks dimmer
-  const ref = composeSignal(strip.cache.get(scan.xt.slices[0].zMm, P.sliceMm, [P.fovRead, P.fovPhase], m), strip.lut);
-  strip.wl = autoWindowLevelObject(ref);
+  // One window/level for every thumbnail, so a slice that loses signal looks dimmer. It comes from the brightest
+  // slice without cross-talk (highest 99th percentile), found as the thumbnails are sampled (renderThumb).
   el.innerHTML = "";
   for (let j = 0; j < N; j++) {
     const fig = document.createElement("figure");
@@ -430,7 +428,8 @@ function refreshStrip(force = false) {
   if (!force && key === strip.key) return;
   strip.key = key;
   strip.mask = thumbMask();
-  strip.queue = Array.from({ length: scan.xt.slices.length }, (_, j) => j);
+  // the selected slice first: usually inside the head, so the window rarely has to change during the fill
+  strip.queue = [state.sel, ...Array.from({ length: scan.xt.slices.length }, (_, j) => j).filter((j) => j !== state.sel)];
   if (!strip.raf) strip.raf = requestAnimationFrame(stripFrame);
 }
 
@@ -443,8 +442,9 @@ function stripFrame() {
 // rows taken so far, as thumbnail rows (every slice is read on the same phase-encode rows each TR)
 function thumbMask() {
   const ny = scan.ny, m = strip.m, out = new Uint8Array(m * m), taken = new Uint8Array(ny);
+  // (the first block is at offset 0, so the single-slice times are the earliest any slice takes each row)
   for (let s = 0; s < play.shot; s++) for (const p of scan.shots[s].samples) taken[p.row] = 1;
-  for (const p of shotNow().samples) if (p.t <= play.t) taken[p.row] = 1;
+  for (const p of scan.shots[play.shot].samples) if (p.t <= play.t) taken[p.row] = 1;
   for (let r = 0; r < ny; r++) {
     const t = taken[r] ? thumbRow(r, ny, m) : -1;
     if (t >= 0) out.fill(1, t * m, (t + 1) * m);
@@ -457,11 +457,35 @@ function renderThumb(j) {
   if (!fig || !strip.lut) return;
   const P = scan.P, m = strip.m, sl = scan.xt.slices[j], factors = labelFactors(sl.factor);
   if (!strip.K[j]) { // the thumbnail's k-space does not depend on how much has been acquired
+    const sampled = strip.cache.get(sl.zMm, P.sliceMm, [P.fovRead, P.fovPhase], m);
     const lut = Float32Array.from(strip.lut, (v, i) => v * factors[i]);
-    strip.K[j] = kspaceOf(composeSignal(strip.cache.get(sl.zMm, P.sliceMm, [P.fovRead, P.fovPhase], m), lut), m, m);
+    strip.K[j] = kspaceOf(composeSignal(sampled, lut), m, m);
+    // a brighter isolated slice than any so far sets the shared window; redraw the thumbnails drawn with the old one
+    const alone = composeSignal(sampled, strip.lut), p99 = percentile99(alone);
+    if (p99 > strip.refP99) {
+      strip.refP99 = p99;
+      const wl = autoWindowLevelObject(alone);
+      strip.wl = { window: Math.max(wl.window, 0.25 * p99, 1e-6), level: wl.level }; // floor: never a near-zero window
+      for (const k of strip.drawn) if (!strip.queue.includes(k)) strip.queue.push(k);
+      strip.drawn.clear();
+    }
   }
   const rec = reconstruct(strip.K[j], strip.mask, m, m, 0);
-  fig.querySelector("canvas").getContext("2d").putImageData(new ImageData(toRgba(rec, strip.wl.window, strip.wl.level), m, m), 0, 0);
+  fig.querySelector("canvas").getContext("2d").putImageData(new ImageData(imageRgba(rec, strip.wl), m, m), 0, 0);
+  strip.drawn.add(j);
+}
+
+function percentile99(values) {
+  const sorted = Float32Array.from(values).sort();
+  return sorted[Math.min(sorted.length - 1, Math.floor(0.99 * sorted.length))];
+}
+
+// grey levels of a reconstruction; all black when it is all zero (a slice in air, or nothing acquired)
+function imageRgba(rec, wl) {
+  let max = 0;
+  for (const v of rec) if (v > max) max = v;
+  if (!(max > 0)) { const out = new Uint8ClampedArray(rec.length * 4); for (let i = 3; i < out.length; i += 4) out[i] = 255; return out; }
+  return toRgba(rec, wl.window, wl.level);
 }
 
 // choose which slice's k-space and image are shown (no new sequence or cross-talk calculation)
