@@ -15,10 +15,15 @@ Recorded 2026-11-01; order agreed 2026-11-04 (basic ideas first). Nothing here s
    - a better skull, scalp, face and neck;
    - partial-volume edges.
    It came first because multi-slice and 3D show much more of the phantom.
-1. **Multi-slice imaging** — k-space explorer part done (2D only; design `docs/superpowers/specs/2026-11-04-multislice-design.md`);
-   contrast simulator next. Scope: interleaving several slices within one TR: slice order (sequential, interleaved), slice
-   gap and cross-talk from imperfect slice profiles, and how TR sets the number of slices. Fits the k-space explorer
-   (per-slice RF frequency offsets in the event model) and the contrast simulator (slice count and scan time).
+1. **Multi-slice imaging** — project 1 **done** (2026-11-05; design `docs/superpowers/specs/2026-11-05-multislice-protocol-design.md`,
+   building on the explorer's 2D part in `docs/superpowers/specs/2026-11-04-multislice-design.md`). The contrast simulator is
+   now the multi-slice protocol page: 1–32 slices, slice gap, order (interleaved or sequential), concatenations (Auto or a
+   number, included in the scan time), cross-talk from Bloch-simulated slice profiles (toggle "Include cross-talk"), a TR
+   timeline strip and slice-stack planning lines. bSSFP is acquired slice by slice; DWI and single-shot EPI are timed at an
+   EPI readout bandwidth of at least 1500 Hz/px; MPRAGE (3D) has no slice controls; FLAIR, STIR and DIR stay single-slice.
+   - Project 2, multi-slice inversion recovery (FLAIR, STIR, DIR: slice packing and concatenations, with the concatenation
+     count emerging from the physics), is next. Physics reference: `docs/2d-flair-concatenations-reference.md` (in the main
+     checkout, not yet on this branch).
 2. **3D imaging** — a second phase-encode axis (partition encoding along z): a 3D k-space volume, the scan-time and SNR
    trade-off against 2D, slab-selective excitation, and slab-edge wrap. Links to MPRAGE in the contrast simulator,
    which is 3D in practice.

@@ -66,6 +66,17 @@ hand-made path. Agreed with the user on 2026-11-01.
    Bloch run within 1 %, including CSF at GRE 90° and gap 50 %. Slice-profile plot and slice strip.
    Inversion recovery is off with more than one slice. Design: `docs/superpowers/specs/2026-11-04-multislice-design.md`.
    **Done** for the k-space explorer; 3D is roadmap item 2.
+
+7. **Concatenations and the windowed sinc** (2026-11-05, design `docs/superpowers/specs/2026-11-05-multislice-protocol-design.md`)
+   - `sliceTiming` in `shared/sequence.js` gives the slots, the maximum slices per TR, the concatenations (passes) and the
+     scan factor. Concatenation k holds slices k, k + C, k + 2C, … in spatial order, so neighbours fall in different passes.
+   - Auto concatenations are ⌈N / maxSlices⌉ with no cap, and the TR is never raised for them in the contrast simulator.
+     Scan time = TR × shots × NEX × concatenations × partial-Fourier factor.
+   - The explorer gains a Concatenations control, a "Pass k of C" view, cross-talk per pass and scan time × concatenations.
+     The contrast simulator's "Open in k-space explorer" link carries slices, gap, order and the resolved concatenations.
+   - Every builder pulse is a Hann-windowed TBW-4 sinc (`RF_SHAPE`). With it, cross-talk is a signal loss in every case of
+     the comparison table; the largest gain found in a wider sweep was about +8 % (GRE 90°, wide gap, CSF), against up to
+     +385 % with the plain sinc.
    - Per-pixel tissue fractions: the image side scales each tissue's signal through the label lookup table (one label
      per pixel, with `sampleSlice`'s slab partial volume), not the spec's map of tissue fractions per pixel. Composing
      from per-pixel fractions is a prerequisite for bringing BrainWeb back as a phantom.

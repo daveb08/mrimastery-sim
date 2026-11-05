@@ -12,11 +12,11 @@ Plotly (pinned, from jsDelivr) draws the plots.
 | `kspace/` | K-space explorer: pulse sequences from real gradient events (`shared/sequence.js`), exact k-space paths (`shared/ktraj.js`), a to-scale diagram (`shared/seqdiagram.js`) and 2D multi-slice with cross-talk from Bloch-simulated pulses (`shared/crosstalk.js`) |
 | `tuning/` | Coil tuning and matching: loop inductance, coil and patient losses, parallel-tune / series-match to 50 ohm, S11 and Smith chart (`tuning/tuning.js`) |
 | `phantom/` | Procedural 3D head phantom (labels as a function of position) with a three-plane viewer |
-| `contrast/` | Contrast simulator: physics core, trade-off meters, controls, signal plots, phantom images, pulse-sequence diagrams and k-space; see `docs/contrast-port-plan.md` |
+| `contrast/` | Contrast simulator and multi-slice protocol page: physics core, trade-off meters, controls (slices, gap, order, concatenations), signal plots, phantom images, pulse-sequence diagrams, TR timeline strip and k-space; see `docs/contrast-port-plan.md` |
 | `shared/` | Common stylesheet, Plotly dark-theme helpers, FFT |
 
 Each simulator keeps its numerics in DOM-free modules (`bloch/bloch.js`, `signal/fourier.js`,
-`signal/rfslice.js`, `coil/coilfields.js`, `coil/rfexcitation.js`, `phantom/phantom.js`, `contrast/physics.js`, `shared/crosstalk.js`) with tests beside them. The signal tests check against values computed
+`signal/rfslice.js`, `coil/coilfields.js`, `coil/rfexcitation.js`, `phantom/phantom.js`, `contrast/physics.js`, `contrast/protocol.js`, `contrast/trstrip.js`, `shared/crosstalk.js`) with tests beside them. The signal tests check against values computed
 with the original Python implementation (the coil tests port the original pytest cases).
 
 ```
