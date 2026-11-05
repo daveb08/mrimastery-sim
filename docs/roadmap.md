@@ -2,7 +2,7 @@
 
 Recorded 2026-11-01; order agreed 2026-11-04 (basic ideas first). Nothing here starts without the user's go-ahead.
 
-**Done:** the k-space explorer (`docs/kspace-module-plan.md`, phases 1–6, including inversion recovery, TR up to
+**Done:** the k-space explorer (`docs/kspace-module-plan.md`, phases 1–7, including inversion recovery, TR up to
 12 s and 2D multi-slice imaging).
 
 0. **Head phantom realism (procedural, option A, chosen 2026-11-03)** — **done (commit b5216e2).** The phantom stayed generated in code, so it still works at any slice and resolution and
