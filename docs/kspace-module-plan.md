@@ -57,7 +57,7 @@ hand-made path. Agreed with the user on 2026-11-01.
    (`shared/crosstalk.js`), and is shown as a signed signal change. Since 2026-11-05 every pulse the builders emit is
    a Hann-windowed TBW-4 sinc (`RF_SHAPE` in `shared/sequence.js`; 10° FWHM 4.98 mm at 5 mm, so no bandwidth
    correction). With the unwindowed sinc, its side lobes tipped the slice edges out of phase with the centre and
-   neighbours that saturated them raised the signal by up to +50 % (CSF, GRE 90°). With the window, cross-talk lowers
+   neighbours that saturated them raised the signal by up to +50 % in the narrow comparison table (CSF, GRE 90°). With the window, cross-talk lowers
    the signal. Measured at 8 slices of 5 mm, 3 T, middle slice: GRE 90°, TR 300 ms, gap 0: WM −20 %, CSF −41 %;
    gap 20 %: WM −5 %, CSF −19 %; EPI TR 3000 ms, gap 0: CSF −12 %; spin echo TR 500 ms, gap 0: CSF −6 %. With gaps
    up to 20 % no factor exceeds 1 (to 1e-4). A small gain remains only at wide gaps (about 30–70 %) for 90° GRE and
@@ -80,7 +80,7 @@ hand-made path. Agreed with the user on 2026-11-01.
      instead, and TR stays as typed. The contrast simulator's "Open in k-space explorer" link carries slices, gap, order and the resolved concatenations.
    - Every builder pulse is a Hann-windowed TBW-4 sinc (`RF_SHAPE`). With it, cross-talk is a signal loss in every case of
      the comparison table; the largest gain found in a wider sweep was about +8 % (GRE 90°, wide gap, CSF), against up to
-     +385 % with the plain sinc.
+     +385 % in the wider sweep with the plain sinc.
 
 ## Later
 
