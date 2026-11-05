@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   GAMMA_BAR, DEFAULTS, DEFAULT_LIMITS, gradArea, gradEnd, shortestTrap, spinEcho, gradientEcho, fastSpinEcho, epi, BUILDERS,
-  withInversion, slicePositions, acquisitionOrder,
+  withInversion, slicePositions, acquisitionOrder, RF_SHAPE,
 } from "./sequence.js";
 import { areaUpTo, prepare, adcSamples, adcTimes } from "./ktraj.js";
 import { echoTrainReadouts, acquiredRows } from "../contrast/acquisition.js";
@@ -255,4 +255,20 @@ test("every builder samples the single-slice k positions in each of 3 slice bloc
       mine.forEach((s, i) => { assert.ok(near(s.colExact, s1[i].colExact, 1e-6), k); assert.ok(near(s.rowExact, s1[i].rowExact, 1e-6), k); });
     }
   }
+});
+
+test("every RF pulse the builders emit carries the shared shape (Hann-windowed sinc), for 1 and 3 slices and with an inversion", () => {
+  assert.equal(RF_SHAPE, "hannSinc");
+  for (const [k, rows] of MS_CASES) {
+    for (const slices of [1, 3]) {
+      const seq = BUILDERS[k]({ ...P, ETL: 8, TR: 20000, slices }, rows);
+      const rfs = seq.events.filter((e) => e.kind === "rf");
+      assert.ok(rfs.length > 0, k);
+      for (const e of rfs) assert.equal(e.shape, RF_SHAPE, `${k} ${slices} ${e.role}`);
+    }
+  }
+  const inv = BUILDERS.FSE({ ...P, ETL: 8, TE: 80, TR: 9000, inversion: "IR", TI: 2500 }, rowsAll(8));
+  const rfs = inv.events.filter((e) => e.kind === "rf");
+  assert.ok(rfs.some((e) => e.role === "invert"));
+  for (const e of rfs) assert.equal(e.shape, RF_SHAPE, `FSE IR ${e.role}`);
 });

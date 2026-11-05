@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runProgram, meanTransverse, blochStep, equilibrium, flipFromB1, b1ForFlip, shapeFraction } from "./bloch.js";
+import { runProgram, meanTransverse, blochStep, equilibrium, flipFromB1, b1ForFlip, shapeFraction, envelope } from "./bloch.js";
 
 const near = (a, b, tol = 1e-3) =>
   assert.ok(Math.abs(a - b) <= tol, `${a} != ${b} (tol ${tol})`);
@@ -104,4 +104,17 @@ test("a pulse built from B1 and duration tips the spin by the predicted angle", 
   const run = runProgram([{ type: "rf", flipDeg: flip, durMs: 0.75, dtMs: 0.005 }], { T1: 1e9, T2: 1e9, offResHz: [0] });
   const M = run.frames[run.frames.length - 1];
   assert.ok(Math.abs(Math.acos(M[2]) * (180 / Math.PI) - flip) < 0.2);
+});
+test("hannSinc: the TBW-4 sinc under a Hann window is symmetric, peaks at 1 in the centre and falls to ~0 at the edges", () => {
+  const n = 401, env = envelope("hannSinc", n, 4);
+  for (let i = 0; i < n; i++) assert.ok(Math.abs(env[i] - env[n - 1 - i]) < 1e-12, `symmetric at ${i}`);
+  assert.ok(Math.abs(env[(n - 1) / 2] - 1) < 1e-12);
+  for (const v of env) assert.ok(v <= 1 + 1e-12);
+  assert.ok(Math.abs(env[0]) < 0.01 && Math.abs(env[n - 1]) < 0.01);
+  // The window mostly removes the sinc's negative side lobes, so the net area per unit peak goes UP (measured 0.2532 vs
+  // 0.2257 for the plain sinc): a windowed pulse needs a slightly lower peak B1 for the same flip. Its rectified area
+  // (mean |envelope|) goes down (0.279 vs 0.364). (The task brief expected the net fraction to fall; it cannot.)
+  assert.ok(shapeFraction("hannSinc") > shapeFraction("sinc") && shapeFraction("hannSinc") < 0.3);
+  const absMean = (e) => e.reduce((s, v) => s + Math.abs(v), 0) / e.length;
+  assert.ok(absMean(envelope("hannSinc", 2000, 4)) < absMean(envelope("sinc", 2000, 4)));
 });

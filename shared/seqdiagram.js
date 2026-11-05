@@ -3,6 +3,7 @@
 // Long stretches with nothing happening (typically the wait until the end of TR) are compressed to a short break,
 // marked with the time they stand for, so a whole TR fits; a time window zooms in.
 import { gradEnd } from "./sequence.js";
+import { envelope } from "../bloch/bloch.js";
 
 export const ROWS = [
   { key: "rf", label: "RF", color: "#FFD700" },
@@ -142,12 +143,12 @@ export function diagramSvg(seq, opts = {}) {
     body.push(`<path d="M${f(xs[0])},${f(y0)}L${f(xs[1])},${f(ya)}L${f(xs[2])},${f(ya)}L${f(xs[3])},${f(y0)}Z" fill="${col}" fill-opacity=".28" stroke="${col}" stroke-width="1.3">`
       + `<title>${esc(g.label || "gradient")}: ${g.amp.toFixed(2)} mT/m, ${(gradEnd(g) - g.start).toFixed(2)} ms</title></path>`);
   }
-  // RF pulses as sinc envelopes, height by flip angle
+  // RF pulses drawn from the envelope the Bloch engine plays (time-bandwidth 4), normalised to its peak; height by flip
   for (const rf of seq.events.filter((e) => e.kind === "rf")) {
     const n = 48, a = Math.min(1, rf.flip / 180) * 0.75 + 0.25;
+    const env = envelope(rf.shape ?? "sinc", n + 1, 4), peak = Math.max(...env);
     const pts = Array.from({ length: n + 1 }, (_, k) => {
-      const u = (k / n) * 2 - 1, x = u * 2; // sinc with two side lobes each side (time-bandwidth 4)
-      const s = x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x);
+      const u = (k / n) * 2 - 1, s = env[k] / peak;
       return `${f(X(rf.center + (u * rf.duration) / 2))},${f(rowMid(0) - s * a * rowH * 0.42)}`;
     });
     const role = { excite: "excitation", refocus: "refocusing", invert: "inversion" }[rf.role];

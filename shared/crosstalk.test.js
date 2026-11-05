@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { pulseProfile, crossTalk, labelFactors, TISSUE_T1 } from "./crosstalk.js";
-import { GAMMA_BAR, BUILDERS, gradArea, gradEnd } from "./sequence.js";
+import { GAMMA_BAR, BUILDERS, gradArea, gradEnd, RF_SHAPE } from "./sequence.js";
 import { blochStep, envelope, scaleToFlip, HZ_PER_MT_M_MM } from "../bloch/bloch.js";
 import { tissuesAt } from "../contrast/physics.js";
 import { EXTRA_TISSUES } from "../contrast/image.js";
@@ -45,37 +45,47 @@ const gss = 4 / 2 / (GAMMA_BAR * 5); // TBW 4, 2 ms, 5 mm — as sequence.js com
 // Timing limits hold locally; CI runners are slower and node --test runs files in parallel, so allow 3× there.
 const SLOW = process.env.CI ? 3 : 1;
 
-test("excite profile: FWHM matches the slice thickness and phase is flat after the rephaser", () => {
-  const u = grid(-15, 15, 0.05), p = pulseProfile({ role: "excite", flipDeg: 90, durMs: 2, gss, u });
-  assert.ok(Math.abs(fwhm(u, abs(p.mxyRe, p.mxyIm)) - 5) < 0.25);
+// The builders' pulse (RF_SHAPE: TBW-4 sinc under a Hann window) unless a test says otherwise.
+test("excite profile: FWHM near the slice thickness and phase is flat after the rephaser (90°)", () => {
+  const u = grid(-15, 15, 0.05), p = pulseProfile({ role: "excite", flipDeg: 90, durMs: 2, gss, shape: RF_SHAPE, u });
+  // At 90° |Mxy| = sin(flip(z)) saturates at the top, so its half maximum lies where the local flip is 30°, outside the
+  // nominal edge; the windowed pulse's wider transition band makes that visible: FWHM 5.50 mm (plain sinc 5.02). The
+  // nominal-thickness check (within 3 %) is at 10°, below.
+  const w = fwhm(u, abs(p.mxyRe, p.mxyIm));
+  assert.ok(w > 5 && w < 5.75, `FWHM ${w}`);
   assert.ok(Math.abs(abs(p.mxyRe, p.mxyIm)[centre(u)] - 1) < 0.01);
   // A half-area rephaser leaves exactly flat phase only in the small-tip limit; at 90° the Bloch nonlinearity leaves
-  // a residual that grows toward the slice edges (≈ 0.05 rad over ±0.5 mm, ≈ 0.76 rad over ±1.5 mm). That is physics,
-  // so the 90° check is over the central ±0.5 mm and the ±1.5 mm check is at 30° (≈ 0.06 rad), below.
-  assert.ok(phaseSpread(p, u, 0.5) < 0.1);
+  // a residual that grows toward the slice edges. Windowed pulse, measured: ≈ 0.18 rad over ±0.5 mm (plain sinc
+  // 0.05), ≈ 0.44 rad over ±1.5 mm (plain sinc 0.76). That is physics, so the 90° check is over the central ±0.5 mm
+  // with bound 0.25 (was 0.1 for the plain sinc), and the ±1.5 mm check is at 30° (≈ 0.04 rad), below.
+  assert.ok(phaseSpread(p, u, 0.5) < 0.25);
   assert.ok(phaseSpread(p, u, 1.5) < 1); // without the rephaser, or with it reversed, this is ≈ 6 rad
   assert.ok(Math.abs(p.zz[centre(u)]) < 0.01); // 90°: Mz → 0 at the centre
   assert.ok(p.b2Re.every((v) => v === 0) && p.b2Im.every((v) => v === 0));
 });
 
-// Cross-check with the signal page's small-tip model (the Fourier transform of the same TBW-4 sinc, signal/rfslice.js):
-// at a small flip the Bloch profile is that Fourier transform, so the two widths agree closely.
-test("excite FWHM at 10° matches signal/rfslice.js simulateRfSlice within 1 %", () => {
-  const u = grid(-15, 15, 0.01), p = pulseProfile({ role: "excite", flipDeg: 10, durMs: 2, gss, u });
+// At a small flip the profile is the Fourier transform of the envelope, and its FWHM is the slice thickness: the
+// windowed pulse measures 4.978 mm at 5 mm nominal (−0.45 %), so sequence.js needs no bandwidth correction.
+// Cross-check with the signal page's small-tip model (signal/rfslice.js), which has no window: its FT of the plain
+// TBW-4 sinc gives 5.059 mm, 1.6 % wider than the windowed Bloch profile (the plain sinc's own Bloch FWHM, 5.058 mm,
+// agreed with it within 0.1 %). Tolerance 2 %, from that measurement.
+test("excite FWHM at 10° is within 3 % of the thickness, and within 2 % of signal/rfslice.js (unwindowed)", () => {
+  const u = grid(-15, 15, 0.01), p = pulseProfile({ role: "excite", flipDeg: 10, durMs: 2, gss, shape: RF_SHAPE, u });
   const bloch = fwhm(u, abs(p.mxyRe, p.mxyIm)), ft = simulateRfSlice("Sinc", 5, gss, 4);
+  assert.ok(Math.abs(bloch - 5) < 0.03 * 5, `Bloch FWHM ${bloch.toFixed(4)} mm`);
   assert.ok(Math.abs(ft.duration * 1000 - 2) < 1e-4, `rfslice duration ${ft.duration * 1000} ms`); // the same pulse (gamma to 5 digits there)
-  assert.ok(Math.abs(bloch - ft.achievedMm) < 0.01 * ft.achievedMm, `Bloch ${bloch.toFixed(4)} mm, rfslice ${ft.achievedMm.toFixed(4)} mm`);
+  assert.ok(Math.abs(bloch - ft.achievedMm) < 0.02 * ft.achievedMm, `Bloch ${bloch.toFixed(4)} mm, rfslice ${ft.achievedMm.toFixed(4)} mm`);
 });
 
 test("small-tip excite: phase is flat across the central ±1.5 mm after the rephaser", () => {
-  const u = grid(-15, 15, 0.05), p = pulseProfile({ role: "excite", flipDeg: 30, durMs: 2, gss, u });
-  assert.ok(phaseSpread(p, u, 1.5) < 0.1); // radians
+  const u = grid(-15, 15, 0.05), p = pulseProfile({ role: "excite", flipDeg: 30, durMs: 2, gss, shape: RF_SHAPE, u });
+  assert.ok(phaseSpread(p, u, 1.5) < 0.1); // radians (windowed 0.043, plain sinc 0.060)
   assert.ok(Math.abs(abs(p.mxyRe, p.mxyIm)[centre(u)] - Math.sin(Math.PI / 6)) < 0.01);
 });
 
 test("refocus profile: zz ≈ −1 and |b2| ≈ 1 at the centre, zz → 1 and b2 → 0 far away", () => {
   const u = grid(-15, 15, 0.05);
-  const p = pulseProfile({ role: "refocus", flipDeg: 180, durMs: 2, gss, phaseDeg: 90, u });
+  const p = pulseProfile({ role: "refocus", flipDeg: 180, durMs: 2, gss, shape: RF_SHAPE, phaseDeg: 90, u });
   const c = centre(u), b2 = abs(p.b2Re, p.b2Im);
   assert.ok(Math.abs(p.zz[c] + 1) < 0.01);
   assert.ok(Math.abs(b2[c] - 1) < 0.01);
@@ -187,34 +197,44 @@ test("loss grows as the gap shrinks", () => {
   assert.ok(m[0] < m[1] && m[1] < m[2], m.join(", "));
 });
 
-// Longer T1 loses more where pulses only saturate. Not for SE: j's own 180 leaves Mz inverted near its slice edges and
-// a neighbour's pulse pulls that toward 0, which helps more the longer T1 is, so there CSF can lose less than WM
-// (N = 5, gap 0, TR 500: CSF 0.9998, WM 0.9967).
-test("longer T1 loses more (FSE, and GRE at 30°)", () => {
-  for (const [kind, P] of [["FSE", { TR: 3000 }], ["GRE", { TR: 100, flip: 30 }]]) {
+// Longer T1 loses more where pulses only saturate. With the plain sinc SE was the exception: j's own 180 left Mz
+// inverted near its slice edges and a neighbour's pulse pulled that toward 0, which helped more the longer T1 was
+// (N = 5, gap 0, TR 500: CSF 0.9998, WM 0.9967). The windowed pulse's edges are cleaner and SE follows the rule too
+// (CSF 0.968, GM 0.982, WM 0.987), so it is included.
+test("longer T1 loses more (SE, FSE, and GRE at 30°)", () => {
+  for (const [kind, P] of [["SE", { TR: 500 }], ["FSE", { TR: 3000 }], ["GRE", { TR: 100, flip: 30 }]]) {
     const s = crossTalk(build(kind, { slices: 5, gapPct: 0, ...P }), TS).slices[2];
     assert.ok(s.factor.CSF < s.factor.GM && s.factor.GM < s.factor.WM, `${kind}: ${JSON.stringify(s.factor)}`);
   }
 });
 
-// A 90° excitation without refocusing (GRE at 90°, EPI): the saturated slice centre is outweighed by unsaturated
-// edges whose transverse phase opposes it (sidelobes and the 90° residual phase twist), so they cancel part of the
-// coherent sum. Neighbours saturate those edges and the sum grows: factors above 1 are real for this pulse model
-// (the brute-force Bloch check below reproduces them).
-test("90° excitation without refocusing can gain signal (GRE 90°, EPI)", () => {
-  for (const kind of ["GRE", "EPI"]) {
-    const ct = crossTalk(build(kind, { slices: 8, sliceMm: 1, gapPct: 0, TR: 500, flip: 90 }), TS);
+// A 90° excitation without refocusing (GRE at 90°, EPI) can still gain a little, with the windowed pulse only at wide
+// gaps (40–70 %). Just outside the slice (0.85–1.2 thicknesses from its centre) the 90° profile keeps a small transverse
+// component (≈ 2 % of the centre) whose phase opposes the centre's. Its own pulse barely touches Mz there, so for long
+// T1 at short TR that edge carries full Mz while the centre is saturated, and it cancels part of the coherent sum. A
+// neighbour 1.4–1.7 thicknesses away saturates that edge and the sum grows. Measured (N 3 and 8, 1 and 5 mm, TR
+// 100–3000, all tissues): at most +7.8 % (GRE 90°, gap 60 %, TR 100, CSF), +1.3 % for EPI (gap 50 %). The plain sinc
+// gave up to +385 % (GRE 90°, gap 20 %), from its side lobes. The brute-force Bloch check below reproduces the model.
+test("90° excitation without refocusing can gain a little at wide gaps (GRE 90°, EPI)", () => {
+  for (const [kind, P, atLeast] of [["GRE", { slices: 8, gapPct: 50, TR: 300 }, 1.02], ["EPI", { slices: 3, gapPct: 50, TR: 1000 }, 1.005]]) {
+    const ct = crossTalk(build(kind, { sliceMm: 5, flip: 90, ...P }), TS);
     const all = ct.slices.flatMap((s) => Object.values(s.factor));
-    for (const v of all) assert.ok(Number.isFinite(v) && v >= 0 && v <= 1.5, `${kind} ${v}`);
-    assert.ok(all.some((v) => v > 1), `${kind}: max ${Math.max(...all)}`);
+    for (const v of all) assert.ok(Number.isFinite(v) && v >= 0 && v <= 1.1, `${kind} ${v}`);
+    assert.ok(Math.max(...all) > atLeast, `${kind}: max ${Math.max(...all)}`); // measured 1.031 (GRE), 1.011 (EPI)
   }
 });
 
-// Only these settings: elsewhere (GRE at higher flips or with a gap, EPI, long-T1 tissue at short TR) factors can exceed 1.
-test("N = 8, 1 mm slices, no gap, TR 500 ms: factors never exceed 1 for SE, FSE and GRE at 30°", () => {
-  for (const kind of ["SE", "GRE", "FSE"]) {
-    const ct = crossTalk(build(kind, { slices: 8, sliceMm: 1, gapPct: 0, TR: 500, flip: 30 }), TS);
-    for (const s of ct.slices) for (const [n, v] of Object.entries(s.factor)) assert.ok(v <= 1 + 1e-9, `${kind} ${n} ${v}`);
+// With the windowed pulse and gaps up to 20 %, nothing gains: measured over N 3 and 8, 1 and 5 mm, TR 100–3000 and
+// all tissues, the largest factor is 1.00003 (GRE 90°, Fat, N 3, 5 mm, gap 0, TR 3000). Gains appear from gap 30 %
+// (GRE 90°: +0.08 %) and peak at 50–60 % (test above).
+test("gaps 0–20 %: factors never exceed 1 (to 1e-4) for SE, FSE, GRE 30° and 90°, and EPI", () => {
+  for (const [kind, flip] of [["SE", 90], ["FSE", 90], ["GRE", 30], ["GRE", 90], ["EPI", 90]]) {
+    for (const gapPct of [0, 20]) for (const slices of [3, 8]) for (const sliceMm of [1, 5]) for (const TR of [300, 3000]) {
+      const ct = crossTalk(build(kind, { slices, sliceMm, gapPct, TR, flip }), TS);
+      for (const s of ct.slices) for (const [n, v] of Object.entries(s.factor)) {
+        assert.ok(v <= 1 + 1e-4, `${kind} ${flip}° N ${slices} ${sliceMm} mm gap ${gapPct} % TR ${TR}: ${n} ${v}`);
+      }
+    }
   }
 });
 
@@ -274,7 +294,7 @@ function bruteForce(seq, T1, play, dz, nTR = 40) {
   const rf = seq.events.filter((e) => e.kind === "rf" && play.includes(e.slice)).sort((a, b) => a.center - b.center);
   const pulses = rf.map((e) => {
     const steps = Math.round(e.duration / DT);
-    const wave = scaleToFlip(envelope("sinc", steps, 4), e.duration, e.flip);
+    const wave = scaleToFlip(envelope(e.shape ?? "sinc", steps, 4), e.duration, e.flip); // the pulse crossTalk plays
     const df = Float64Array.from({ length: count }, (_, i) => HZ_PER_MT_M_MM * e.gss * (zOf(i) - e.zMm));
     let reph = null;
     if (e.role === "excite") {
@@ -328,13 +348,14 @@ function bruteForce(seq, T1, play, dz, nTR = 40) {
   return sig;
 }
 
-// WM for SE and GRE, and CSF for GRE at 90°, where cross-talk raises the signal most (long T1 at short TR; here the
-// factors are 1.34–1.90). That case needs the reference on crossTalk's own grid (thickness / 20 = 0.25 mm): at 0.5 mm
-// the large cancellation in the coherent sum leaves the reference 2–3 % high (measured 1.7148 vs 1.6658 at 0.25 mm).
-test("matches brute-force Bloch within 1 % (SE and GRE for WM; GRE 90° for CSF)", () => {
-  for (const [kind, tissue, dz] of [["SE", "WM", DZ], ["GRE", "WM", DZ], ["GRE", "CSF", DZ / 2]]) {
-    const T1 = TS[tissue];
-    for (const gapPct of [0, 20]) {
+// WM for SE and GRE, and CSF for GRE at 90° (long T1 at short TR), including gap 50 %, where the windowed pulse still
+// raises the signal (measured 1.020–1.042; at gaps 0 and 20 % CSF loses, 0.53–0.89). With the plain sinc the CSF
+// factors were 1.34–1.90 and the large cancellation in the coherent sum needed the reference on crossTalk's own grid
+// (0.25 mm); with the window the reference on the 0.5 mm grid agrees within 0.03 % (measured), so all cases use DZ.
+test("matches brute-force Bloch within 1 % (SE and GRE for WM; GRE 90° for CSF, also at gap 50 %)", () => {
+  for (const [kind, tissue, gaps] of [["SE", "WM", [0, 20]], ["GRE", "WM", [0, 20]], ["GRE", "CSF", [0, 20, 50]]]) {
+    const T1 = TS[tissue], dz = DZ;
+    for (const gapPct of gaps) {
       const seq = build(kind, { slices: 3, sliceMm: 5, gapPct, TR: 200, flip: 90 });
       // enough TRs to reach the steady state: weakly tipped edges recover by about exp(−TR/T1) per TR (CSF: ~200)
       const nTR = Math.max(40, Math.ceil((8 * T1) / seq.tr));

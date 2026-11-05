@@ -52,9 +52,10 @@ export function envelope(kind, count, tbw = 4) {
   const out = new Float64Array(count);
   for (let i = 0; i < count; i++) {
     const u = (i + 0.5) / count - 0.5; // fraction of duration
-    if (kind === "sinc") {
+    if (kind === "sinc" || kind === "hannSinc") {
       const x = u * tbw;
       out[i] = x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x);
+      if (kind === "hannSinc") out[i] *= 0.5 * (1 + Math.cos(2 * Math.PI * u)); // Hann window over the pulse
     } else if (kind === "gaussian") {
       out[i] = Math.exp(-0.5 * (u * tbw / 0.75) ** 2); // ~ -3 sigma span at tbw 4.5
     } else {

@@ -106,3 +106,19 @@ test("multi-slice RF pulses carry a slice label and offset; single-slice diagram
   assert.ok(!single.includes("S3"));
   assert.ok(!single.includes("offset"));
 });
+
+test("the RF envelope is the windowed pulse: it starts and ends on the baseline and its side lobes are small", () => {
+  const seq = gradientEcho({ ...P, TE: 5, TR: 500, flip: 90 }, 32);
+  const svg = diagramSvg(seq);
+  const m = svg.match(/<polyline points="([^"]+)"/);
+  assert.ok(m);
+  const ys = m[1].split(" ").map((p) => Number(p.split(",")[1]));
+  const peak = Math.min(...ys); // SVG y grows downward
+  // the baseline is the RF row's centre line
+  const line = svg.match(/<line x1="[^"]+" y1="([^"]+)"/);
+  const y0 = Number(line[1]);
+  assert.ok(Math.abs(ys[0] - y0) <= 0.2 && Math.abs(ys[ys.length - 1] - y0) <= 0.2, `ends ${ys[0]}, ${ys[ys.length - 1]} vs ${y0}`);
+  // an unwindowed TBW-4 sinc dips 22 % of its peak below the baseline; the Hann window brings that under 10 %
+  const dip = Math.max(...ys) - y0, height = y0 - peak;
+  assert.ok(height > 0 && dip < 0.1 * height, `dip ${dip}, height ${height}`);
+});

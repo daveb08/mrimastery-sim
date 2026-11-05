@@ -124,7 +124,7 @@ export function crossTalk(seq, tissues) {
 
   // Profiles per distinct pulse, shifted onto z per slice (u = z − zMm; one interpolation weight per slice). Outside
   // the profile's grid the pulse does nothing: zz = 1, mxy = b2 = 0 (`outside`).
-  const profile = (e) => pulseProfile({ role: e.role, flipDeg: e.flip, durMs: e.duration, gss: e.gss, phaseDeg: e.phase ?? 0, u });
+  const profile = (e) => pulseProfile({ role: e.role, flipDeg: e.flip, durMs: e.duration, gss: e.gss, shape: e.shape ?? "sinc", phaseDeg: e.phase ?? 0, u });
   const shift = (arr, zMm, outside = 0) => {
     const t = (z0 - zMm) / dz + halfU, i0 = Math.floor(t), f = t - i0, out = new Float64Array(nz).fill(outside);
     const from = Math.max(0, -i0), to = Math.min(nz, nu - 1 - i0); // i with 0 <= i0 + i and i0 + i + 1 < nu
@@ -133,7 +133,7 @@ export function crossTalk(seq, tissues) {
   };
   const zzCache = new Map(); // zz on z per (slice, pulse)
   const zzOf = (e) => {
-    const key = [e.slice, e.role, e.flip, e.duration, e.gss, e.phase].join("|");
+    const key = [e.slice, e.role, e.flip, e.duration, e.gss, e.phase, e.shape].join("|");
     let v = zzCache.get(key);
     if (!v) { v = shift(profile(e).zz, zs[e.slice], 1); zzCache.set(key, v); }
     return v;

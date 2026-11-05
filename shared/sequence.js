@@ -8,6 +8,7 @@
 export const GAMMA_BAR = 0.042577478461; // proton gamma / 2 pi in 1 / (mm * mT/m * ms), i.e. 42.577 MHz/T
 export const DEFAULT_LIMITS = { gMax: 40, slew: 150 }; // mT/m and mT/m/ms (= T/m/s)
 const RF_TBW = 4; // time-bandwidth product of the sinc pulses
+export const RF_SHAPE = "hannSinc"; // every RF pulse: the TBW-4 sinc under a Hann window (bloch/bloch.js envelope)
 const CRUSH_CYCLES = 2; // crusher area: cycles of phase across the slice
 
 export const DEFAULTS = {
@@ -68,7 +69,7 @@ function excitation(P, t0, flip, errors) {
   const lobe = trap("z", t0, gss, d, lim, "slice select");
   const center = t0 + lobe.rise + d / 2;
   const reph = shortestTrap("z", gradEnd(lobe), -gss * (d / 2 + lobe.fall / 2), lim, "slice rephaser");
-  return { center, end: gradEnd(lobe), rephEnd: gradEnd(reph), events: [lobe, { kind: "rf", role: "excite", center, duration: d, flip, phase: 0 }, reph] };
+  return { center, end: gradEnd(lobe), rephEnd: gradEnd(reph), events: [lobe, { kind: "rf", role: "excite", center, duration: d, flip, phase: 0, shape: RF_SHAPE }, reph] };
 }
 
 // Refocusing: crusher, slice-select lobe centred on the 180, crusher. `half` is centre-to-edge of the block.
@@ -82,7 +83,7 @@ function refocusBlock(P, center) {
   const events = [
     { ...crush, start },
     { ...lobe, start: start + cDur },
-    { kind: "rf", role: "refocus", center, duration: d, flip: 180, phase: 90 },
+    { kind: "rf", role: "refocus", center, duration: d, flip: 180, phase: 90, shape: RF_SHAPE },
     { ...crush, start: start + cDur + gradEnd(lobe) },
   ];
   return { half, events };
@@ -215,7 +216,7 @@ function inversionBlock(P, center) {
   const start = center - lobe.rise - d / 2;
   const events = [
     { ...lobe, start },
-    { kind: "rf", role: "invert", center, duration: d, flip: 180, phase: 0 },
+    { kind: "rf", role: "invert", center, duration: d, flip: 180, phase: 0, shape: RF_SHAPE },
     { ...spoil, start: start + gradEnd(lobe) },
   ];
   return { events, lead: lobe.rise + d / 2, tail: gradEnd(lobe) - lobe.rise - d / 2 + gradEnd(spoil) };

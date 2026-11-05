@@ -54,12 +54,16 @@ hand-made path. Agreed with the user on 2026-11-01.
 6. **Multi-slice imaging, 2D** (2026-11-04) — N slices per TR, each with its own RF frequency offset; slice gap and
    order (sequential or interleaved). TR is raised to N × block when the slices do not fit, and the page shows the
    maximum N for the TR asked for. Cross-talk comes from Bloch-simulated excite and refocus profiles, per tissue
-   (`shared/crosstalk.js`), and is shown as a signed signal change. It can raise a slice's signal in several cases,
-   most strongly for gradient echo and EPI, especially for long-T1 tissue such as CSF at short TR, and also at moderate
-   gaps: the unwindowed TBW-4 sinc tips the edges of each slice out of phase with its centre, and neighbours that
-   saturate those edges cancel less of the coherent sum. Measured at 8 slices of 5 mm, 3 T: GRE 90°, TR 300 ms, gap 0:
-   WM +4 to +10 %, CSF +39 %; gap 20 %: CSF +50 %; EPI TR 3000 ms, gap 0: CSF +7 %; spin echo, gap 20 %: CSF +0.2 %
-   (the engine matches a brute-force Bloch run, including CSF at GRE 90°). Slice-profile plot and slice strip.
+   (`shared/crosstalk.js`), and is shown as a signed signal change. Since 2026-11-05 every pulse the builders emit is
+   a Hann-windowed TBW-4 sinc (`RF_SHAPE` in `shared/sequence.js`; 10° FWHM 4.98 mm at 5 mm, so no bandwidth
+   correction). With the unwindowed sinc, its side lobes tipped the slice edges out of phase with the centre and
+   neighbours that saturated them raised the signal by up to +50 % (CSF, GRE 90°). With the window, cross-talk lowers
+   the signal. Measured at 8 slices of 5 mm, 3 T, middle slice: GRE 90°, TR 300 ms, gap 0: WM −20 %, CSF −41 %;
+   gap 20 %: WM −5 %, CSF −19 %; EPI TR 3000 ms, gap 0: CSF −12 %; spin echo TR 500 ms, gap 0: CSF −6 %. With gaps
+   up to 20 % no factor exceeds 1 (to 1e-4). A small gain remains only at wide gaps (about 30–70 %) for 90° GRE and
+   EPI: just outside the slice the 90° profile keeps a weak transverse part opposing the centre, which a neighbour
+   saturates; at most +7.8 % (GRE 90°, gap 60 %, TR 100, CSF) and +1.3 % for EPI. The engine matches a brute-force
+   Bloch run within 1 %, including CSF at GRE 90° and gap 50 %. Slice-profile plot and slice strip.
    Inversion recovery is off with more than one slice. Design: `docs/superpowers/specs/2026-11-04-multislice-design.md`.
    **Done** for the k-space explorer; 3D is roadmap item 2.
    - Per-pixel tissue fractions: the image side scales each tissue's signal through the label lookup table (one label

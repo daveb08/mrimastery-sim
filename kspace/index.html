@@ -103,9 +103,10 @@
       <p class="caption">Each gold curve is one slice's excitation profile (|Mxy| after its pulse), simulated with the Bloch equations; click a curve to select that slice.
         Slices are excited one after another within a TR, so a pulse for slice j also partly tips the edges of its neighbours.
         That is cross-talk: the blue curve shows the longitudinal magnetisation (Mz) left in the steady state just before the selected slice's excitation, and the dips at the neighbours' positions
-        are the saturation they caused. Dips shrink as the gap grows. Cross-talk can lower a slice's signal or raise it. The sinc pulse here is not windowed, so the edges of each slice's profile are tipped
-        out of phase with its centre and cancel part of its signal; when the neighbours' pulses saturate those edges, less is cancelled. That raises the signal in several cases, most strongly for gradient echo
-        and EPI, especially for long-T1 tissue such as CSF at short TR (by tens of percent for gradient echo at high flip angles), and also with moderate gaps, not only with none. Spin echo changes much less.
+        are the saturation they caused. Dips shrink as the gap grows. The pulses are Hann-windowed sincs (time-bandwidth 4), as scanners play them, and with them cross-talk lowers a slice's signal:
+        most for long-T1 tissue such as CSF at short TR and high flip angles (8 slices of 5 mm, gradient echo 90°, TR 300 ms, no gap: CSF −41 %, WM −20 %), and much less for spin echo. With gaps up to 20 % it
+        never raises the signal. Only at wide gaps (about 30–70 %) can a 90° gradient echo or EPI gain a little, at most about +8 % (gradient echo, CSF, short TR) and about +1 % for EPI: just outside each
+        slice the 90° profile keeps a small transverse part out of phase with its centre, and a neighbour's pulse that saturates it cancels less of the signal.
         The information panel shows the change as a signed percentage. Dashed red curves (spin echo and fast spin echo) are the refocusing pulses' profiles.
         Not modelled: magnetisation transfer, stimulated echoes (SE and FSE), and relaxation during the pulses. Interleaved order starts with slice 1 (some scanners start with slice 2 when the number of slices is even).</p>
     </div>
