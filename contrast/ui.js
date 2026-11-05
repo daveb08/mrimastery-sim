@@ -309,11 +309,15 @@ function renderTrStrip(m) {
   const L = trStripLayout(timing, p.TR, p.sliceOrder, m.scanSec);
   $("trstrip").hidden = !L;
   if (!L) return;
-  const W = 1000, ROW = 30, GAP = 8, LEFT = L.rows.length > 1 ? 70 : 0, X = W - LEFT - 4;
-  const H = L.rows.length * (ROW + GAP) + (L.more ? 26 : 0) + 4;
+  // Drawn in CSS pixels (viewBox = rendered width) so the labels are real font sizes that follow the site's text scale.
+  const FS = Math.round(12 * textScale() * 10) / 10, ROW = Math.round(FS * 2), GAP = 6;
+  const W = Math.max(280, Math.round($("trstripSvg").parentElement.clientWidth || 600));
+  const LEFT = L.rows.length > 1 ? Math.ceil(FS * 4.2) : 0, X = W - LEFT - 2;
+  const H = L.rows.length * (ROW + GAP) + (L.more ? Math.ceil(FS * 1.6) : 0) + 2;
   const svg = $("trstripSvg");
   svg.replaceChildren();
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("height", H);
   const el = (tag, attrs, text) => {
     const e = document.createElementNS(SVGNS, tag);
     for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
@@ -321,19 +325,20 @@ function renderTrStrip(m) {
     svg.append(e);
   };
   L.rows.forEach((row, r) => {
-    const y = 2 + r * (ROW + GAP), ty = y + ROW * 0.7;
-    if (LEFT) el("text", { x: 0, y: ty, fill: "#aaa", "font-size": 20 }, `Pass ${r + 1}`);
+    const y = 1 + r * (ROW + GAP), ty = y + ROW / 2 + FS * 0.35;
+    if (LEFT) el("text", { x: 0, y: ty, fill: "#aaa", "font-size": FS }, `Pass ${r + 1}`);
     el("rect", { x: LEFT, y, width: X, height: ROW, fill: "#1a1a1a", stroke: "#444", "stroke-width": 1 });
     for (const b of row.blocks) {
-      const w = (b.x1 - b.x0) * X;
+      const w = (b.x1 - b.x0) * X, label = `S${b.slice}`;
       el("rect", { x: LEFT + b.x0 * X, y, width: Math.max(0.5, w), height: ROW, fill: "#6699FF", "fill-opacity": 0.75, stroke: "#1a1a1a", "stroke-width": 1 });
-      if (w >= 34) el("text", { x: LEFT + b.x0 * X + w / 2, y: ty, fill: "#fff", "font-size": 19, "text-anchor": "middle" }, `S${b.slice}`);
+      if (w >= label.length * FS * 0.62 + 4) el("text", { x: LEFT + b.x0 * X + w / 2, y: ty, fill: "#fff", "font-size": FS, "text-anchor": "middle" }, label);
     }
-    if (row.idleFrom < 0.9) el("text", { x: LEFT + (row.idleFrom + 1) / 2 * X, y: ty, fill: "#aaa", "font-size": 18, "text-anchor": "middle" }, "idle");
+    if ((1 - row.idleFrom) * X > FS * 5) el("text", { x: LEFT + (row.idleFrom + 1) / 2 * X, y: ty, fill: "#aaa", "font-size": FS, "text-anchor": "middle" }, "idle");
   });
-  if (L.more) el("text", { x: LEFT, y: H - 6, fill: "#FFAA44", "font-size": 20 }, `+ ${L.more} more pass${L.more > 1 ? "es" : ""}`);
+  if (L.more) el("text", { x: LEFT, y: H - 4, fill: "#FFAA44", "font-size": FS }, `+ ${L.more} more pass${L.more > 1 ? "es" : ""}`);
   $("trCaption").textContent = L.caption + " (each bar is one TR)";
 }
+window.addEventListener("resize", () => { if (model) renderTrStrip(model); });
 
 function update() {
   normalize(p);
@@ -663,7 +668,7 @@ function renderKspace() {
 }
 
 // Text drawn by this page (pulse-sequence labels) follows the A / A+ / A++ control; Plotly plots redraw themselves.
-window.addEventListener("textsizechange", () => { if (model) renderPsd(model); });
+window.addEventListener("textsizechange", () => { if (model) { renderPsd(model); renderTrStrip(model); } });
 
 buildControls();
 update();
