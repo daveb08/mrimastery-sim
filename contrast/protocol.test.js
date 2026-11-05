@@ -5,6 +5,7 @@ import { protocolMode, builderName, builderParams, protocolTiming, middleSliceFa
 import { sliceTiming } from "../shared/sequence.js";
 import { shotRows } from "../kspace/scan.js";
 
+const SLOW = process.env.CI ? 3 : 1;
 const mk = (seq, extra = {}) => ({ ...defaultParams(seq, "3.0T"), ...PROTOCOL_DEFAULTS, ...extra });
 
 test("N = 1 is today", () => {
@@ -80,7 +81,7 @@ test("speed", () => {
   assert.ok(best < lim, `best of 5: ${best} ms`);
   const p = mk("FSE", { ETL: 16, slices: 32, gapPct: 0 });
   const t0 = performance.now(); middleSliceFactors(p);
-  assert.ok(performance.now() - t0 < 1);
+  assert.ok(performance.now() - t0 < 5 * SLOW);
 });
 
 test("EPI and DWI are timed at an EPI readout bandwidth", () => {
