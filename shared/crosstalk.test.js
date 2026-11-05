@@ -223,6 +223,20 @@ test("speed: FSE ETL 16, 32 slices, six tissues in under 50 ms (median of 5, war
   assert.ok(times[2] < 50, `median ${times[2].toFixed(1)} ms`);
 });
 
+test("speed: changing the gap reuses the cached profiles (FSE ETL 16, 32 slices, median of 5 under 50 ms)", () => {
+  const P = { slices: 32, sliceMm: 5, ETL: 16, TR: 8000 };
+  crossTalk(build("FSE", { ...P, gapPct: 0 }), TS);
+  const times = [];
+  for (const gapPct of [10, 20, 30, 40, 50]) {
+    const seq = build("FSE", { ...P, gapPct });
+    const t0 = performance.now();
+    crossTalk(seq, TS);
+    times.push(performance.now() - t0);
+  }
+  times.sort((a, b) => a - b);
+  assert.ok(times[2] < 50, `median ${times[2].toFixed(1)} ms`);
+});
+
 // Brute-force reference: time-stepped Bloch over several TRs, independent of crossTalk's affine algebra.
 // Each z cell holds ISO isochromats (one when there is no 180); a crusher is a rotation about z by +2πk/ISO for
 // isochromat k, before and after every 180. At the end of each slice block (just before the next excitation) the

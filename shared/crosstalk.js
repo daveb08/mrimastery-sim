@@ -10,7 +10,8 @@ import { LABELS } from "../phantom/phantom.js";
 
 const STEPS = 400; // RF samples per pulse
 const cache = new Map();
-const CACHE_MAX = 32; // the key includes the u grid, which changes with N and the gap: clear rather than grow
+const CACHE_MAX = 32; // bound the cache (keys vary with pulse and thickness): clear rather than grow
+const PROFILE_HALF_WIDTH = 6; // crossTalk profiles span ±6 slice thicknesses; beyond that a pulse is taken to do nothing
 
 // Slice profile of one pulse played under slice-select gradient gss (mT/m), at positions u (mm, Float64Array) from
 // the slice centre. Relaxation is off, so the pulse is a pure rotation R(u); it is found from the start vectors x, y, z.
@@ -113,25 +114,28 @@ export function crossTalk(seq, tissues) {
   const N = info.slices.length, TR = seq.tr;
   const zs = info.slices.map((s) => s.zMm), lo = Math.min(...zs), hi = Math.max(...zs);
 
-  // z grid, and a local grid u with the same spacing, wide enough that a profile shifted to any slice covers all of z.
+  // z grid for the output, and a local grid u (same spacing) that depends only on the pulse: ±PROFILE_HALF_WIDTH
+  // thicknesses, so the profile cache survives changes of N, gap and order.
   const dz = th / 20, z0 = lo - 3 * th;
   const nz = Math.round((hi - lo + 6 * th) / dz) + 1;
   const z = Float64Array.from({ length: nz }, (_, i) => z0 + i * dz);
-  const halfU = Math.ceil((hi - lo + 6 * th) / dz) + 2, nu = 2 * halfU + 1;
+  const halfU = PROFILE_HALF_WIDTH * 20, nu = 2 * halfU + 1;
   const u = Float64Array.from({ length: nu }, (_, i) => (i - halfU) * dz);
 
-  // Profiles per distinct pulse, shifted onto z per slice (u = z − zMm; one interpolation weight per slice).
+  // Profiles per distinct pulse, shifted onto z per slice (u = z − zMm; one interpolation weight per slice). Outside
+  // the profile's grid the pulse does nothing: zz = 1, mxy = b2 = 0 (`outside`).
   const profile = (e) => pulseProfile({ role: e.role, flipDeg: e.flip, durMs: e.duration, gss: e.gss, phaseDeg: e.phase ?? 0, u });
-  const shift = (arr, zMm) => {
-    const t = (z0 - zMm) / dz + halfU, i0 = Math.floor(t), f = t - i0, out = new Float64Array(nz);
-    for (let i = 0; i < nz; i++) out[i] = arr[i0 + i] * (1 - f) + arr[i0 + i + 1] * f;
+  const shift = (arr, zMm, outside = 0) => {
+    const t = (z0 - zMm) / dz + halfU, i0 = Math.floor(t), f = t - i0, out = new Float64Array(nz).fill(outside);
+    const from = Math.max(0, -i0), to = Math.min(nz, nu - 1 - i0); // i with 0 <= i0 + i and i0 + i + 1 < nu
+    for (let i = from; i < to; i++) out[i] = arr[i0 + i] * (1 - f) + arr[i0 + i + 1] * f;
     return out;
   };
   const zzCache = new Map(); // zz on z per (slice, pulse)
   const zzOf = (e) => {
     const key = [e.slice, e.role, e.flip, e.duration, e.gss, e.phase].join("|");
     let v = zzCache.get(key);
-    if (!v) { v = shift(profile(e).zz, zs[e.slice]); zzCache.set(key, v); }
+    if (!v) { v = shift(profile(e).zz, zs[e.slice], 1); zzCache.set(key, v); }
     return v;
   };
   const pulses = rf.map((e) => ({ t: e.center, slice: e.slice, excite: e.role === "excite", zz: zzOf(e) }));
