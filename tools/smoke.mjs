@@ -52,6 +52,10 @@ const PAGES = [
     ["url", "?seq=EPI"], ["click", "fillAll"],
     ["url", "?seq=FSE&inv=IR"], ["click", "fillAll"],
     ["url", "?seq=FSE&inv=DIR&tr=8000"], ["click", "fillAll"],
+    ["url", "?seq=SE&slices=5&gap=0&order=sequential&sel=1"], ["click", "fillAll"],
+    ["expect", "multi-slice info shows cross-talk", `document.getElementById("info").innerText.includes("Cross-talk signal change")`],
+    ["url", "?seq=GRE&slices=3"], ["click", "fillAll"],
+    ["url", "?seq=EPI&slices=4&order=sequential"], ["click", "fillAll"],
     ["expect", "no sequence error shown", `(${VISIBLE_ALERTS}) || true`],
   ] },
   { name: "bloch", path: "bloch/", steps: [

@@ -6,8 +6,9 @@ import { echoTrainReadouts, acquiredRows } from "../contrast/acquisition.js";
 import { defaultParams, computeModel, tissuesAt, csfNullTi, dirNullTi2 } from "../contrast/physics.js";
 import { sampleSlice, composeSignal, labelSignals, toRgba } from "../contrast/image.js";
 import { kspaceOf, reconstruct, toInferno, autoWindowLevelObject } from "../contrast/kspace.js";
+import { crossTalk, labelFactors, TISSUE_T1 } from "../shared/crosstalk.js";
 import { createPhantom } from "../phantom/phantom.js";
-import { fromQuery, toQuery, contrastNote, applies, RANGES, INVERSION_SEQS } from "./settings.js";
+import { fromQuery, toQuery, contrastNote, applies, clampSel, RANGES, INVERSION_SEQS } from "./settings.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -28,6 +29,8 @@ let state = { seq: "SE", ...DEFAULTS, ...SEQ_DEFAULTS.SE, fov: 240, gMax: DEFAUL
   const q = fromQuery(location.search);
   if (q.seq) state = { ...state, ...SEQ_DEFAULTS[q.seq], seq: q.seq };
   state = { ...state, ...q };
+  if (state.slices !== undefined) state.slices = Math.round(state.slices);
+  if (state.gapPct !== undefined) state.gapPct = Math.round(state.gapPct / 10) * 10;
 }
 
 const CONTROLS = [
@@ -45,12 +48,16 @@ const CONTROLS = [
   { key: "fov", label: "FOV (mm)", min: 120, max: 400, step: 10 },
   { key: "bw", label: "Bandwidth (Hz/pixel)", min: 50, max: 3000, step: 10 },
   { key: "sliceMm", label: "Slice (mm)", min: 1, max: 10, step: 0.5 },
+  { key: "slices", label: "Slices", min: RANGES.slices[0], max: RANGES.slices[1], step: 1, always: true },
+  { key: "gapPct", label: "Slice gap (% of thickness)", min: RANGES.gapPct[0], max: RANGES.gapPct[1], step: 10 },
+  { key: "sliceOrder", label: "Slice order", type: "select", options: [["sequential", "Sequential"], ["interleaved", "Interleaved"]] },
   { key: "gMax", label: "Max gradient (mT/m)", type: "select", options: [[20, "20"], [40, "40"], [80, "80"]] },
   { key: "slew", label: "Max slew rate (T/m/s)", type: "select", options: [[70, "70"], [150, "150"], [200, "200"]] },
 ];
 
-const inversionOf = (s) => (INVERSION_SEQS.includes(s.seq) ? s.inversion ?? "none" : "none");
-const params = () => ({ ...state, inversion: inversionOf(state), nx: state.ny, fovRead: state.fov, fovPhase: state.fov,
+const inversionOf = (s) => ((s.slices ?? 1) <= 1 && INVERSION_SEQS.includes(s.seq) ? s.inversion ?? "none" : "none");
+const params = () => ({ ...state, slices: state.slices ?? 1, gapPct: state.gapPct ?? 20, sliceOrder: state.sliceOrder ?? "interleaved",
+  inversion: inversionOf(state), nx: state.ny, fovRead: state.fov, fovPhase: state.fov,
   limits: { gMax: +state.gMax, slew: +state.slew } });
 
 // ---- the scan: one sequence per TR, with its k-space samples and path ----
@@ -73,7 +80,7 @@ function buildScan() {
     : state.seq === "EPI" ? BUILDERS.EPI(P, rows) : BUILDERS.FSE(P, rows));
   const shots = rowsPerShot.map((rows) => {
     const seq = build(rows), prep = prepare(seq);
-    const samples = adcSamples(seq, prep).map((s) => ({ t: s.t, col: Math.round(s.colExact), row: Math.round(s.rowExact) }));
+    const samples = adcSamples(seq, prep).map((s) => ({ t: s.t, col: Math.round(s.colExact), row: Math.round(s.rowExact), slice: s.slice ?? 0 }));
     const activeEnd = Math.max(...seq.events.filter((e) => e.kind === "grad").map(gradEnd));
     return { seq, prep, samples, activeEnd, path: null };
   });
@@ -81,6 +88,9 @@ function buildScan() {
   // FSE: the effective TE is the echo that crosses ky = 0 (the same echo number in every train)
   const te = state.seq === "FSE" ? first.info.esp * (eff + 1) : first.te;
   scan = { P, shots, eff, nx: P.nx, ny: P.ny, errors: first.errors, info: first.info, te, tr: first.tr };
+  const N = first.info.slices?.length ?? 1;
+  state.sel = clampSel(state.sel, N);
+  scan.xt = N > 1 ? crossTalk(first, TISSUE_T1()) : null; // steady-state cross-talk between the slices (once per rebuild)
   scan.K = phantomKspace(P, { tr: first.tr, te, ti: first.info.ti }); // the inversion times actually played
   // largest gradient on each axis over the whole scan, so every TR's diagram uses the same heights
   scan.peaks = { x: 0, y: 0, z: 0 };
@@ -91,14 +101,18 @@ function buildScan() {
 const phantom = createPhantom({ seed: 1, sulcalDepthMm: 14 });
 const kCache = new Map();
 function phantomKspace(P, seq) {
+  const z = scan.xt ? scan.info.slices[state.sel].zMm : 14;
+  const factors = scan.xt ? labelFactors(scan.xt.slices[state.sel].factor) : null;
   const name = INVERSION_MODEL[P.inversion] ?? CONTRAST_SEQ[state.seq];
   const [ti1, ti2] = seq.ti ?? [];
   const p = { ...defaultParams(name, "3.0T"), TR: seq.tr, TE: seq.te ?? P.TE, FA: P.flip ?? 90, freqMatrix: P.nx, phaseMatrix: P.ny,
     fovRead: P.fovRead, fovPhase: P.fovPhase, sliceMm: P.sliceMm, ETL: P.ETL ?? 1, TI: ti1 ?? 0, TI1: ti1 ?? 0, TI2: ti2 ?? 0 };
-  const key = [name, p.TR.toFixed(1), p.TE.toFixed(2), p.FA, p.TI1.toFixed(1), p.TI2.toFixed(1), P.nx, P.fovRead, P.sliceMm].join("|");
+  const key = [name, p.TR.toFixed(1), p.TE.toFixed(2), p.FA, p.TI1.toFixed(1), p.TI2.toFixed(1), P.nx, P.fovRead, P.sliceMm, z.toFixed(4), factors ? Array.from(factors, (f) => f.toFixed(4)).join(",") : "-"].join("|");
   if (!kCache.has(key)) {
-    const sampled = sampleSlice(phantom, "axial", 14, { nx: P.nx, ny: P.ny, fovRead: P.fovRead, fovPhase: P.fovPhase, thicknessMm: P.sliceMm });
-    const v = composeSignal(sampled, labelSignals(computeModel(p), p));
+    const sampled = sampleSlice(phantom, "axial", z, { nx: P.nx, ny: P.ny, fovRead: P.fovRead, fovPhase: P.fovPhase, thicknessMm: P.sliceMm });
+    const lut = labelSignals(computeModel(p), p);
+    if (factors) for (let i = 0; i < lut.length; i++) lut[i] *= factors[i]; // slices excited by their neighbours' pulses
+    const v = composeSignal(sampled, lut);
     const K = kspaceOf(v, P.nx, P.ny);
     let max = 0;
     for (let i = 0; i < K.re.length; i++) max = Math.max(max, Math.hypot(K.re[i], K.im[i]));
@@ -119,8 +133,8 @@ function pathOf(shot) {
 
 function mask() {
   const m = new Uint8Array(scan.nx * scan.ny);
-  for (let s = 0; s < play.shot; s++) for (const p of scan.shots[s].samples) m[p.row * scan.nx + p.col] = 1;
-  for (const p of shotNow().samples) if (p.t <= play.t) m[p.row * scan.nx + p.col] = 1;
+  for (let s = 0; s < play.shot; s++) for (const p of scan.shots[s].samples) if (p.slice === state.sel) m[p.row * scan.nx + p.col] = 1;
+  for (const p of shotNow().samples) if (p.slice === state.sel && p.t <= play.t) m[p.row * scan.nx + p.col] = 1;
   return m;
 }
 
@@ -129,7 +143,7 @@ function buildControls() {
   const box = $("controls");
   box.innerHTML = "";
   for (const c of CONTROLS) {
-    if (c.when ? !c.when.includes(state.seq) : !applies(c.key, state)) continue;
+    if (c.when ? !c.when.includes(state.seq) || (state.slices ?? 1) > 1 : !c.always && !applies(c.key, state)) continue;
     const wrap = document.createElement("div"), id = `k_${c.key}`;
     const value = c.key === "matrix" ? state.ny : state[c.key] ?? 0;
     if (c.type === "select") {
@@ -146,9 +160,11 @@ function buildControls() {
 }
 
 function set(key, value, rebuildControls = true) {
-  if (key === "seq") state = { ...state, ...DEFAULTS, ...SEQ_DEFAULTS[value], seq: value, fov: state.fov, gMax: state.gMax, slew: state.slew, from: undefined };
+  if (key === "seq") state = { ...state, ...DEFAULTS, ...SEQ_DEFAULTS[value], seq: value, slices: state.slices, gapPct: state.gapPct, sliceOrder: state.sliceOrder, sel: state.sel, fov: state.fov, gMax: state.gMax, slew: state.slew, from: undefined };
   else if (key === "matrix") state.nx = state.ny = Number(value);
   else if (key === "inversion") { state.inversion = value; if (value !== "none") state.TR = Math.max(state.TR, INVERSION_TR[value]); }
+  else if (key === "slices") state.slices = Math.max(RANGES.slices[0], Math.min(RANGES.slices[1], Math.round(Number(value))));
+  else if (key === "gapPct") state.gapPct = Math.round(Number(value) / 10) * 10;
   else state[key] = typeof value === "string" && !isNaN(value) ? Number(value) : value;
   if (rebuildControls) buildControls();
   history.replaceState(null, "", `?${toQuery(state)}`); // the address always describes what is shown, so it can be shared
@@ -164,10 +180,11 @@ function diagramWindow() {
   const seq = shotNow().seq;
   if (document.querySelector("input[name=view]:checked").value !== "echo") return { window: [0, seq.tr], note: "" };
   const adcs = seq.events.filter((e) => e.kind === "adc");
-  const c = adcs.find((a) => a.row === scan.ny / 2) ?? adcs[Math.floor(adcs.length / 2)];
+  const mine = adcs.filter((a) => (a.slice ?? 0) === state.sel);
+  const c = mine.find((a) => a.row === scan.ny / 2) ?? mine[Math.floor(mine.length / 2)];
   const w = Math.max(4 * (c.n / 2 + 1) * c.dwell, 4);
   const window = [Math.max(0, c.tc - w), Math.min(seq.tr, c.tc + w)];
-  return { window, note: `Showing ${window[0].toFixed(1)}–${window[1].toFixed(1)} ms around the echo of line ${c.row}.` };
+  return { window, note: `Showing ${window[0].toFixed(1)}–${window[1].toFixed(1)} ms around the echo of line ${c.row}${scan.xt ? ` of slice ${state.sel + 1}` : ""}.` };
 }
 
 function renderDiagram() {
@@ -267,12 +284,13 @@ function renderStatus() {
   const adc = shot.seq.events.find((e) => e.kind === "adc" && Math.abs(play.t - e.tc) <= (e.n / 2 + 0.5) * e.dwell);
   const parts = [];
   if (rf) {
-    parts.push(rf.role === "excite" ? `RF excitation (${rf.flip}°): k is set to 0`
+    const where = rf.slice !== undefined ? ` of slice ${rf.slice + 1} (offset ${rf.freqHz.toFixed(0)} Hz)` : "";
+    parts.push(rf.role === "excite" ? `RF excitation${where} (${rf.flip}°): k is set to 0`
       : rf.role === "invert" ? "180° inversion pulse: Mz is flipped to −Mz; there is no transverse signal yet, so k is not involved"
-        : "180° refocusing pulse: k jumps to −k");
+        : `180° refocusing pulse${where}: k jumps to −k`);
   }
   if (active.length) parts.push(`gradients on: ${[...new Set(active)].join(", ")} (Gx ${g[0].toFixed(1)}, Gy ${g[1].toFixed(1)}, Gz ${g[2].toFixed(1)} mT/m)`);
-  if (adc) parts.push(`ADC sampling line ${adc.row}`);
+  if (adc) parts.push(`ADC sampling line ${adc.row}${adc.slice !== undefined ? ` of slice ${adc.slice + 1}` : ""}`);
   $("kNote").textContent = parts.length ? parts.join(" · ") : "No gradients or RF at this moment.";
 }
 
@@ -296,19 +314,38 @@ function renderInfo() {
     }
     items.push(["Minimum TI", `${i.minTI.toFixed(1)} ms`]);
   }
+  if (scan.xt) {
+    const N = i.slices.length, sl = scan.xt.slices[state.sel], th = i.sliceMm, gap = state.gapPct * th / 100;
+    const pct = (t) => { const d = (sl.factor[t] - 1) * 100; return `${Math.abs(d) < 0.05 ? "" : d > 0 ? "+" : "−"}${Math.abs(d).toFixed(1)} %`; };
+    items.push(["Slices", `${N} (max ${i.maxSlices} at TR ${i.requestedTR} ms)`], ["Slice spacing", `${(th + gap).toFixed(1)} mm`],
+      ["Coverage", `${(N * th + (N - 1) * gap).toFixed(1)} mm`], ["Selected slice", `${state.sel + 1}`],
+      ["RF offset", `${sl.freqHz.toFixed(0)} Hz`]);
+    for (const t of ["WM", "GM", "CSF"]) items.push([`Cross-talk signal change, ${t}`, pct(t)]);
+  }
   if (i.minTE !== undefined) items.push(["Minimum TE", `${i.minTE.toFixed(2)} ms`]);
   if (i.esp !== undefined) items.push(["Echo spacing", `${i.esp.toFixed(2)} ms`]);
   if (scan.eff !== undefined) items.push(["Effective echo", `${scan.eff + 1} of ${state.ETL}`]);
   items.push(["TRs to fill k-space", `${scan.shots.length}`], ["Scan time", `${Math.floor(scanSec / 60)}:${String(Math.round(scanSec % 60)).padStart(2, "0")}`]);
   $("info").innerHTML = items.map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("");
+  const note = (state.slices ?? 1) > 1 && INVERSION_SEQS.includes(state.seq)
+    ? `<div class="info">Inversion is off with more than one slice: interleaving inversions across slices is not modelled yet.</div>` : "";
   const from = state.from ? `<div class="info">Opened from the contrast simulator (${state.from}) with its settings. ${contrastNote(state.from)}</div>` : "";
-  $("messages").innerHTML = from + scan.errors.map((e) => `<div class="alert">${e}. The sequence is drawn at the nearest possible value.</div>`).join("");
+  $("messages").innerHTML = note + from + scan.errors.map((e) => `<div class="alert">${e}. The sequence is drawn at the nearest possible value.</div>`).join("");
 }
 
 function renderFrame(forceRecon = false) {
   renderCursor(); drawKspace(); drawRecon(forceRecon); renderStatus();
 }
 function renderAll() { renderInfo(); renderDiagram(); renderFrame(true); }
+
+// choose which slice's k-space and image are shown (no new sequence or cross-talk calculation)
+function selectSlice(j) {
+  state.sel = clampSel(j, scan.info.slices?.length ?? 1);
+  history.replaceState(null, "", `?${toQuery(state)}`);
+  stop();
+  scan.K = phantomKspace(scan.P, { tr: scan.tr, te: scan.te, ti: scan.info.ti });
+  renderInfo(); renderDiagram(); renderFrame(true);
+}
 
 // ---- playback ----
 function skipIdle(shot, t) {
