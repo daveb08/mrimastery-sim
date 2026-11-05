@@ -288,7 +288,7 @@ test("slot equals the multi-slice block", () => {
   }
 });
 test("auto concatenations: ceil(N / maxSlices), no message", () => {
-  const t = sliceTiming({ ...P, TR: 50, slices: 12, concatenations: "auto" }, 32);
+  const t = sliceTiming({ ...P, seq: "GRE", TR: 50, slices: 12, concatenations: "auto" }, 32);
   assert.equal(t.concatenations, Math.ceil(12 / t.maxSlices));
   assert.ok(t.concatenations > 1);
   assert.deepEqual(t.messages, []);
@@ -296,14 +296,14 @@ test("auto concatenations: ceil(N / maxSlices), no message", () => {
   assert.equal(t.passes.length, t.concatenations);
 });
 test("manual too few concatenations is raised, with a message", () => {
-  const t = sliceTiming({ ...P, TR: 50, slices: 12, concatenations: 1 }, 32);
+  const t = sliceTiming({ ...P, seq: "GRE", TR: 50, slices: 12, concatenations: 1 }, 32);
   assert.equal(t.concatenations, Math.ceil(12 / t.maxSlices));
   assert.equal(t.messages.length, 1);
   assert.match(t.messages[0], /cannot hold 12 slices/);
   assert.match(t.messages[0], /^1 concatenation cannot hold/);
 });
 test("overflow tr keeps one pass and raises TR", () => {
-  const prm = { ...P, TR: 50, slices: 12, concatenations: 1, overflow: "tr" };
+  const prm = { ...P, seq: "GRE", TR: 50, slices: 12, concatenations: 1, overflow: "tr" };
   const t = sliceTiming(prm, 32);
   assert.equal(t.concatenations, 1);
   assert.deepEqual(t.messages, []);
@@ -311,13 +311,13 @@ test("overflow tr keeps one pass and raises TR", () => {
   assert.ok(seq.tr > 50 && near(seq.tr, 12 * seq.info.block));
 });
 test("TR shorter than one block: every number stays finite", () => {
-  const t = sliceTiming({ ...P, TR: 10, slices: 32 }, 32);
+  const t = sliceTiming({ ...P, seq: "GRE", TR: 10, slices: 32 }, 32);
   assert.equal(t.maxSlices, 1);
   assert.equal(t.concatenations, 32);
   for (const v of [t.slotMs, t.maxSlices, t.concatenations, t.scanFactor]) assert.ok(Number.isFinite(v));
 });
 test("sliceTiming refuses inversion recovery", () => {
-  assert.throws(() => sliceTiming({ ...P, inversion: "IR" }, 32), /inversion recovery is not handled here/);
+  assert.throws(() => sliceTiming({ ...P, seq: "GRE", inversion: "IR" }, 32), /inversion recovery is not handled here/);
 });
 test("a pass plays only its slices, at their full-stack positions", () => {
   const prm = { ...P, TR: 20000, slices: 5, concatenations: 2, overflow: "passes" };
@@ -334,4 +334,9 @@ test("a pass plays only its slices, at their full-stack positions", () => {
   assert.equal(seq.info.scanFactor, 2);
   assert.deepEqual(seq.info.passes, [[0, 2, 4], [1, 3]]);
   assert.ok(near(seq.info.slotMs, seq.info.block));
+});
+test("sliceTiming needs a known sequence", () => {
+  assert.throws(() => sliceTiming({ ...P }, 32), /no sequence given/);
+  assert.throws(() => sliceTiming({ ...P, seq: "bSSFP" }, 32), /unknown sequence "bSSFP"/);
+  assert.throws(() => sliceTiming({ ...P, seq: "toString" }, 32), /unknown sequence/);
 });

@@ -292,9 +292,13 @@ function packSlices(P, N, slotMs) {
 }
 
 const RAW_BUILDERS = { SE: spinEcho, GRE: gradientEcho, FSE: fastSpinEcho, EPI: epi };
-// Slice timing for the sequence named by P.seq (SE, GRE, FSE or EPI; GRE when absent). Never inversion recovery.
-export function sliceTiming(P0, rows, build = RAW_BUILDERS[P0.seq] ?? gradientEcho) {
+// Slice timing for the sequence named by P.seq (SE, GRE, FSE or EPI) or for an explicit `build`. Never inversion recovery.
+export function sliceTiming(P0, rows, build) {
   const P = { ...DEFAULTS, ...P0 };
+  if (!build) {
+    build = Object.hasOwn(RAW_BUILDERS, P0.seq) ? RAW_BUILDERS[P0.seq] : null;
+    if (!build) throw new Error(P0.seq == null ? "sliceTiming: no sequence given" : `sliceTiming: unknown sequence "${P0.seq}"`);
+  }
   if (P.inversion !== "none") throw new Error("sliceTiming: inversion recovery is not handled here");
   const img = build({ ...P0, slices: 1, TR: Infinity, inversion: "none" }, rows);
   const slotMs = Math.max(...img.events.filter((e) => e.kind === "grad").map(gradEnd));
