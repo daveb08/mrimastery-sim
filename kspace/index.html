@@ -27,6 +27,7 @@
   #clock { font-variant-numeric: tabular-nums; }
   @media (max-width: 800px) { .kpanels { grid-template-columns: 1fr; } }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <script src="../shared/text-size.js"></script>
 </head>
 <body>
@@ -81,6 +82,21 @@
         real time, which plays every millisecond of the scan.
         The phantom image is noise-free here so that the effect of the sampling stands out.</p>
     </div>
+    <div class="panel" id="profilePanel" style="margin-bottom:12px" hidden>
+      <div class="viewbar">
+        <h2 style="margin:0">Slice profiles and the magnetisation each excitation meets</h2>
+        <label style="font-size:.9rem;color:var(--muted)">Tissue
+          <select id="profileTissue" style="width:auto"><option value="WM" selected>White matter</option><option value="GM">Grey matter</option><option value="CSF">CSF</option><option value="Fat">Fat</option></select></label>
+      </div>
+      <div id="profilePlot" style="height:380px"></div>
+      <p class="caption">Each gold curve is one slice's excitation profile (|Mxy| after its pulse), simulated with the Bloch equations; click a curve to select that slice.
+        Slices are excited one after another within a TR, so a pulse for slice j also partly tips the edges of its neighbours.
+        That is cross-talk: the blue curve shows the longitudinal magnetisation (Mz) left in the steady state just before the selected slice's excitation, and the dips at the neighbours' positions
+        are the saturation they caused. Dips shrink as the gap grows. Cross-talk usually lowers a slice's signal, but for gradient echo at high flip angles and for EPI it can raise it, because neighbouring pulses saturate the
+        out-of-phase edges of the slice profile; the information panel shows the change as a signed percentage. Dashed red curves (spin echo and fast spin echo) are the refocusing pulses' profiles.
+        Not modelled: magnetisation transfer, stimulated echoes (SE and FSE), and relaxation during the pulses. Interleaved order starts with slice 1 (some scanners start with slice 2 when the number of slices is even).</p>
+    </div>
+
     </div>
     <aside class="kx-side">
       <div class="panel"><div class="kx-controls" id="controls"></div></div>

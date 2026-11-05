@@ -1,7 +1,7 @@
 import { BUILDERS, DEFAULTS, DEFAULT_LIMITS, gradEnd } from "../shared/sequence.js";
 import { prepare, adcSamples, sampleTrajectory } from "../shared/ktraj.js";
 import { diagramSvg, diagramGeometry } from "../shared/seqdiagram.js";
-import { textScale } from "../shared/plot.js";
+import { textScale, draw, layout, axisStyle, COLORS } from "../shared/plot.js";
 import { echoTrainReadouts, acquiredRows } from "../contrast/acquisition.js";
 import { defaultParams, computeModel, tissuesAt, csfNullTi, dirNullTi2 } from "../contrast/physics.js";
 import { sampleSlice, composeSignal, labelSignals, toRgba } from "../contrast/image.js";
@@ -336,7 +336,46 @@ function renderInfo() {
 function renderFrame(forceRecon = false) {
   renderCursor(); drawKspace(); drawRecon(forceRecon); renderStatus();
 }
-function renderAll() { renderInfo(); renderDiagram(); renderFrame(true); }
+function renderAll() { renderInfo(); renderDiagram(); renderFrame(true); drawProfiles(); }
+// ---- slice-profile panel (only with more than one slice) ----
+function drawProfiles() {
+  const panel = $("profilePanel");
+  panel.hidden = !scan.xt;
+  if (!scan.xt) return;
+  const xt = scan.xt, N = xt.slices.length, sel = state.sel, th = scan.info.sliceMm, tissue = $("profileTissue").value;
+  const traces = [];
+  for (let j = 0; j < N; j++) {
+    traces.push({ x: xt.z, y: xt.profiles.excite[j], mode: "lines", name: j === sel ? `Slice ${j + 1} (selected)` : `Slice ${j + 1}`,
+      line: { color: COLORS.gold, width: j === sel ? 3 : 1 }, opacity: j === sel ? 1 : 0.7, hovertemplate: `Slice ${j + 1}: |Mxy| %{y:.2f} at %{x:.1f} mm<extra></extra>` });
+  }
+  const refocus = xt.profiles.refocus;
+  for (let j = 0; j < refocus.length; j++) {
+    traces.push({ x: xt.z, y: Array.from(refocus[j], (zz) => (1 - zz) / 2), mode: "lines", name: j === 0 ? "Refocusing profile" : `Refocusing, slice ${j + 1}`, showlegend: j === 0,
+      line: { color: COLORS.red, width: j === sel ? 2 : 1, dash: "dash" }, opacity: j === sel ? 1 : 0.6, hovertemplate: `Slice ${j + 1} refocusing: %{y:.2f} at %{x:.1f} mm<extra></extra>` });
+  }
+  traces.push({ x: xt.z, y: xt.slices[sel].mzBefore[tissue], mode: "lines", name: `Mz just before slice ${sel + 1}'s excitation`,
+    line: { color: COLORS.blue, width: 2.5 }, hovertemplate: "Mz %{y:.2f} at %{x:.1f} mm<extra></extra>" });
+  const shapes = xt.slices.map((s, j) => ({ type: "rect", xref: "x", yref: "paper", x0: s.zMm - th / 2, x1: s.zMm + th / 2, y0: 0, y1: 1,
+    fillcolor: j === sel ? "rgba(255,215,0,0.12)" : "rgba(255,255,255,0.05)", line: { width: 0 }, layer: "below" }));
+  draw("profilePlot", traces, layout({
+    xaxis: axisStyle({ title: { text: "Position along the slice direction (mm)" } }),
+    yaxis: axisStyle({ title: { text: "Mz, or |Mxy| after the pulse" }, range: [-0.05, 1.1] }),
+    shapes, legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", bgcolor: "rgba(26,26,26,0.85)", font: { size: 10 } },
+    margin: { l: 56, r: 14, t: 56, b: 44 },
+  }));
+  const el = $("profilePlot");
+  if (!el._clickWired) {
+    el._clickWired = true;
+    el.on("plotly_click", (e) => {
+      const p = e.points?.[0];
+      if (!scan.xt || !p || p.curveNumber >= scan.xt.profiles.excite.length + scan.xt.profiles.refocus.length) return;
+      const N2 = scan.xt.slices.length;
+      selectSlice(p.curveNumber < N2 ? p.curveNumber : p.curveNumber - N2);
+    });
+  }
+}
+$("profileTissue").addEventListener("change", drawProfiles);
+
 
 // choose which slice's k-space and image are shown (no new sequence or cross-talk calculation)
 function selectSlice(j) {
@@ -344,7 +383,7 @@ function selectSlice(j) {
   history.replaceState(null, "", `?${toQuery(state)}`);
   stop();
   scan.K = phantomKspace(scan.P, { tr: scan.tr, te: scan.te, ti: scan.info.ti });
-  renderInfo(); renderDiagram(); renderFrame(true);
+  renderInfo(); renderDiagram(); renderFrame(true); drawProfiles();
 }
 
 // ---- playback ----
