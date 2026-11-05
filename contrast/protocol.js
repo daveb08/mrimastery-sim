@@ -3,8 +3,10 @@ import { sliceTiming, BUILDERS, DEFAULTS } from "../shared/sequence.js";
 import { shotRows } from "../kspace/scan.js";
 import { crossTalk } from "../shared/crosstalk.js";
 import { tissuesAt } from "./physics.js";
+import { EPI_MIN_TIMING_BW } from "../kspace/settings.js";
 import { EXTRA_TISSUES } from "./image.js";
 
+export { EPI_MIN_TIMING_BW };
 export const PROTOCOL_DEFAULTS = { slices: 1, gapPct: 20, sliceOrder: "interleaved", concatenations: "auto", crossTalkOn: true };
 
 const MODES = { FSE: "packed", GRE: "packed", "EPI (single-shot)": "packed", DWI: "packed", bSSFP: "sequential",
@@ -19,7 +21,7 @@ export function builderName(p) {
 
 export function builderParams(p) {
   return { ...DEFAULTS, seq: builderName(p), nx: p.freqMatrix, ny: p.phaseMatrix, fovRead: p.fovRead, fovPhase: p.fovPhase,
-    bw: p.BW, TE: p.TE, TR: p.TR, ETL: p.ETL, flip: p.FA ?? 90, sliceMm: p.sliceMm,
+    bw: builderName(p) === "EPI" ? Math.max(p.BW, EPI_MIN_TIMING_BW) : p.BW, TE: p.TE, TR: p.TR, ETL: p.ETL, flip: p.FA ?? 90, sliceMm: p.sliceMm,
     slices: p.slices ?? 1, gapPct: p.gapPct ?? 20, sliceOrder: p.sliceOrder ?? "interleaved",
     concatenations: p.concatenations ?? "auto", overflow: "passes", inversion: "none" };
 }

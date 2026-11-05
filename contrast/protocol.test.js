@@ -81,3 +81,9 @@ test("speed", () => {
   const t0 = performance.now(); middleSliceFactors(p);
   assert.ok(performance.now() - t0 < 1);
 });
+
+test("EPI and DWI are timed at an EPI readout bandwidth", () => {
+  const e = protocolTiming(mk("EPI (single-shot)", { slices: 20 })), d = protocolTiming(mk("DWI", { slices: 20 }));
+  assert.ok(e.maxSlices > 1); assert.ok(e.slotMs < 300, `slot ${e.slotMs}`); // 256 lines at 1500 Hz/px; the brief guessed under 200 ms
+  assert.ok(Math.abs(d.slotMs - e.slotMs) < 1e-9);
+});

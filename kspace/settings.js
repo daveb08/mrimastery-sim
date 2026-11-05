@@ -1,6 +1,7 @@
 // DOM-free settings for the k-space explorer: reading and writing them in the page address, and translating the
 // contrast simulator's parameters into explorer settings (used by its "Open in k-space explorer" button).
 
+export const EPI_MIN_TIMING_BW = 1500; // Hz/px: EPI reads each line in well under a millisecond
 export const SEQS = ["SE", "GRE", "FSE", "EPI"];
 export const MATRICES = [32, 64, 128, 256];
 export const INVERSIONS = ["none", "IR", "DIR"];
@@ -92,7 +93,7 @@ export function fromContrast(p) {
   out.nx = out.ny;
   if (seq === "GRE") out.flip = clamp(p.FA ?? 30, RANGES.flip);
   if (seq === "FSE") out.ETL = clamp(p.ETL ?? 8, RANGES.ETL);
-  if (seq === "EPI") out.bw = Math.max(out.bw, 1500); // EPI reads each line in well under a millisecond
+  if (seq === "EPI") out.bw = Math.max(out.bw, EPI_MIN_TIMING_BW);
   if (map.inversion === "IR") Object.assign(out, { inversion: "IR", TI: clamp(p.TI, RANGES.TI) });
   if (map.inversion === "DIR") Object.assign(out, { inversion: "DIR", TI1: clamp(p.TI1, RANGES.TI1), TI2: clamp(p.TI2, RANGES.TI2) });
   return out;
