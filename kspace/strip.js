@@ -23,10 +23,16 @@ export function createSampleCache(sampler) {
   };
 }
 
-// runs work(queue.shift()) until the queue is empty or the budget (ms) is spent; always runs at least one item
+// runs work(queue.shift()) until the queue is empty or the next item would probably overrun the budget (ms), judged
+// by the cost of the item just run; always runs at least one item
 export function pump(queue, work, budgetMs, now = () => performance.now()) {
   const start = now();
-  let n = 0;
-  while (queue.length && (n === 0 || now() - start < budgetMs)) { work(queue.shift()); n++; }
+  let n = 0, prev = start;
+  while (queue.length) {
+    work(queue.shift()); n++;
+    const t = now(), cost = t - prev;
+    prev = t;
+    if (t - start + cost > budgetMs) break;
+  }
   return n;
 }

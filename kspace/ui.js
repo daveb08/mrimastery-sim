@@ -384,13 +384,13 @@ $("profileTissue").addEventListener("change", drawProfiles);
 
 
 // ---- slice strip (only with more than one slice): every slice's image, filled in a few thumbnails per frame ----
-const strip = { queue: [], key: null, lut: null, wl: null, m: 0, raf: 0, cache: createSampleCache((z, th, fov, m) =>
+const strip = { queue: [], key: null, K: [], mask: null, lut: null, wl: null, m: 0, raf: 0, cache: createSampleCache((z, th, fov, m) =>
   sampleSlice(phantom, "axial", z, { nx: m, ny: m, fovRead: fov[0], fovPhase: fov[1], thicknessMm: th })) };
 
 function buildStrip() {
   const el = $("strip");
   $("stripPanel").hidden = !scan.xt;
-  strip.queue = []; strip.key = null;
+  strip.queue = []; strip.key = null; strip.K = []; strip.mask = null;
   if (!scan.xt) { el.innerHTML = ""; return; }
   const P = scan.P, N = scan.xt.slices.length, m = thumbMatrix(P.ny);
   const { p } = modelParams(P, { tr: scan.tr, te: scan.te, ti: scan.info.ti });
@@ -429,6 +429,7 @@ function refreshStrip(force = false) {
   const key = play.shot * 2 + (play.t >= shotNow().seq.tr ? 1 : 0);
   if (!force && key === strip.key) return;
   strip.key = key;
+  strip.mask = thumbMask();
   strip.queue = Array.from({ length: scan.xt.slices.length }, (_, j) => j);
   if (!strip.raf) strip.raf = requestAnimationFrame(stripFrame);
 }
@@ -455,9 +456,11 @@ function renderThumb(j) {
   const fig = $("strip").children[j];
   if (!fig || !strip.lut) return;
   const P = scan.P, m = strip.m, sl = scan.xt.slices[j], factors = labelFactors(sl.factor);
-  const lut = Float32Array.from(strip.lut, (v, i) => v * factors[i]);
-  const v = composeSignal(strip.cache.get(sl.zMm, P.sliceMm, [P.fovRead, P.fovPhase], m), lut);
-  const rec = reconstruct(kspaceOf(v, m, m), thumbMask(), m, m, 0);
+  if (!strip.K[j]) { // the thumbnail's k-space does not depend on how much has been acquired
+    const lut = Float32Array.from(strip.lut, (v, i) => v * factors[i]);
+    strip.K[j] = kspaceOf(composeSignal(strip.cache.get(sl.zMm, P.sliceMm, [P.fovRead, P.fovPhase], m), lut), m, m);
+  }
+  const rec = reconstruct(strip.K[j], strip.mask, m, m, 0);
   fig.querySelector("canvas").getContext("2d").putImageData(new ImageData(toRgba(rec, strip.wl.window, strip.wl.level), m, m), 0, 0);
 }
 

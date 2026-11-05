@@ -23,11 +23,20 @@ test("sample cache reuses a sampling", () => {
 
 test("pump stops at the budget but always runs one", () => {
   let clock = 0;
-  const now = () => (clock += 30);
-  const queue = [1, 2, 3, 4], ran = [];
-  const n = pump(queue, (x) => ran.push(x), 40, now);
-  assert.equal(n, 2); assert.deepEqual(ran, [1, 2]); assert.deepEqual(queue, [3, 4]);
+  const now = () => clock;
+  const queue = [1, 2, 3, 4, 5, 6], ran = [];
+  const n = pump(queue, (x) => { ran.push(x); clock += 10; }, 40, now);
+  assert.equal(n, 4); assert.deepEqual(ran, [1, 2, 3, 4]); assert.deepEqual(queue, [5, 6]);
   assert.equal(pump([], () => {}, 40, now), 0);
   const q2 = [1, 2];
-  assert.equal(pump(q2, () => {}, 0, now), 1);
+  assert.equal(pump(q2, () => { clock += 100; }, 0, now), 1);
+});
+
+test("pump stops early when the next item would overrun", () => {
+  let clock = 0;
+  const now = () => clock;
+  const queue = [1, 2, 3];
+  // 30 ms spent so far, last item cost 30: another would end at 60 > 40
+  assert.equal(pump(queue, () => { clock += 30; }, 40, now), 1);
+  assert.equal(queue.length, 2);
 });
