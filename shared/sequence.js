@@ -13,6 +13,7 @@ const CRUSH_CYCLES = 2; // crusher area: cycles of phase across the slice
 export const DEFAULTS = {
   fovRead: 240, fovPhase: 240, nx: 128, ny: 128, bw: 260, sliceMm: 5, TE: 20, TR: 500, ETL: 8, flip: 90,
   rfExcite: 2.0, rfRefocus: 2.0, rfInvert: 4.0, inversion: "none", TI: 2500, TI1: 3400, TI2: 800, limits: DEFAULT_LIMITS,
+  slices: 1, gapPct: 20, sliceOrder: "interleaved", stackCenterMm: 14,
 };
 
 // ---- trapezoids ----
@@ -254,4 +255,52 @@ export function withInversion(build) {
   };
 }
 
-export const BUILDERS = { SE: withInversion(spinEcho), GRE: withInversion(gradientEcho), FSE: withInversion(fastSpinEcho), EPI: withInversion(epi) };
+// ---- multi-slice: N back-to-back copies of one slice block per TR ----
+// Slice positions in mm, ascending (index 0 most inferior), spaced by thickness x (1 + gap).
+export function slicePositions(n, sliceMm, gapPct, centerMm) {
+  const pitch = sliceMm * (1 + gapPct / 100);
+  return Array.from({ length: n }, (_, i) => centerMm + (i - (n - 1) / 2) * pitch);
+}
+
+// The slice index played at each acquisition position.
+export function acquisitionOrder(n, order) {
+  const idx = Array.from({ length: n }, (_, i) => i);
+  if (order !== "interleaved") return idx;
+  return [...idx.filter((i) => i % 2 === 0), ...idx.filter((i) => i % 2 === 1)];
+}
+
+export function multiSlice(build) {
+  return (P0, rows) => {
+    const P = { ...DEFAULTS, ...P0 }, N = Math.floor(P.slices ?? 1);
+    if (N <= 1) return build(P0, rows);
+    const img = build({ ...P0, TR: Infinity, inversion: "none" }, rows);
+    const grads = img.events.filter((e) => e.kind === "grad");
+    const block = Math.max(...grads.map(gradEnd));
+    const errors = [...img.errors];
+    const max = Math.floor(P.TR / block);
+    let TR = P.TR;
+    if (TR < N * block - 1e-9) {
+      errors.push(`TR too short for ${N} slices: the minimum TR is ${Math.ceil(N * block)} ms (at most ${max} slices fit in TR ${P.TR} ms)`);
+      TR = N * block;
+    }
+    const zs = slicePositions(N, P.sliceMm, P.gapPct, P.stackCenterMm), order = acquisitionOrder(N, P.sliceOrder);
+    const gssAt = (t) => grads.find((g) => g.axis === "z" && t >= g.start + g.rise - 1e-9 && t <= g.start + g.rise + g.flat + 1e-9)?.amp ?? 0;
+    const events = [];
+    order.forEach((slice, a) => {
+      const dt = a * block, zMm = zs[slice];
+      for (const e of img.events) {
+        if (e.kind === "adc") events.push({ ...e, tc: e.tc + dt, slice });
+        else if (e.kind === "rf") {
+          const gss = gssAt(e.center);
+          events.push({ ...e, center: e.center + dt, slice, zMm, gss, freqHz: GAMMA_BAR * 1000 * gss * zMm });
+        } else events.push({ ...e, start: e.start + dt });
+      }
+    });
+    events.sort((x, y) => (x.start ?? x.center ?? x.tc) - (y.start ?? y.center ?? y.tc));
+    const slices = zs.map((zMm, index) => ({ index, zMm, acq: order.indexOf(index) }));
+    return { events, te: img.te, tr: TR, errors, info: { ...img.info, slices, block, maxSlices: max, requestedTR: P.TR, sliceMm: P.sliceMm, order: P.sliceOrder } };
+  };
+}
+
+const wrap = (b) => multiSlice(withInversion(b));
+export const BUILDERS = { SE: wrap(spinEcho), GRE: wrap(gradientEcho), FSE: wrap(fastSpinEcho), EPI: wrap(epi) };

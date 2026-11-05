@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   GAMMA_BAR, DEFAULTS, DEFAULT_LIMITS, gradArea, gradEnd, shortestTrap, spinEcho, gradientEcho, fastSpinEcho, epi, BUILDERS,
+  withInversion, slicePositions, acquisitionOrder,
 } from "./sequence.js";
 import { areaUpTo, prepare, adcSamples, adcTimes } from "./ktraj.js";
 import { echoTrainReadouts, acquiredRows } from "../contrast/acquisition.js";
@@ -180,4 +181,46 @@ test("spin echo: the phase encode before the 180 is applied with the opposite si
   const pe = seq.events.find((e) => e.label === "phase encode");
   assert.ok(gradArea(pe) > 0); // positive lobe, inverted to -32 dky by the 180
   assert.ok(near(adcSamples(seq)[0].rowExact, 0, 1e-6));
+});
+
+test("multiSlice with one slice returns the unwrapped builder's sequence unchanged", () => {
+  for (const k of ["SE", "GRE"]) {
+    const plain = k === "SE" ? withInversion(spinEcho)(P, 32) : withInversion(gradientEcho)(P, 32);
+    assert.deepEqual(BUILDERS[k]({ ...P, slices: 1 }, 32), plain);
+  }
+});
+test("slice positions are centred, spaced by thickness x (1 + gap)", () => {
+  assert.deepEqual(slicePositions(3, 5, 20, 14), [8, 14, 20]);
+});
+test("interleaved order plays odd slices first, starting with slice 1", () => {
+  assert.deepEqual(acquisitionOrder(5, "interleaved"), [0, 2, 4, 1, 3]);
+  assert.deepEqual(acquisitionOrder(4, "interleaved"), [0, 2, 1, 3]);
+  assert.deepEqual(acquisitionOrder(3, "sequential"), [0, 1, 2]);
+});
+test("N slice blocks back to back, each with its own offset and the same k-space path", () => {
+  const one = BUILDERS.SE({ ...P, TR: 3000 }, 32), seq = BUILDERS.SE({ ...P, TR: 3000, slices: 3 }, 32);
+  const ex = seq.events.filter((e) => e.kind === "rf" && e.role === "excite");
+  assert.equal(ex.length, 3);
+  // ex[a] is acquisition a: interleaved 0, 2, 1
+  assert.deepEqual(ex.map((e) => e.slice), [0, 2, 1]);
+  ex.forEach((e, a) => assert.ok(near(e.center, ex[0].center + a * seq.info.block)));
+  for (const e of ex) assert.ok(near(e.freqHz, GAMMA_BAR * 1000 * e.gss * e.zMm));
+  // every block samples exactly the single-slice k positions
+  const s1 = adcSamples(one), s3 = adcSamples(seq);
+  for (let j = 0; j < 3; j++) {
+    const mine = s3.filter((s) => s.slice === j);
+    assert.equal(mine.length, s1.length);
+    mine.forEach((s, i) => { assert.ok(near(s.colExact, s1[i].colExact, 1e-6)); assert.ok(near(s.rowExact, s1[i].rowExact, 1e-6)); });
+  }
+});
+test("too many slices raises TR to N x block and names the limit; requested TR is kept in info", () => {
+  const probe = BUILDERS.GRE({ ...P, TR: 50, slices: 2 }, 32);
+  const n = probe.info.maxSlices + 3, seq = BUILDERS.GRE({ ...P, TR: 50, slices: n }, 32);
+  assert.ok(near(seq.tr, n * seq.info.block));
+  assert.equal(seq.info.requestedTR, 50);
+  assert.match(seq.errors.join(" "), new RegExp(`TR too short for ${n} slices.*at most ${probe.info.maxSlices} slices`));
+});
+test("multi-slice forces the inversion off", () => {
+  const seq = BUILDERS.FSE({ ...P, ETL: 8, TR: 9000, inversion: "IR", slices: 3 }, rowsAll(8));
+  assert.ok(!seq.events.some((e) => e.kind === "rf" && e.role === "invert"));
 });

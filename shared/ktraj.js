@@ -68,7 +68,7 @@ export function adcSamples(seq, prepared = prepare(seq)) {
   for (const adc of seq.events.filter((e) => e.kind === "adc")) {
     adcTimes(adc).forEach((t, i) => {
       const [kx, ky, kz] = prepared.kAt(t);
-      out.push({ t, kx, ky, kz, row: adc.row, i, colExact: kx / dkx + adc.n / 2, rowExact: ky / dky + seq.info.ny / 2 });
+      out.push({ t, kx, ky, kz, row: adc.row, slice: adc.slice ?? 0, i, colExact: kx / dkx + adc.n / 2, rowExact: ky / dky + seq.info.ny / 2 });
     });
   }
   return out;
