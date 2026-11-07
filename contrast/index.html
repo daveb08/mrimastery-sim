@@ -32,6 +32,14 @@
           <button role="tab" id="tabBtnImages" aria-selected="true" aria-controls="tabImages">Images</button>
           <button role="tab" id="tabBtnKspace" aria-selected="false" aria-controls="tabKspace">K-space</button>
         </div>
+          <p class="caption" id="bwCredit" hidden>Anatomy: <a href="https://brainweb.bic.mni.mcgill.ca/brainweb/" target="_blank" rel="noopener">BrainWeb (McGill), subject 04</a>. BrainWeb covers the head down to about the skull base.</p>
+          <details id="bwCite" hidden><summary>Cite BrainWeb</summary>
+          <ul class="caption" style="margin:4px 0 0;padding-left:18px">
+          <li>C.A. Cocosco, V. Kollokian, R.K.-S. Kwan, A.C. Evans: BrainWeb: Online Interface to a 3D MRI Simulated Brain Database. NeuroImage 5(4) part 2/4, S425, 1997.</li>
+          <li>R.K.-S. Kwan, A.C. Evans, G.B. Pike: MRI simulation-based evaluation of image-processing and classification methods. IEEE Transactions on Medical Imaging 18(11):1085-97, 1999.</li>
+          <li>D.L. Collins, A.P. Zijdenbos, V. Kollokian, J.G. Sled, N.J. Kabani, C.J. Holmes, A.C. Evans: Design and Construction of a Realistic Digital Brain Phantom. IEEE Transactions on Medical Imaging 17(3):463-468, 1998.</li>
+          <li>B. Aubert-Broche, M. Griffin, G.B. Pike, A.C. Evans, D.L. Collins: Twenty new digital brain phantoms for creation of validation image data bases. IEEE Transactions on Medical Imaging 25(11):1410-1416, 2006.</li>
+          </ul></details>
         <div id="tabImages" role="tabpanel">
           <div class="check stackck" id="stackWrap" hidden><input type="checkbox" id="showStack" checked><label for="showStack" style="margin:0;color:var(--text)">Show slice stack</label></div>
           <div class="viewer-grid" id="views"></div>
@@ -48,7 +56,6 @@
           </div>
           <p class="caption" id="viewNote"></p>
           <p class="caption" id="bwStatus" role="status" hidden></p>
-          <p class="caption" id="bwCredit" hidden>Anatomy: <a href="https://brainweb.bic.mni.mcgill.ca/brainweb/" target="_blank" rel="noopener">BrainWeb (McGill), subject 04</a>. BrainWeb covers the head down to about the skull base.</p>
         </div>
         <div id="tabKspace" role="tabpanel" hidden>
           <div class="kgrid">

@@ -6,6 +6,9 @@
 <title>Phantom Viewer</title>
 <link rel="stylesheet" href="../shared/style.css">
 <style>
+  .bwonly { display: none; }
+  body[data-phantom="brainweb"] .bwonly { display: inline; }
+  body[data-phantom="brainweb"] .gen { display: none; }
   .views { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   @media (max-width: 1000px) { .views { grid-template-columns: 1fr; } }
   canvas { width: 100%; aspect-ratio: 1; background: #000; border-radius: 4px; display: block; }
@@ -18,8 +21,8 @@
 <body>
 <main>
   <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
-  <h1>Procedural head phantom</h1>
-  <p class="sub">A generated, labeled head and neck with no stored data, placed from standard-atlas landmarks. The contrast simulator and k-space explorer image this phantom.<span id="bwHint" hidden> Choose BrainWeb for a real head's anatomy.</span></p>
+  <h1><span class="gen">Procedural head phantom</span><span class="bwonly">Head phantom</span></h1>
+  <p class="sub"><span class="bwonly">A labeled head and neck from BrainWeb's simulated brain database. The contrast simulator and k-space explorer image this phantom.</span><span class="gen">A generated, labeled head and neck with no stored data, placed from standard-atlas landmarks. The contrast simulator and k-space explorer image this phantom.<span id="bwHint" hidden> Choose BrainWeb for a real head's anatomy.</span></span></p>
 
   <div class="panel">
     <div class="controls">
@@ -56,6 +59,13 @@
     </div>
     <p class="caption" id="bwStatus" role="status" hidden></p>
     <p class="caption" id="bwCredit" hidden>Anatomy: <a href="https://brainweb.bic.mni.mcgill.ca/brainweb/" target="_blank" rel="noopener">BrainWeb (McGill), subject 04</a>. BrainWeb covers the head down to about the skull base.</p>
+    <details id="bwCite" hidden><summary>Cite BrainWeb</summary>
+    <ul class="caption" style="margin:4px 0 0;padding-left:18px">
+    <li>C.A. Cocosco, V. Kollokian, R.K.-S. Kwan, A.C. Evans: BrainWeb: Online Interface to a 3D MRI Simulated Brain Database. NeuroImage 5(4) part 2/4, S425, 1997.</li>
+    <li>R.K.-S. Kwan, A.C. Evans, G.B. Pike: MRI simulation-based evaluation of image-processing and classification methods. IEEE Transactions on Medical Imaging 18(11):1085-97, 1999.</li>
+    <li>D.L. Collins, A.P. Zijdenbos, V. Kollokian, J.G. Sled, N.J. Kabani, C.J. Holmes, A.C. Evans: Design and Construction of a Realistic Digital Brain Phantom. IEEE Transactions on Medical Imaging 17(3):463-468, 1998.</li>
+    <li>B. Aubert-Broche, M. Griffin, G.B. Pike, A.C. Evans, D.L. Collins: Twenty new digital brain phantoms for creation of validation image data bases. IEEE Transactions on Medical Imaging 25(11):1410-1416, 2006.</li>
+    </ul></details>
     <div class="legend" id="legend"></div>
   </div>
 
@@ -65,7 +75,7 @@
     <div class="panel"><div class="viewhead"><span>Sagittal</span><span>anterior &larr; &rarr; posterior</span></div><canvas id="sagittal" width="256" height="256"></canvas></div>
   </div>
   <p class="caption" id="stats"></p>
-  <p class="caption">Stylised anatomy, not a segmentation of a real person, with structures placed from approximate
+  <p class="caption gen">Stylised anatomy, not a segmentation of a real person, with structures placed from approximate
     standard-atlas (MNI) coordinates scaled to an average adult.
     <b>Brain:</b>
     a cortex of even thickness (about 2.7 mm) with the central, pre- and postcentral, Sylvian, cingulate, calcarine and

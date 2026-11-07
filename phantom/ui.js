@@ -80,7 +80,7 @@ function draw() {
   const source = $("phantomSrc").value;
   const bw = shown === "brainweb"; // credit and fixed-anatomy controls follow what is drawn, not the pending choice
   $("sulcal").disabled = $("seed").disabled = bw;
-  $("bwCredit").hidden = !bw;
+  $("bwCredit").hidden = !bw; $("bwCite").hidden = !bw;
   if (source !== "brainweb" && $("bwStatus").textContent.startsWith("Loading")) setStatus("");
   $("sulcalV").textContent = sulcal; $("seedV").textContent = seed;
   const pos = { axial: +$("zpos").value, coronal: +$("ypos").value, sagittal: +$("xpos").value };

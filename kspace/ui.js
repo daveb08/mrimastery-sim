@@ -593,7 +593,7 @@ function choosePhantom() {
     kCache.clear();
     if (source === "brainweb") state.phantom = "brainweb"; else delete state.phantom;
     document.body.dataset.phantom = source;
-    $("bwCredit").hidden = source !== "brainweb";
+    $("bwCredit").hidden = source !== "brainweb"; $("bwCite").hidden = source !== "brainweb";
     setBwStatus("");
     history.replaceState(null, "", `?${toQuery(state)}`);
     stop();

@@ -415,7 +415,7 @@ function choosePhantom() {
     phantom = ph; shown = source; phantomKey = k;
     for (const key of Object.keys(sampleCache)) delete sampleCache[key];
     document.body.dataset.phantom = source;
-    $("bwCredit").hidden = source !== "brainweb";
+    $("bwCredit").hidden = source !== "brainweb"; $("bwCite").hidden = source !== "brainweb";
     setBwStatus("");
     scheduleImages();
   }, () => {

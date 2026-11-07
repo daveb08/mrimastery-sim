@@ -58,7 +58,18 @@ const PAGES = [
       const lit = ["cv_axial", "cv_coronal", "cv_sagittal"].every((id) => { const c = document.getElementById(id);
         const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < d.length; i += 4 * 53) if (d[i] > 20) return true; return false; });
       return document.body.dataset.phantom === "brainweb" && document.getElementById("bwStatus").textContent === ""
-        && !document.getElementById("bwCredit").hidden && lit && document.getElementById("kExplorer").href.includes("phantom=brainweb"); })()`],
+        && !document.getElementById("bwCredit").hidden && lit && document.getElementById("kExplorer").href.includes("phantom=brainweb")
+        && document.getElementById("bwCite").checkVisibility() && document.getElementById("bwCite").textContent.includes("Aubert-Broche"); })()`],
+    ["click", "tabBtnKspace"],
+    ["expect", "credit and citations stay visible on the K-space tab with BrainWeb; back to Generated hides them (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      const c = document.getElementById("bwCredit"), t = document.getElementById("bwCite");
+      const onK = c.checkVisibility() && t.checkVisibility();
+      s.value = "generated"; s.dispatchEvent(new Event("change", { bubbles: true }));
+      for (let i = 0; i < 50 && document.body.dataset.phantom !== "generated"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      return onK && document.body.dataset.phantom === "generated" && !c.checkVisibility() && !t.checkVisibility(); })()`],
+    ["click", "tabBtnImages"],
     // multi-slice protocol: cross-talk changes the bars (32 tightly packed GRE slices); a short TR needs concatenations
     ["set", "seq", "GRE"], ["click", "tabBtnGeometry"], ["click", "tabBtnBars"], ["set", "c_gapPct", 0], ["set", "c_slices", 32],
     ["expect", "slices 32: gap, order, concatenations and cross-talk shown", `["c_gapPct", "c_sliceOrder", "c_concatenations", "c_crossTalkOn"].every((i) => document.getElementById(i).checkVisibility())`],
@@ -124,7 +135,14 @@ const PAGES = [
       await new Promise((r) => setTimeout(r, 300));
       return document.body.dataset.phantom === "brainweb" && document.getElementById("bwStatus").textContent === ""
         && !document.getElementById("bwCredit").hidden && (() => { document.getElementById("fillAll").click(); const after = lit(); return after > 0 && after !== before; })()
-        && location.search.includes("phantom=brainweb"); })()`],
+        && location.search.includes("phantom=brainweb")
+        && document.getElementById("bwCite").checkVisibility() && document.getElementById("bwCite").textContent.includes("Kwan"); })()`],
+    ["expect", "back to Generated hides the credit and citations (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      s.value = "generated"; s.dispatchEvent(new Event("change", { bubbles: true }));
+      for (let i = 0; i < 50 && document.body.dataset.phantom !== "generated"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      return document.body.dataset.phantom === "generated" && !document.getElementById("bwCredit").checkVisibility() && !document.getElementById("bwCite").checkVisibility(); })()`],
     ["url", "?seq=SE&slices=3&phantom=brainweb"], ["click", "fillAll"],
     ["expect", "?phantom=brainweb: BrainWeb with data; silently Generated, select hidden and no error without it", `(async () => {
       const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
@@ -196,7 +214,17 @@ const PAGES = [
       for (let i = 0; i < 50 && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
       return document.body.dataset.phantom === "brainweb" && document.getElementById("bwStatus").textContent === ""
         && !document.getElementById("bwStatus").offsetParent
-        && !document.getElementById("bwCredit").hidden && document.getElementById("seed").disabled; })()`],
+        && !document.getElementById("bwCredit").hidden && document.getElementById("seed").disabled
+        && document.getElementById("bwCite").checkVisibility() && document.getElementById("bwCite").textContent.includes("Collins")
+        && !document.querySelector("h1").innerText.includes("Procedural") && !document.body.innerText.includes("not a segmentation of a real person")
+        && !document.body.innerText.includes("no stored data"); })()`],
+    ["expect", "back to Generated restores the procedural wording and hides the citations (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      s.value = "generated"; s.dispatchEvent(new Event("input", { bubbles: true }));
+      for (let i = 0; i < 50 && document.body.dataset.phantom !== "generated"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      return document.body.dataset.phantom === "generated" && !document.getElementById("bwCite").checkVisibility()
+        && document.querySelector("h1").innerText === "Procedural head phantom" && document.body.innerText.includes("not a segmentation of a real person"); })()`],
   ] },
   { name: "tuning", path: "tuning/", steps: [
     ["click", "auto"], ["expect", "Tune & match gives a matched coil", `!!document.querySelector("#status .ok")`],
