@@ -148,6 +148,15 @@ const PAGES = [
   { name: "signal", path: "signal/", steps: [["cycle", "field"], ["cycle", "kind"], ["set", "tbw", 8]] },
   { name: "phantom", path: "phantom/", steps: [
     ["cycle", "mode"], ["cycle", "window"], ["set", "zpos", 20], ["click", "lesions"], ["cycle", "res"],
+    ["expect", "BrainWeb choice shown only when its data is present", `(async () => {
+      const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
+      await new Promise((r) => setTimeout(r, 300));
+      return document.getElementById("phantomSrc").hidden === !ok; })()`],
+    ["expect", "BrainWeb draws with its credit (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      s.value = "brainweb"; s.dispatchEvent(new Event("input", { bubbles: true }));
+      for (let i = 0; i < 50 && document.getElementById("bwCredit").hidden; i++) await new Promise((r) => setTimeout(r, 100));
+      return !document.getElementById("bwCredit").hidden && document.getElementById("seed").disabled; })()`],
   ] },
   { name: "tuning", path: "tuning/", steps: [
     ["click", "auto"], ["expect", "Tune & match gives a matched coil", `!!document.querySelector("#status .ok")`],
@@ -227,7 +236,9 @@ async function runPage(cdp, base, page, outDir) {
       problems.push(`JS error: ${(d.exception?.description ?? d.text).split("\n")[0]}`);
     } else if (m.method === "Runtime.consoleAPICalled" && m.params.type === "error") {
       problems.push(`console error: ${m.params.args.map((a) => a.value ?? a.description).join(" ")}`);
-    } else if (m.method === "Network.responseReceived" && m.params.response.status >= 400 && !m.params.response.url.endsWith("favicon.ico")) {
+    } else if (m.method === "Network.responseReceived" && m.params.response.status >= 400 && !m.params.response.url.endsWith("favicon.ico")
+      // The BrainWeb file is git-ignored until permission to redistribute it is granted, so pages probe for it and a 404 is expected.
+      && !(m.params.response.status === 404 && m.params.response.url.includes("/data/brainweb/"))) {
       problems.push(`HTTP ${m.params.response.status}: ${m.params.response.url}`);
     } else if (m.method === "Network.loadingFailed" && !m.params.canceled) {
       problems.push(`failed to load (${m.params.errorText}): ${m.params.requestId}`);

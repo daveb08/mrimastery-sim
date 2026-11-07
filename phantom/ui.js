@@ -1,4 +1,5 @@
 import { createPhantom, sliceLabels, LABELS } from "./phantom.js";
+import { brainwebAvailable, makePhantom } from "./brainweb.js";
 import { tissuesAt } from "../contrast/physics.js";
 
 const $ = (id) => document.getElementById(id);
@@ -53,15 +54,39 @@ function lookup(mode, windowMode) {
   return lut;
 }
 
-let phantom = null, key = "";
+let phantom = null, key = "", requested = "";
+// The phantom arrives asynchronously (BrainWeb loads a file). A result is used only if it is still the latest choice.
+function requestPhantom(k, source, seed, sulcal, lesions) {
+  requested = k;
+  if (source === "brainweb") $("bwStatus").textContent = "Loading BrainWeb anatomy…";
+  makePhantom(source, { rootUrl: "../", seed, sulcalDepthMm: sulcal, lesions }).then((p) => {
+    if (k !== requested) return;
+    phantom = p; key = k;
+    if (source === "brainweb") $("bwStatus").textContent = "";
+    draw();
+  }, () => {
+    if (k !== requested) return;
+    requested = "";
+    $("phantomSrc").value = "generated";
+    $("bwStatus").textContent = "BrainWeb anatomy could not be loaded";
+    draw();
+  });
+}
 function draw() {
   const sulcal = +$("sulcal").value, seed = +$("seed").value, lesions = $("lesions").checked;
   const mode = $("mode").value, size = +$("res").value;
+  const source = $("phantomSrc").value;
+  const bw = source === "brainweb";
+  $("sulcal").disabled = $("seed").disabled = bw;
+  $("bwCredit").hidden = !bw;
+  if (!bw && $("bwStatus").textContent.startsWith("Loading")) $("bwStatus").textContent = "";
   $("sulcalV").textContent = sulcal; $("seedV").textContent = seed;
   const pos = { axial: +$("zpos").value, coronal: +$("ypos").value, sagittal: +$("xpos").value };
   $("zposV").textContent = pos.axial; $("yposV").textContent = pos.coronal; $("xposV").textContent = pos.sagittal;
-  const k = `${sulcal}|${seed}|${lesions}`;
-  if (k !== key) { phantom = createPhantom({ seed, sulcalDepthMm: sulcal, lesions }); key = k; }
+  const k = `${source}|${seed}|${sulcal}|${lesions}`;
+  if (k === key) requested = k; // back to the phantom already shown: drop any load still in flight
+  else if (k !== requested) requestPhantom(k, source, seed, sulcal, lesions);
+  if (!phantom) return; // first phantom still on its way
   const lut = lookup(mode, $("window").value);
   const t0 = performance.now();
   for (const plane of ["axial", "coronal", "sagittal"]) {
@@ -88,5 +113,11 @@ if (q.get("lesions") === "1") $("lesions").checked = true;
 
 let pending = false;
 const schedule = () => { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; draw(); }); } };
-for (const id of ["mode", "window", "res", "sulcal", "seed", "lesions", "zpos", "ypos", "xpos"]) $(id).addEventListener("input", schedule);
+for (const id of ["mode", "window", "res", "sulcal", "seed", "lesions", "zpos", "ypos", "xpos", "phantomSrc"]) $(id).addEventListener("input", schedule);
 draw();
+// Offer BrainWeb only if its data file is present; otherwise the page stays exactly as it is.
+brainwebAvailable("../").then((ok) => {
+  if (!ok) return;
+  $("phantomSrcBox").hidden = $("phantomSrc").hidden = $("bwHint").hidden = false;
+  if (q.get("phantom") === "brainweb") { $("phantomSrc").value = "brainweb"; schedule(); }
+});

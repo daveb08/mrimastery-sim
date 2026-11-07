@@ -19,10 +19,15 @@
 <main>
   <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
   <h1>Procedural head phantom</h1>
-  <p class="sub">A generated, labeled head and neck with no stored data, placed from standard-atlas landmarks. The contrast simulator and k-space explorer image this phantom.</p>
+  <p class="sub">A generated, labeled head and neck with no stored data, placed from standard-atlas landmarks. The contrast simulator and k-space explorer image this phantom.<span id="bwHint" hidden> Choose BrainWeb for a real head's anatomy.</span></p>
 
   <div class="panel">
     <div class="controls">
+      <div id="phantomSrcBox" hidden><label for="phantomSrc">Phantom</label>
+        <select id="phantomSrc" hidden>
+          <option value="generated">Generated</option>
+          <option value="brainweb">BrainWeb</option>
+        </select></div>
       <div><label for="mode">Display</label>
         <select id="mode">
           <option value="labels">Tissue labels</option>
@@ -49,6 +54,8 @@
       <div><label for="xpos">Sagittal slice (x, mm) <span class="v" id="xposV"></span></label>
         <input id="xpos" type="range" min="-70" max="70" step="1" value="5"></div>
     </div>
+    <p class="caption" id="bwStatus" role="status"></p>
+    <p class="caption" id="bwCredit" hidden>Anatomy: <a href="https://brainweb.bic.mni.mcgill.ca/brainweb/" target="_blank" rel="noopener">BrainWeb (McGill), subject 04</a>. BrainWeb covers the head down to about the skull base.</p>
     <div class="legend" id="legend"></div>
   </div>
 
