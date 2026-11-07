@@ -67,6 +67,8 @@ const PAGES = [
     ["expect", "lab frame survives a change of experiment", `document.getElementById("frame").value === "lab" && !document.getElementById("labNote").hidden`],
     ["set", "frame", "rot"],
     ["expect", "rotating frame hides the lab label", `document.getElementById("labNote").hidden`],
+    ["click", "play"], ["wait", 800], ["click", "reset"],
+    ["expect", "Reset pauses and returns to equilibrium", `+document.getElementById("time").value === 0 && document.getElementById("play").textContent === "Play" && document.getElementById("readout").textContent.includes("start")`],
   ] },
   { name: "coil", path: "coil/", steps: [
     ["cycle", "geometry"], ["set", "radius", 8],

@@ -322,6 +322,8 @@ for (const id of ["program", "pmode", "flip", "b1", "phase", "shape", "pdur", "d
 }
 $("time").addEventListener("input", () => { setPlaying(false); showFrame(currentFrame()); });
 $("play").addEventListener("click", () => setPlaying(!playing));
+// Reset: pause and go back to frame 0 (M at equilibrium along z), keeping every setting.
+$("reset").addEventListener("click", () => { setPlaying(false); $("time").value = 0; showFrame(0); });
 // Changing frame only redraws: same simulation, same place in time, playback carries on.
 $("frame").addEventListener("input", () => {
   $("labNote").hidden = !isLab();
