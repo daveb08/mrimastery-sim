@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { runProgram } from "./bloch.js";
-import { LAB_DEG_PER_FRAME, labAngle, toLab, rfAt } from "./labframe.js";
+import { LAB_DEG_PER_FRAME, labAngle, toLab, rfAt, rimArrow, flipSoFar } from "./labframe.js";
 
 const near = (a, b, tol = 1e-3) =>
   assert.ok(Math.abs(a - b) <= tol, `${a} != ${b} (tol ${tol})`);
@@ -59,4 +59,31 @@ test("rfAt: arrow length compares pulses: a 180 of the same duration is twice a 
 test("rfAt: a negative flip reverses the field", () => {
   const events = [{ type: "rf", flipDeg: -90, durMs: 1, dtMs: 0.1, shape: "rect" }];
   near(rfAt(events, [10], 5).bx, -1);
+});
+
+test("rimArrow: B1 sits outside the sphere, pointing along the field", () => {
+  const a = rimArrow(0.5, 0);
+  near(a.from[0], 1.08); near(a.from[1], 0); near(a.from[2], 0);
+  near(a.to[0], 1.28); near(a.to[1], 0);
+  const full = rimArrow(0, 1);
+  near(full.from[1], 1.08); near(full.to[1], 1.48);
+});
+
+test("rimArrow: a reversed field sits on the opposite side; no field, no arrow", () => {
+  const a = rimArrow(-1, 0);
+  near(a.from[0], -1.08); near(a.to[0], -1.48);
+  assert.equal(rimArrow(0, 0), null);
+});
+
+test("flipSoFar: nominal flip built up within the current pulse", () => {
+  const events = [{ type: "rf", flipDeg: 90, durMs: 1, dtMs: 0.1, shape: "rect" },
+                  { type: "delay", durMs: 1, dtMs: 0.1 },
+                  { type: "rf", flipDeg: 180, durMs: 1, dtMs: 0.1, shape: "rect" }];
+  const ends = [10, 20, 30];
+  near(flipSoFar(events, ends, 1), 9);
+  near(flipSoFar(events, ends, 5), 45);
+  near(flipSoFar(events, ends, 10), 90);
+  assert.equal(flipSoFar(events, ends, 0), null);
+  assert.equal(flipSoFar(events, ends, 15), null);
+  near(flipSoFar(events, ends, 25), 90);
 });

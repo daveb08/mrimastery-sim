@@ -40,3 +40,28 @@ export function rfAt(events, eventEnds, frameIndex) {
   const ph = ((ev.phaseDeg ?? 0) * Math.PI) / 180;
   return { bx: amp * Math.cos(ph), by: amp * Math.sin(ph) };
 }
+
+// B1 drawn as a field outside the unit sphere rather than as a vector from the origin, so it cannot be mistaken
+// for magnetization. B1 is uniform over the sample, so where it is drawn is a convention. The arrow starts just
+// outside the sphere along the field direction (a reversed field sits on the opposite side) and its length is
+// 0.4 x the field relative to the strongest pulse. Null when there is no field.
+export const RIM_START = 1.08, RIM_LENGTH = 0.4;
+export function rimArrow(bx, by) {
+  const mag = Math.hypot(bx, by);
+  if (mag < 1e-9) return null;
+  const ux = bx / mag, uy = by / mag, r = RIM_START + RIM_LENGTH * mag;
+  return { from: [RIM_START * ux, RIM_START * uy, 0], to: [r * ux, r * uy, 0] };
+}
+
+// Nominal flip angle (degrees, on resonance) the current pulse has applied by frame `frameIndex`: the B1 area so
+// far. Null at frame 0 and outside RF events.
+export function flipSoFar(events, eventEnds, frameIndex) {
+  if (frameIndex <= 0) return null;
+  const k = eventEnds.findIndex((end) => frameIndex <= end);
+  if (k < 0 || events[k].type !== "rf") return null;
+  const ev = events[k], wave = rfWave(ev), h = ev.durMs / wave.length;
+  const start = k === 0 ? 0 : eventEnds[k - 1];
+  let area = 0;
+  for (let s = 0; s < frameIndex - start; s++) area += wave[s] * h * 1e-3;
+  return 360 * area;
+}

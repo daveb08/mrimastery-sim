@@ -69,6 +69,12 @@ const PAGES = [
     ["expect", "rotating frame hides the lab label", `document.getElementById("labNote").hidden`],
     ["click", "play"], ["wait", 800], ["click", "reset"],
     ["expect", "Reset pauses and returns to equilibrium", `+document.getElementById("time").value === 0 && document.getElementById("play").textContent === "Play" && document.getElementById("readout").textContent.includes("start")`],
+    ["set", "time", 40],
+    ["expect", "mid-pulse readout shows the flip so far", `/\\d+° of 180° so far/.test(document.getElementById("readout").textContent)`],
+    ["expect", "B1 field is drawn mid-pulse", `document.getElementById("scene").data.some((t) => t.name === "B1" && t.visible !== false)`],
+    ["click", "showB1"],
+    ["expect", "Show B1 off hides the field", `document.getElementById("scene").data.filter((t) => t.name === "B1").every((t) => t.visible === false)`],
+    ["click", "showB1"],
   ] },
   { name: "coil", path: "coil/", steps: [
     ["cycle", "geometry"], ["set", "radius", 8],

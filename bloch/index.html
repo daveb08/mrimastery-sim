@@ -28,8 +28,9 @@
            padding: 7px 14px; font-weight: 600; cursor: pointer; }
   button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .transport { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
-  .transport input { flex: 1; }
-  @media (max-width: 800px) { .transport { flex-wrap: wrap; } .transport input { min-width: 60%; } }
+  .transport input[type=range] { flex: 1; }
+  .transport .b1toggle { display: flex; align-items: center; gap: 4px; margin: 0; white-space: nowrap; color: var(--text); }
+  @media (max-width: 800px) { .transport { flex-wrap: wrap; } .transport input[type=range] { min-width: 60%; } }
   #readout { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .85rem; min-width: 22ch; }
   /* the 3D view and the signal plot share the window height below the header and the play bar */
   #scene { height: max(380px, calc(68vh - 160px)); }
@@ -88,7 +89,9 @@
       <p class="note">Positive off-resonance precesses clockwise seen from +z.
       A spread of 0 shows a single spin; otherwise the signal averages 113 spins across the range and 15 of them are drawn.
       The yellow arrow is the mean magnetization; the violet arrows are individual spins.
-      The orange arrow is the RF field B1 (the part rotating with the spins), drawn while a pulse plays.</p>
+      The orange arrow outside the sphere is the RF field B1 (the part rotating with the spins), drawn while a pulse plays.
+      B1 is the same throughout the sample; it is drawn outside so it is not mistaken for magnetization. Its length shows
+      B1 strength relative to the strongest pulse, not the tip angle, which builds up over the pulse (see "so far").</p>
     </section>
     <section>
       <div class="transport">
@@ -96,6 +99,7 @@
         <button id="reset" type="button" title="Back to the start: M at equilibrium along z">Reset</button>
         <input id="time" type="range" min="0" max="1000" value="0" step="any" aria-label="Time">
         <span id="readout"></span>
+        <label class="b1toggle"><input type="checkbox" id="showB1" checked> Show B1 field</label>
         <select id="frame" aria-label="Reference frame" style="width:auto">
           <option value="rot" selected>Rotating frame</option>
           <option value="lab">Lab frame</option>
