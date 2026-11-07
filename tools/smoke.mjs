@@ -155,8 +155,10 @@ const PAGES = [
     ["expect", "BrainWeb draws with its credit (skipped without data)", `(async () => {
       const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
       s.value = "brainweb"; s.dispatchEvent(new Event("input", { bubbles: true }));
-      for (let i = 0; i < 50 && document.getElementById("bwCredit").hidden; i++) await new Promise((r) => setTimeout(r, 100));
-      return !document.getElementById("bwCredit").hidden && document.getElementById("seed").disabled; })()`],
+      for (let i = 0; i < 50 && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
+      return document.body.dataset.phantom === "brainweb" && document.getElementById("bwStatus").textContent === ""
+        && !document.getElementById("bwStatus").offsetParent
+        && !document.getElementById("bwCredit").hidden && document.getElementById("seed").disabled; })()`],
   ] },
   { name: "tuning", path: "tuning/", steps: [
     ["click", "auto"], ["expect", "Tune & match gives a matched coil", `!!document.querySelector("#status .ok")`],

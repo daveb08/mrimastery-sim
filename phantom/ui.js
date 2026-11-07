@@ -54,21 +54,23 @@ function lookup(mode, windowMode) {
   return lut;
 }
 
-let phantom = null, key = "", requested = "";
+let phantom = null, key = "", requested = "", shown = "generated"; // shown: source of the phantom on screen
+function setStatus(text) { $("bwStatus").textContent = text; $("bwStatus").hidden = !text; }
 // The phantom arrives asynchronously (BrainWeb loads a file). A result is used only if it is still the latest choice.
 function requestPhantom(k, source, seed, sulcal, lesions) {
   requested = k;
-  if (source === "brainweb") $("bwStatus").textContent = "Loading BrainWeb anatomy…";
+  if (source === "brainweb") setStatus("Loading BrainWeb anatomy…");
   makePhantom(source, { rootUrl: "../", seed, sulcalDepthMm: sulcal, lesions }).then((p) => {
     if (k !== requested) return;
-    phantom = p; key = k;
-    if (source === "brainweb") $("bwStatus").textContent = "";
+    phantom = p; key = k; shown = source;
+    document.body.dataset.phantom = source;
+    setStatus("");
     draw();
   }, () => {
     if (k !== requested) return;
     requested = "";
     $("phantomSrc").value = "generated";
-    $("bwStatus").textContent = "BrainWeb anatomy could not be loaded";
+    setStatus("BrainWeb anatomy could not be loaded");
     draw();
   });
 }
@@ -76,10 +78,10 @@ function draw() {
   const sulcal = +$("sulcal").value, seed = +$("seed").value, lesions = $("lesions").checked;
   const mode = $("mode").value, size = +$("res").value;
   const source = $("phantomSrc").value;
-  const bw = source === "brainweb";
+  const bw = shown === "brainweb"; // credit and fixed-anatomy controls follow what is drawn, not the pending choice
   $("sulcal").disabled = $("seed").disabled = bw;
   $("bwCredit").hidden = !bw;
-  if (!bw && $("bwStatus").textContent.startsWith("Loading")) $("bwStatus").textContent = "";
+  if (source !== "brainweb" && $("bwStatus").textContent.startsWith("Loading")) setStatus("");
   $("sulcalV").textContent = sulcal; $("seedV").textContent = seed;
   const pos = { axial: +$("zpos").value, coronal: +$("ypos").value, sagittal: +$("xpos").value };
   $("zposV").textContent = pos.axial; $("yposV").textContent = pos.coronal; $("xposV").textContent = pos.sagittal;
