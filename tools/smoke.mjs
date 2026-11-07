@@ -110,6 +110,31 @@ const PAGES = [
     ["expect", "selecting a slice in the other pass plays that pass", `(() => { document.querySelector('#strip figure[data-j="1"]').click();
       return (document.getElementById("passNote").innerText.startsWith("Pass 2 of 2") && document.querySelector("#strip figure.sel")?.dataset.j === "1") || document.getElementById("passNote").innerText; })()`],
     ["expect", "profile plot drawn", `!!document.querySelector('#profilePlot .main-svg')`],
+    ["expect", "BrainWeb choice shown only when its data is present", `(async () => {
+      const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
+      await new Promise((r) => setTimeout(r, 300));
+      return document.getElementById("phantomSrc").hidden === !ok; })()`],
+    ["expect", "BrainWeb redraws the image with its credit (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      const lit = () => { const c = document.getElementById("rCanvas"); const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+        let n = 0; for (let i = 0; i < d.length; i += 4) n += d[i]; return n; };
+      document.getElementById("fillAll").click(); const before = lit();
+      s.value = "brainweb"; s.dispatchEvent(new Event("change", { bubbles: true }));
+      for (let i = 0; i < 80 && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      return document.body.dataset.phantom === "brainweb" && document.getElementById("bwStatus").textContent === ""
+        && !document.getElementById("bwCredit").hidden && (() => { document.getElementById("fillAll").click(); const after = lit(); return after > 0 && after !== before; })()
+        && location.search.includes("phantom=brainweb"); })()`],
+    ["url", "?seq=SE&slices=3&phantom=brainweb"], ["click", "fillAll"],
+    ["expect", "?phantom=brainweb: BrainWeb with data; silently Generated, select hidden and no error without it", `(async () => {
+      const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
+      for (let i = 0; i < 80 && ok && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      const s = document.getElementById("phantomSrc");
+      const thumbs = document.querySelectorAll("#strip canvas").length === 3;
+      if (ok) return document.body.dataset.phantom === "brainweb" && s.value === "brainweb" && !document.getElementById("bwCredit").hidden && thumbs;
+      return s.hidden && s.value === "generated" && document.body.dataset.phantom !== "brainweb" && document.getElementById("bwCredit").hidden
+        && document.getElementById("bwStatus").hidden && !location.search.includes("phantom") && thumbs; })()`],
     ["expect", "no sequence error shown", `(${VISIBLE_ALERTS}) || true`],
     // dragging Slices across 1 shows the gap and order and hides the inversion, without a rebuild of the slider
     ["url", "?seq=SE"], ["set", "k_slices", 5],

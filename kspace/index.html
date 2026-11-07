@@ -62,6 +62,11 @@
     </div>
 
     <div class="panel" style="margin-bottom:12px">
+      <div id="phantomSrcBox" hidden style="margin-bottom:8px"><label style="font-size:.9rem;color:var(--muted)" for="phantomSrc">Phantom</label>
+        <select id="phantomSrc" hidden style="width:auto">
+          <option value="generated" selected>Generated</option>
+          <option value="brainweb">BrainWeb</option>
+        </select></div>
       <div class="kpanels">
         <div><h2>K-space: the path so far and the samples taken</h2><canvas id="kCanvas" width="560" height="560"></canvas></div>
         <div><h2>Image from the samples taken so far</h2><canvas id="rCanvas" width="1" height="1"></canvas></div>
@@ -85,6 +90,8 @@
         <span id="clock"></span>
       </div>
       <p class="caption" id="kNote"></p>
+      <p class="caption" id="bwStatus" role="status" hidden></p>
+      <p class="caption" id="bwCredit" hidden>Anatomy: <a href="https://brainweb.bic.mni.mcgill.ca/brainweb/" target="_blank" rel="noopener">BrainWeb (McGill), subject 04</a>. BrainWeb covers the head down to about the skull base.</p>
       <p class="caption">The blue line is the path k(t) traced during this TR; the dot is where k is now. During the ADC windows
         the signal is sampled and k-space fills in. Idle time (the shaded breaks in the diagram) is skipped during playback, except in
         real time, which plays every millisecond of the scan.
