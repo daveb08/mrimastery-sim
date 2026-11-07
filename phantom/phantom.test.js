@@ -276,3 +276,7 @@ test("the face merges with the neck at jaw level", () => {
   assert.ok(air > 0 && air < 20, `airway voxels ${air}`);
   assert.notEqual(p.labelAt(30, 40, -110), AIR);
 });
+test("EXAMPLE_LESIONS_MNI has six lesions", async () => {
+  const { EXAMPLE_LESIONS_MNI } = await import("./phantom.js");
+  assert.equal(EXAMPLE_LESIONS_MNI.length, 6);
+});

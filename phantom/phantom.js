@@ -291,16 +291,19 @@ const SPINE_LEVELS = [-64, -80, -97.5, -115, -132.5, -150]; // C1 ring, then C2 
 const CHIASM = tubeP([[13, 30, -24, 2.3], [5, 24, -16, 2.3], [0, 21, -14, 2.5]]);
 
 // options: seed (anatomy variation), sulcalDepthMm (0 gives a smooth brain), lesions (bool)
+// Example white-matter lesions (MNI-style centre, semi-axes; mm): periventricular, deep and near the cortex.
+export const EXAMPLE_LESIONS_MNI = [
+  [[-24, 12, 24], [4, 5, 4]], [[22, -6, 28], [3, 3, 3]], [[-30, -30, 26], [5, 4, 4]], [[30, -50, 18], [3.5, 3.5, 3.5]],
+  [[-18, 34, 18], [2.5, 2.5, 2.5]], [[-36, 2, 34], [3, 3, 3]],
+];
+
 export function createPhantom({ seed = 1, sulcalDepthMm = 14, lesions = false } = {}) {
   const nWarp = makeNoise(seed * 7919 + 1), nA = makeNoise(seed * 7919 + 2);
   const nB = makeNoise(seed * 7919 + 3), nC = makeNoise(seed * 7919 + 4), nCb = makeNoise(seed * 7919 + 5);
   const depthScale = sulcalDepthMm / 14;
 
-  // example white-matter lesions (MNI centre, semi-axes): periventricular, deep and near the cortex
-  const lesionList = lesions
-    ? [[[-24, 12, 24], [4, 5, 4]], [[22, -6, 28], [3, 3, 3]], [[-30, -30, 26], [5, 4, 4]], [[30, -50, 18], [3.5, 3.5, 3.5]],
-      [[-18, 34, 18], [2.5, 2.5, 2.5]], [[-36, 2, 34], [3, 3, 3]]].map(([c, r]) => [...mni(...c), ...r.map((v) => S * v)])
-    : [];
+  // example white-matter lesions (see EXAMPLE_LESIONS_MNI)
+  const lesionList = lesions ? EXAMPLE_LESIONS_MNI.map(([c, r]) => [...mni(...c), ...r.map((v) => S * v)]) : [];
   const inside = (list, x, y, z) => list.some(([cx, cy, cz, a, b, c]) => sdEllipsoid(x - cx, y - cy, z - cz, a, b, c) < 0);
 
   // Sulci are thin sheets around the zero level of a noise field sampled on a sphere around the
