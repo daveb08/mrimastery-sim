@@ -1,6 +1,6 @@
-// BrainWeb anatomy phantom core: label mapping, downsampling and lookup. No I/O.
+// BrainWeb anatomy phantom: label mapping, downsampling, lookup, and the optional data loader.
 // Volumes are in our orientation (+x patient left, +y anterior, +z superior), index = i + nx*(j + ny*k).
-import { LABELS, EXAMPLE_LESIONS_MNI } from "./phantom.js";
+import { LABELS, EXAMPLE_LESIONS_MNI, createPhantom } from "./phantom.js";
 
 const { AIR, WM, GM, CSF, FAT, BONE, LESION, MUSCLE } = LABELS;
 
@@ -53,4 +53,56 @@ export function brainwebPhantom(volume, meta, { lesions = false } = {}) {
     return label === WM && list.length && inLesion(x, y, z) ? LESION : label;
   }
   return { labelAt, options: { source: "brainweb", lesions } };
+}
+
+// ---- Loader. The data is git-ignored (not redistributable yet); pages offer BrainWeb only if it loads. ----
+export const BRAINWEB_DIR = "data/brainweb/";
+export const BRAINWEB_FILE = "subject04_labels_1mm";
+
+const fileUrl = (rootUrl, ext) => `${rootUrl}${BRAINWEB_DIR}${BRAINWEB_FILE}${ext}`;
+
+// True only when the sidecar loads as JSON. Never throws.
+export async function brainwebAvailable(rootUrl, fetchFn = fetch) {
+  try {
+    const res = await fetchFn(fileUrl(rootUrl, ".json"));
+    if (!res.ok) return false;
+    await res.json();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const loads = new Map(); // rootUrl -> Promise<{ volume, meta }>: one download per page life
+
+async function fetchBrainweb(rootUrl, fetchFn) {
+  const metaRes = await fetchFn(fileUrl(rootUrl, ".json"));
+  if (!metaRes.ok) throw new Error(`BrainWeb sidecar: HTTP ${metaRes.status}`);
+  const meta = await metaRes.json();
+  const volRes = await fetchFn(fileUrl(rootUrl, ".u8.gz"));
+  if (!volRes.ok) throw new Error(`BrainWeb volume: HTTP ${volRes.status}`);
+  const stream = volRes.body.pipeThrough(new DecompressionStream("gzip"));
+  const volume = new Uint8Array(await new Response(stream).arrayBuffer());
+  const expected = meta.dims[0] * meta.dims[1] * meta.dims[2];
+  if (volume.length !== expected) throw new Error(`BrainWeb volume: ${volume.length} bytes, expected ${expected}`);
+  return { volume, meta };
+}
+
+// Memoised per rootUrl; a failed load is forgotten so the next call retries.
+export function loadBrainweb(rootUrl, fetchFn = fetch) {
+  let p = loads.get(rootUrl);
+  if (!p) {
+    p = fetchBrainweb(rootUrl, fetchFn);
+    loads.set(rootUrl, p);
+    p.catch(() => { if (loads.get(rootUrl) === p) loads.delete(rootUrl); });
+  }
+  return p;
+}
+
+export async function makePhantom(name, { rootUrl, lesions = false, seed = 1, sulcalDepthMm = 14, fetchFn } = {}) {
+  if (name === "brainweb") {
+    const { volume, meta } = await loadBrainweb(rootUrl, fetchFn);
+    return brainwebPhantom(volume, meta, { lesions });
+  }
+  return createPhantom({ seed, sulcalDepthMm, lesions });
 }

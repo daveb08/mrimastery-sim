@@ -70,3 +70,74 @@ test("lesions paint WM only", () => {
   assert.equal(brainwebPhantom(wm, meta, { lesions: false }).labelAt(...pt), WM);
   assert.equal(brainwebPhantom(vol(meta.dims, GM), meta, { lesions: true }).labelAt(...pt), GM);
 });
+
+// ---- loader (Task 2) ----
+import { gzipSync } from "node:zlib";
+import { createPhantom } from "./phantom.js";
+import { BRAINWEB_DIR, BRAINWEB_FILE, brainwebAvailable, loadBrainweb, makePhantom } from "./brainweb.js";
+
+const FIX_META = { dims: [2, 2, 2], voxelMm: 1, origin: [0, 0, 0] };
+const FIX_VOL = new Uint8Array([AIR, WM, GM, CSF, FAT, BONE, MUSCLE, WM]);
+
+// Fake fetch serving a sidecar and a gzipped volume under rootUrl; records requested URLs.
+function fakeFetch({ meta = FIX_META, volume = FIX_VOL } = {}) {
+  const seen = [];
+  const fn = async (url) => {
+    seen.push(url);
+    if (url.endsWith(".json")) return new Response(JSON.stringify(meta), { status: 200 });
+    if (url.endsWith(".u8.gz")) return new Response(gzipSync(volume), { status: 200 });
+    return new Response("not found", { status: 404 });
+  };
+  fn.seen = seen;
+  return fn;
+}
+
+test("BRAINWEB_DIR and BRAINWEB_FILE", () => {
+  assert.equal(BRAINWEB_DIR, "data/brainweb/");
+  assert.equal(BRAINWEB_FILE, "subject04_labels_1mm");
+});
+
+test("brainwebAvailable is false for 404, bad JSON or a network error, true for a good sidecar", async () => {
+  assert.equal(await brainwebAvailable("r404/", async () => new Response("no", { status: 404 })), false);
+  assert.equal(await brainwebAvailable("rbad/", async () => new Response("{not json", { status: 200 })), false);
+  assert.equal(await brainwebAvailable("rnet/", async () => { throw new TypeError("network"); }), false);
+  const f = fakeFetch();
+  assert.equal(await brainwebAvailable("../", f), true);
+  assert.deepEqual(f.seen, ["../data/brainweb/subject04_labels_1mm.json"]);
+});
+
+test("loadBrainweb returns the volume and meta", async () => {
+  const { volume, meta } = await loadBrainweb("rt/", fakeFetch());
+  assert.ok(volume instanceof Uint8Array);
+  assert.deepEqual([...volume], [...FIX_VOL]);
+  assert.deepEqual(meta.dims, [2, 2, 2]);
+});
+
+test("loadBrainweb downloads once", async () => {
+  const f = fakeFetch();
+  const a = await loadBrainweb("once/", f);
+  const b = await loadBrainweb("once/", f);
+  assert.equal(a.volume, b.volume);
+  assert.equal(f.seen.filter((u) => u.endsWith(".u8.gz")).length, 1);
+});
+
+test("loadBrainweb rejects a wrong-size volume and retries next time", async () => {
+  const bad = fakeFetch({ volume: new Uint8Array(7) });
+  await assert.rejects(loadBrainweb("retry/", bad));
+  const good = fakeFetch();
+  const { volume } = await loadBrainweb("retry/", good);
+  assert.equal(volume.length, 8);
+  assert.equal(good.seen.filter((u) => u.endsWith(".u8.gz")).length, 1);
+});
+
+test('makePhantom("generated") matches createPhantom', async () => {
+  const p = await makePhantom("generated");
+  assert.equal(p.labelAt(0, 17, 30), createPhantom().labelAt(0, 17, 30));
+});
+
+test('makePhantom("brainweb") uses the loaded volume', async () => {
+  const p = await makePhantom("brainweb", { rootUrl: "mk/", fetchFn: fakeFetch() });
+  assert.equal(p.labelAt(1, 0, 0), WM);
+  assert.equal(p.labelAt(5, 5, 5), AIR);
+  assert.equal(p.options.source, "brainweb");
+});
