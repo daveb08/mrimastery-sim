@@ -61,6 +61,12 @@ const PAGES = [
     ["set", "b1Num", 11.74], ["set", "pdurNum", 0.37], ["set", "pdurNum", 0.5],
     ["expect", "typed B1 and duration are used exactly", `document.getElementById("flipEq").textContent.includes("11.74 µT × 0.50 ms") && document.getElementById("flipV").textContent === "90°"`],
     ["set", "pmode", "flip"],
+    ["set", "frame", "lab"], ["click", "play"], ["wait", 1500], ["click", "play"],
+    ["expect", "lab frame shows its label", `!document.getElementById("labNote").hidden`],
+    ["set", "program", "ir"],
+    ["expect", "lab frame survives a change of experiment", `document.getElementById("frame").value === "lab" && !document.getElementById("labNote").hidden`],
+    ["set", "frame", "rot"],
+    ["expect", "rotating frame hides the lab label", `document.getElementById("labNote").hidden`],
   ] },
   { name: "coil", path: "coil/", steps: [
     ["cycle", "geometry"], ["set", "radius", 8],

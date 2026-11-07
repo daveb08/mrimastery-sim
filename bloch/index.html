@@ -29,6 +29,7 @@
   button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .transport { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
   .transport input { flex: 1; }
+  @media (max-width: 800px) { .transport { flex-wrap: wrap; } .transport input { min-width: 60%; } }
   #readout { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .85rem; min-width: 22ch; }
   /* the 3D view and the signal plot share the window height below the header and the play bar */
   #scene { height: max(380px, calc(68vh - 160px)); }
@@ -47,7 +48,7 @@
 <main>
   <nav style="font-size:.85rem;margin-bottom:8px"><a href="../" style="color:#6699FF">&larr; All simulators</a></nav>
   <h1>Bloch Simulator</h1>
-  <p class="sub">Magnetization in the rotating frame, integrated from the Bloch equations.</p>
+  <p class="sub">Magnetization in the rotating or lab frame, integrated from the Bloch equations.</p>
   <div class="layout">
     <section class="panel" aria-label="Controls">
       <label for="program">Experiment</label>
@@ -86,15 +87,21 @@
       <input id="t2" type="range" min="10" max="2000" step="5" value="100">
       <p class="note">Positive off-resonance precesses clockwise seen from +z.
       A spread of 0 shows a single spin; otherwise the signal averages 113 spins across the range and 15 of them are drawn.
-      The yellow arrow is the mean magnetization; the violet arrows are individual spins.</p>
+      The yellow arrow is the mean magnetization; the violet arrows are individual spins.
+      The orange arrow is the RF field B1 (the part rotating with the spins), drawn while a pulse plays.</p>
     </section>
     <section>
       <div class="transport">
         <button id="play" type="button">Play</button>
         <input id="time" type="range" min="0" max="1000" value="0" step="any" aria-label="Time">
         <span id="readout"></span>
+        <select id="frame" aria-label="Reference frame" style="width:auto">
+          <option value="rot" selected>Rotating frame</option>
+          <option value="lab">Lab frame</option>
+        </select>
       </div>
       <div id="scene" class="panel"></div>
+      <p id="labNote" class="note" hidden>Lab frame: precession drawn at an illustrative rate, millions of times slower than the true Larmor frequency (γB0 ≈ 64 MHz at 1.5 T).</p>
       <div id="traces" class="panel"></div>
     </section>
   </div>

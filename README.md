@@ -6,7 +6,7 @@ Plotly (pinned, from jsDelivr) draws the plots.
 | Path | Simulator |
 |---|---|
 | `/` | Landing page linking to each simulator |
-| `bloch/` | Bloch-equation magnetization simulator (3D vector, spin echo, inversion recovery) |
+| `bloch/` | Bloch-equation magnetization simulator (3D vector, spin echo, inversion recovery; rotating and lab frame views) |
 | `signal/` | Fourier transforms, sampling/aliasing, RF pulse and slice profile |
 | `coil/` | Biot-Savart coil fields, B1+ and flip-angle maps (coil geometry to excitation) |
 | `kspace/` | K-space explorer: pulse sequences from real gradient events (`shared/sequence.js`), exact k-space paths (`shared/ktraj.js`) and a to-scale diagram (`shared/seqdiagram.js`) |
