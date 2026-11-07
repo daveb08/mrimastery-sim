@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MRI Mastery Simulators: Quick Guide</title>
+<style>
+  :root { color-scheme: light; }
+  body { font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1c2430; background: #fff; margin: 0; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 20px 40px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 22px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #d5dbe3; }
+  h3 { font-size: 1rem; margin: 14px 0 2px; }
+  p, li { margin: 4px 0; }
+  ul, ol { padding-left: 22px; margin: 4px 0; }
+  .sub { color: #5a6675; margin: 0 0 12px; }
+  .note { background: #fff6e0; border: 1px solid #e8c875; border-radius: 6px; padding: 8px 12px; margin: 12px 0; }
+  .tip { color: #38506b; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  td, th { text-align: left; vertical-align: top; padding: 5px 8px; border-bottom: 1px solid #e3e8ee; }
+  th { background: #f2f5f9; }
+  td:first-child { white-space: nowrap; font-weight: 600; }
+  a { color: #1456a8; }
+  @media print { main { padding: 0; } h2 { break-after: avoid; } tr, .note { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>MRI Mastery Simulators: quick guide</h1>
+  <p class="sub">Free, interactive MRI physics that runs in your browser. Nothing to install, no sign-in. Works on a laptop or desktop; a large screen helps.</p>
+
+  <div class="note"><strong>Please read:</strong> this is an early release for learning and feedback. It has not been fully quality-checked. Some pages are marked "preview" or "in progress", and results may contain errors. It is a teaching model with simplified physics and a computer-generated head, not a clinical tool. Do not use it for scanner, protocol or safety decisions. Corrections are very welcome.</div>
+
+  <h2>Start here</h2>
+  <p>Open the home page and pick a card. Every simulator is independent, so you can go in any order. If you are new, the order below builds from the fundamentals up to a full protocol.</p>
+
+  <h2>Suggested path (about 45 minutes)</h2>
+  <ol>
+    <li><strong>Bloch Simulator</strong>: see magnetization respond to a pulse.</li>
+    <li><strong>Signal Processing</strong>: see why sampling and pulse shape matter.</li>
+    <li><strong>K-space Explorer</strong>: watch an image build up, one line at a time.</li>
+    <li><strong>MRI Contrast Simulator</strong>: put it together as a protocol, including multiple slices.</li>
+  </ol>
+  <p class="tip">Anything not on this path (coil fields, tuning, the phantom viewer) is a good second visit.</p>
+
+  <h2>What each page does</h2>
+  <table>
+    <tr><th>Page</th><th>What to try</th></tr>
+    <tr><td>Bloch Simulator</td><td>Choose an <em>Experiment</em> (pulse then free precession, spin echo, inversion recovery), then press <em>Play</em>. Change flip angle, off-resonance, T1 and T2 and watch the 3D vector and the Mx/My/Mz traces. Try <em>Isochromat spread</em> to see dephasing and the spin-echo refocusing.</td></tr>
+    <tr><td>Signal Processing</td><td>Top panel: change signal type, width and sampling rate and compare the signal with its Fourier transform; push the sampling rate down to see aliasing. Lower panel: change time-bandwidth product and gradient strength to see how RF pulse shape sets slice thickness and profile.</td></tr>
+    <tr><td>K-space Explorer</td><td>Pick a sequence, press <em>Play</em>, and watch the gradients trace a path through k-space while the image fills in. Use <em>TR</em> stepping, <em>Fill all</em> and <em>Reset</em>, and the speed menu. With multiple slices you also get a strip of every slice and the slice profiles.</td></tr>
+    <tr><td>MRI Contrast Simulator</td><td>Pick a sequence and field strength (or a preset protocol) and change TR, TE, flip angle and so on. Watch the images, signal and SNR bars, scan time and the pulse-sequence diagram respond. The tabs hold the parameters: <em>Contrast</em>, <em>Geometry</em>, <em>Signal &amp; time</em>.</td></tr>
+    <tr><td>Coil Fields &amp; RF Excitation</td><td>Build loop or Helmholtz coils and see the field map. The <em>RF excitation</em> tab turns that field into B1+ and flip-angle maps.</td></tr>
+    <tr><td>Coil Tuning &amp; Matching</td><td>Adjust the tuning and matching capacitors to bring the S11 plot and Smith chart to the centre. Then add patient loading to see the coil detune. (Preview.)</td></tr>
+    <tr><td>Head Phantom</td><td>Browse the generated head in axial, coronal and sagittal planes with T1, T2, PD and FLAIR appearances. (Preview.)</td></tr>
+  </table>
+
+  <h2>Multi-slice imaging in the contrast simulator</h2>
+  <p>This is the best place to see how slices affect scan time and SNR.</p>
+  <ol>
+    <li>Choose a non-inversion sequence (for example GRE or spin echo) and open the <em>Geometry</em> tab.</li>
+    <li>Raise <em>Slices</em>. The scan-time meter and the TR timeline strip show how many slices fit in one TR.</li>
+    <li>When too many slices are requested, either TR rises or the scan splits into <em>concatenations</em> (repeat passes). Compare the scan times.</li>
+    <li>Toggle <em>Include cross-talk</em> and compare the signal and SNR bars. Set the gap to 0 % to make the effect obvious.</li>
+    <li>Use <em>Open in k-space explorer</em> to see the same protocol played pass by pass.</li>
+  </ol>
+  <p class="tip">Multi-slice for FLAIR, STIR and DIR is not available yet, and 3D sequences have no slice selection, so slice controls are hidden or disabled there.</p>
+
+  <h2>Tips</h2>
+  <ul>
+    <li>Hover over plots and diagrams for details. Many plots can be zoomed.</li>
+    <li>If the text is too small, use the A / A+ / A++ text-size buttons on the page. Your choice is remembered in your browser.</li>
+    <li>If something does not update, reload the page. Simulator settings are not saved between visits.</li>
+    <li>Heavy settings (many slices, large matrices) can make a page slow to redraw. Reduce the matrix or slice count if so.</li>
+  </ul>
+
+  <h2>Limits to keep in mind</h2>
+  <ul>
+    <li>The head is a procedural phantom with idealised tissue values, not patient data.</li>
+    <li>Physics is simplified (for example, no motion, flow or B0 inhomogeneity in the contrast simulator).</li>
+    <li>Vendor details differ. Treat numbers as illustrative, not as what a particular scanner will do.</li>
+  </ul>
+
+  <h2>Feedback</h2>
+  <p>Found an error, or something confusing? Please tell me in the group thread: what page, what settings, and what you expected. Thank you for testing.</p>
+</main>
+</body>
+</html>
