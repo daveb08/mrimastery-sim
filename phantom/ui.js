@@ -1,6 +1,7 @@
 import { createPhantom, sliceLabels, LABELS } from "./phantom.js";
 import { brainwebAvailable, makePhantom } from "./brainweb.js";
 import { tissuesAt } from "../contrast/physics.js";
+import { patientToScreen, screenToPatient, clampPos } from "../contrast/image.js";
 
 const $ = (id) => document.getElementById(id);
 const FOV = 250;
@@ -85,6 +86,7 @@ function draw() {
   $("sulcalV").textContent = sulcal; $("seedV").textContent = seed;
   const pos = { axial: +$("zpos").value, coronal: +$("ypos").value, sagittal: +$("xpos").value };
   $("zposV").textContent = pos.axial; $("yposV").textContent = pos.coronal; $("xposV").textContent = pos.sagittal;
+  placeSliceLines({ x: pos.sagittal, y: pos.coronal, z: pos.axial });
   const k = `${source}|${seed}|${sulcal}|${lesions}`;
   if (k === key) requested = k; // back to the phantom already shown: drop any load still in flight
   else if (k !== requested) requestPhantom(k, source, seed, sulcal, lesions);
@@ -103,7 +105,38 @@ function draw() {
     }
     ctx.putImageData(img, 0, 0);
   }
-  $("stats").textContent = `Rendered three ${size} × ${size} slices in ${(performance.now() - t0).toFixed(0)} ms (FOV ${FOV} mm).`;
+  $("stats").textContent = `Rendered three ${size} × ${size} slices in ${(performance.now() - t0).toFixed(0)} ms (FOV ${FOV} mm). Click or drag an image to move the other two slices.`;
+}
+
+// Linked slice lines: on each view, a vertical and a horizontal line where the other two slices cut it.
+function placeSliceLines(p) {
+  for (const plane of ["axial", "coronal", "sagittal"]) {
+    const f = $(`frame_${plane}`), [cr, cu] = CENTER[plane], [r, u] = patientToScreen(plane, p);
+    f.querySelector(".xh.v").style.left = `${((r - (cr - FOV / 2)) / FOV) * 100}%`;
+    f.querySelector(".xh.h").style.top = `${((cu + FOV / 2 - u) / FOV) * 100}%`;
+  }
+}
+
+// Click or drag an image to move the other two slices to that point.
+const SLIDER = { x: "xpos", y: "ypos", z: "zpos" };
+for (const plane of ["axial", "coronal", "sagittal"]) {
+  const f = $(`frame_${plane}`);
+  const pick = (e) => {
+    const rect = f.getBoundingClientRect(), [cr, cu] = CENTER[plane];
+    const right = cr + ((e.clientX - rect.left) / rect.width - 0.5) * FOV;
+    const up = cu + (0.5 - (e.clientY - rect.top) / rect.height) * FOV;
+    for (const [axis, v] of Object.entries(clampPos(screenToPatient(plane, right, up)))) $(SLIDER[axis]).value = v;
+    schedule();
+  };
+  let dragging = false;
+  f.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    try { f.setPointerCapture(e.pointerId); } catch { /* no active pointer (synthetic event) */ }
+    pick(e);
+  });
+  f.addEventListener("pointermove", (e) => { if (dragging) pick(e); });
+  f.addEventListener("pointerup", () => { dragging = false; });
+  f.addEventListener("pointercancel", () => { dragging = false; });
 }
 
 // Optional URL settings, e.g. ?mode=T1w&res=384&lesions=1&seed=3&z=20

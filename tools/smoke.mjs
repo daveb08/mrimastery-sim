@@ -225,6 +225,23 @@ const PAGES = [
       await new Promise((r) => setTimeout(r, 300));
       return document.body.dataset.phantom === "generated" && !document.getElementById("bwCite").checkVisibility()
         && document.querySelector("h1").innerText === "Procedural head phantom" && document.body.innerText.includes("not a segmentation of a real person"); })()`],
+    ["set", "xpos", 5], ["set", "ypos", 0], ["set", "zpos", 14],
+    ["expect", "linked slice lines mark the other two slices on each view", `(async () => {
+      await new Promise((r) => setTimeout(r, 200));
+      const pct = (el, prop) => parseFloat(el.style[prop]);
+      const ax = document.getElementById("frame_axial"), sag = document.getElementById("frame_sagittal");
+      // axial: x = 5 -> (5 + 125) / 250 = 52 % from the left; y = 0 -> (8 + 125 - 0) / 250 = 53.2 % from the top
+      // sagittal: y = 0 -> screen-right 0 -> (0 + 8 + 125) / 250 = 53.2 %; z = 14 -> (-25 + 125 - 14) / 250 = 34.4 %
+      return Math.abs(pct(ax.querySelector(".xh.v"), "left") - 52) < 0.5 && Math.abs(pct(ax.querySelector(".xh.h"), "top") - 53.2) < 0.5
+        && Math.abs(pct(sag.querySelector(".xh.v"), "left") - 53.2) < 0.5 && Math.abs(pct(sag.querySelector(".xh.h"), "top") - 34.4) < 0.5; })()`],
+    ["expect", "clicking an image moves the other two slices to that point", `(async () => {
+      const f = document.getElementById("frame_axial"), r = f.getBoundingClientRect();
+      // the centre of the axial view is screen (0, 8) mm: patient x = 0, y = 8
+      f.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+      f.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
+      await new Promise((r) => setTimeout(r, 200));
+      return +document.getElementById("xpos").value === 0 && +document.getElementById("ypos").value === 8
+        && +document.getElementById("zpos").value === 14 && document.getElementById("xposV").textContent === "0"; })()`],
   ] },
   { name: "tuning", path: "tuning/", steps: [
     ["click", "auto"], ["expect", "Tune & match gives a matched coil", `!!document.querySelector("#status .ok")`],

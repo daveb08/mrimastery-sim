@@ -12,6 +12,11 @@
   .views { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   @media (max-width: 1000px) { .views { grid-template-columns: 1fr; } }
   canvas { width: 100%; aspect-ratio: 1; background: #000; border-radius: 4px; display: block; }
+  /* linked slice lines and click-to-move, as in the contrast simulator */
+  .frame { position: relative; cursor: crosshair; touch-action: none; }
+  .frame .xh { position: absolute; background: rgba(255, 215, 0, .55); pointer-events: none; }
+  .frame .xh.v { width: 1px; top: 0; bottom: 0; }
+  .frame .xh.h { height: 1px; left: 0; right: 0; }
   .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .85rem; margin: 8px 0; }
   .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
   .viewhead { display: flex; justify-content: space-between; font-size: .9rem; margin-bottom: 6px; color: var(--muted); }
@@ -70,9 +75,9 @@
   </div>
 
   <div class="views" style="margin-top:12px">
-    <div class="panel"><div class="viewhead"><span>Axial</span><span>R &larr; &rarr; L</span></div><canvas id="axial" width="256" height="256"></canvas></div>
-    <div class="panel"><div class="viewhead"><span>Coronal</span><span>R &larr; &rarr; L</span></div><canvas id="coronal" width="256" height="256"></canvas></div>
-    <div class="panel"><div class="viewhead"><span>Sagittal</span><span>anterior &larr; &rarr; posterior</span></div><canvas id="sagittal" width="256" height="256"></canvas></div>
+    <div class="panel"><div class="viewhead"><span>Axial</span><span>R &larr; &rarr; L</span></div><div class="frame" id="frame_axial"><canvas id="axial" width="256" height="256"></canvas><i class="xh v"></i><i class="xh h"></i></div></div>
+    <div class="panel"><div class="viewhead"><span>Coronal</span><span>R &larr; &rarr; L</span></div><div class="frame" id="frame_coronal"><canvas id="coronal" width="256" height="256"></canvas><i class="xh v"></i><i class="xh h"></i></div></div>
+    <div class="panel"><div class="viewhead"><span>Sagittal</span><span>anterior &larr; &rarr; posterior</span></div><div class="frame" id="frame_sagittal"><canvas id="sagittal" width="256" height="256"></canvas><i class="xh v"></i><i class="xh h"></i></div></div>
   </div>
   <p class="caption" id="stats"></p>
   <p class="caption gen">Stylised anatomy, not a segmentation of a real person, with structures placed from approximate
