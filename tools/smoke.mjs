@@ -46,6 +46,19 @@ const PAGES = [
     ["click", "tabBtnImages"],
     ["click", "tabBtnGeometry"], ["click", "tabBtnSignal"], ["click", "tabBtnBars"], ["click", "tabBtnCurves"],
     ["click", "tabBtnContrast"],
+    ["expect", "BrainWeb choice shown only when its data is present", `(async () => {
+      const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
+      await new Promise((r) => setTimeout(r, 300));
+      return document.getElementById("phantomSrc").hidden === !ok; })()`],
+    ["expect", "BrainWeb draws with its credit and the explorer link (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      s.value = "brainweb"; s.dispatchEvent(new Event("change", { bubbles: true }));
+      for (let i = 0; i < 50 && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      const lit = ["cv_axial", "cv_coronal", "cv_sagittal"].every((id) => { const c = document.getElementById(id);
+        const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < d.length; i += 4 * 53) if (d[i] > 20) return true; return false; });
+      return document.body.dataset.phantom === "brainweb" && document.getElementById("bwStatus").textContent === ""
+        && !document.getElementById("bwCredit").hidden && lit && document.getElementById("kExplorer").href.includes("phantom=brainweb"); })()`],
     // multi-slice protocol: cross-talk changes the bars (32 tightly packed GRE slices); a short TR needs concatenations
     ["set", "seq", "GRE"], ["click", "tabBtnGeometry"], ["click", "tabBtnBars"], ["set", "c_gapPct", 0], ["set", "c_slices", 32],
     ["expect", "slices 32: gap, order, concatenations and cross-talk shown", `["c_gapPct", "c_sliceOrder", "c_concatenations", "c_crossTalkOn"].every((i) => document.getElementById(i).checkVisibility())`],

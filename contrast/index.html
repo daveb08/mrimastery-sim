@@ -40,8 +40,15 @@
             <div class="ctl"><label for="wlWindow">Window <span class="v" id="wlWindowV"></span></label><input id="wlWindow" type="range" min="0.01" max="4" step="0.01"></div>
             <div class="ctl"><label for="wlLevel">Level <span class="v" id="wlLevelV"></span></label><input id="wlLevel" type="range" min="0" max="4" step="0.01"></div>
             <div class="check"><input type="checkbox" id="lesions"><label for="lesions" style="margin:0;color:var(--text)">Show lesions</label></div>
+            <div class="ctl" id="phantomSrcBox" hidden><label for="phantomSrc">Phantom</label>
+              <select id="phantomSrc" hidden>
+                <option value="generated">Generated</option>
+                <option value="brainweb">BrainWeb</option>
+              </select></div>
           </div>
           <p class="caption" id="viewNote"></p>
+          <p class="caption" id="bwStatus" role="status" hidden></p>
+          <p class="caption" id="bwCredit" hidden>Anatomy: <a href="https://brainweb.bic.mni.mcgill.ca/brainweb/" target="_blank" rel="noopener">BrainWeb (McGill), subject 04</a>. BrainWeb covers the head down to about the skull base.</p>
         </div>
         <div id="tabKspace" role="tabpanel" hidden>
           <div class="kgrid">

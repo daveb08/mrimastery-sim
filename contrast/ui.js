@@ -6,6 +6,7 @@ import { meterFraction, formatTime, inPlanePixel, percentChange, formatPercent, 
 import { sweepSpec, sweep } from "./curves.js";
 import { draw, layout, axisStyle, textScale } from "../shared/plot.js";
 import { createPhantom } from "../phantom/phantom.js";
+import { brainwebAvailable, makePhantom } from "../phantom/brainweb.js";
 import { drawPulseSequence, psdParams } from "./psd.js";
 import { psdToSvg } from "./psd_svg.js";
 import {
@@ -358,6 +359,7 @@ const ORIENT = {
 };
 const pos = { x: 5, y: 0, z: 14 };
 let phantom = createPhantom({ seed: 1, sulcalDepthMm: 14, lesions: false });
+let shown = "generated", phantomKey = "generated|false", requested = ""; // shown: source of the phantom actually drawn
 const sampleCache = {}; // plane -> { key, sampled }
 const wl = { window: 1, level: 0.5 };
 const views = {};
@@ -400,10 +402,37 @@ $("autoWl").addEventListener("change", scheduleImages);
 for (const id of ["wlWindow", "wlLevel"]) $(id).addEventListener("input", () => {
   $("autoWl").checked = false; wl.window = Number($("wlWindow").value); wl.level = Number($("wlLevel").value); scheduleImages();
 });
-$("lesions").addEventListener("change", () => {
-  phantom = createPhantom({ seed: 1, sulcalDepthMm: 14, lesions: $("lesions").checked });
-  for (const k of Object.keys(sampleCache)) delete sampleCache[k];
-  scheduleImages();
+// The phantom may arrive asynchronously (BrainWeb loads a file, cached after the first time). A result is used only
+// if it is still the latest choice; the credit follows the phantom drawn, not the select.
+function setBwStatus(text) { $("bwStatus").textContent = text; $("bwStatus").hidden = !text; }
+function choosePhantom() {
+  const source = $("phantomSrc").value, lesions = $("lesions").checked, k = `${source}|${lesions}`;
+  if (k === phantomKey) { requested = k; setBwStatus(""); return; } // back to what is drawn: drop any load in flight
+  requested = k;
+  if (source === "brainweb") setBwStatus("Loading BrainWeb anatomy…");
+  makePhantom(source, { rootUrl: "../", seed: 1, sulcalDepthMm: 14, lesions }).then((ph) => {
+    if (k !== requested) return;
+    phantom = ph; shown = source; phantomKey = k;
+    for (const key of Object.keys(sampleCache)) delete sampleCache[key];
+    document.body.dataset.phantom = source;
+    $("bwCredit").hidden = source !== "brainweb";
+    setBwStatus("");
+    scheduleImages();
+  }, () => {
+    if (k !== requested) return;
+    requested = "";
+    $("phantomSrc").value = "generated";
+    choosePhantom();
+    setBwStatus("BrainWeb anatomy could not be loaded");
+  });
+}
+$("lesions").addEventListener("change", choosePhantom);
+$("phantomSrc").addEventListener("change", choosePhantom);
+// Offer BrainWeb only if its data file is present; otherwise the page stays exactly as it is.
+brainwebAvailable("../").then((ok) => {
+  if (!ok) return;
+  $("phantomSrcBox").hidden = $("phantomSrc").hidden = false;
+  if (new URLSearchParams(location.search).get("phantom") === "brainweb") { $("phantomSrc").value = "brainweb"; choosePhantom(); }
 });
 
 let imagePending = false;
@@ -429,8 +458,13 @@ function drawStackLines(plane, v, cu) {
 }
 $("showStack").addEventListener("change", scheduleImages);
 
+function updateExplorerLink() {
+  $("kExplorer").href = explorerUrl("../kspace/", shown === "brainweb" ? { ...p, phantom: "brainweb" } : p, timing);
+}
+
 function renderImages() {
   if (!model) return;
+  updateExplorerLink();
   const auto = autoWindowLevel(p, model);
   if ($("autoWl").checked) { wl.window = auto.window; wl.level = auto.level; }
   syncWlControls(auto);
@@ -438,7 +472,7 @@ function renderImages() {
   for (const plane of PLANES) {
     const ax = normalAxis(plane), v = views[plane];
     const spec = { nx: p.freqMatrix, ny: p.phaseMatrix, fovRead: p.fovRead, fovPhase: p.fovPhase, thicknessMm: p.sliceMm };
-    const key = [pos[ax], spec.nx, spec.ny, spec.fovRead, spec.fovPhase, spec.thicknessMm].join("|");
+    const key = [phantomKey, pos[ax], spec.nx, spec.ny, spec.fovRead, spec.fovPhase, spec.thicknessMm].join("|");
     if (sampleCache[plane]?.key !== key) sampleCache[plane] = { key, sampled: sampleSlice(phantom, plane, pos[ax], spec) };
     const rgba = renderPlane(sampleCache[plane].sampled, model, p, { window: wl.window, level: wl.level, noiseSeed: 12345 });
     v.canvas.width = spec.nx; v.canvas.height = spec.ny;
@@ -663,7 +697,7 @@ function renderKspace() {
   fit($("kCanvas").parentElement, nx / ny);
   fit($("rCanvas").parentElement, p.fovRead / p.fovPhase);
   $("kSize").textContent = `${nx} kx × ${ny} ky`;
-  $("kExplorer").href = explorerUrl("../kspace/", p, timing);
+  updateExplorerLink();
   $("kNote").textContent = note + ` Rendered in ${(performance.now() - t0).toFixed(0)} ms.`;
   setAnimControls();
 }

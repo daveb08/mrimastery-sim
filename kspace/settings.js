@@ -16,8 +16,9 @@ export const RANGES = {
 const KEYS = {
   seq: "seq", TE: "te", TR: "tr", flip: "flip", ETL: "etl", inversion: "inv", TI: "ti", TI1: "ti1", TI2: "ti2",
   ny: "matrix", fov: "fov", bw: "bw", sliceMm: "slice", gMax: "gmax", slew: "slew", from: "from",
-  slices: "slices", gapPct: "gap", sliceOrder: "order", conc: "conc", sel: "sel",
+  slices: "slices", gapPct: "gap", sliceOrder: "order", conc: "conc", sel: "sel", phantom: "phantom",
 };
+export const PHANTOMS = ["generated", "brainweb"];
 const NUMERIC = ["TE", "TR", "flip", "ETL", "TI", "TI1", "TI2", "fov", "bw", "sliceMm", "slices", "gapPct"];
 
 const clamp = (v, [lo, hi]) => Math.min(hi, Math.max(lo, v));
@@ -44,6 +45,7 @@ export function fromQuery(search) {
   if (q.has(KEYS.ny)) { const n = nearestMatrix(Number(q.get(KEYS.ny)) || 128); out.nx = out.ny = n; }
   if (["20", "40", "80"].includes(q.get(KEYS.gMax))) out.gMax = Number(q.get(KEYS.gMax));
   if (["70", "150", "200"].includes(q.get(KEYS.slew))) out.slew = Number(q.get(KEYS.slew));
+  if (PHANTOMS.includes(q.get(KEYS.phantom))) out.phantom = q.get(KEYS.phantom);
   if (q.has(KEYS.from)) out.from = q.get(KEYS.from).slice(0, 40);
   return out;
 }
@@ -99,6 +101,7 @@ export function fromContrast(p, timing) {
     sliceMm: clamp(p.sliceMm ?? 5, RANGES.sliceMm), from: p.seq,
   };
   out.nx = out.ny;
+  if (p.phantom === "brainweb") out.phantom = "brainweb";
   if (seq === "GRE") out.flip = clamp(p.FA ?? 30, RANGES.flip);
   if (seq === "FSE") out.ETL = clamp(p.ETL ?? 8, RANGES.ETL);
   if (seq === "EPI") out.bw = Math.max(out.bw, EPI_MIN_TIMING_BW);
