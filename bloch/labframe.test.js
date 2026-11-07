@@ -46,3 +46,17 @@ test("rfAt: sinc peaks at 1 mid-pulse and is smaller near the ends", () => {
   near(Math.max(...Array.from({ length: 80 }, (_, i) => rfAt(events, ends, i + 1).bx)), 1);
   assert.ok(Math.abs(rfAt(events, ends, 1).bx) < 0.2);
 });
+
+test("rfAt: arrow length compares pulses: a 180 of the same duration is twice a 90", () => {
+  const events = [{ type: "rf", flipDeg: 90, durMs: 1, dtMs: 0.1, shape: "rect" },
+                  { type: "delay", durMs: 1, dtMs: 0.1 },
+                  { type: "rf", flipDeg: 180, phaseDeg: 90, durMs: 1, dtMs: 0.1, shape: "rect" }];
+  const ends = [10, 20, 30];
+  near(rfAt(events, ends, 5).bx, 0.5);
+  near(rfAt(events, ends, 25).by, 1);
+});
+
+test("rfAt: a negative flip reverses the field", () => {
+  const events = [{ type: "rf", flipDeg: -90, durMs: 1, dtMs: 0.1, shape: "rect" }];
+  near(rfAt(events, [10], 5).bx, -1);
+});
