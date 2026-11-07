@@ -50,7 +50,9 @@ export function rimArrow(bx, by) {
   const mag = Math.hypot(bx, by);
   if (mag < 1e-9) return null;
   const ux = bx / mag, uy = by / mag, r = RIM_START + RIM_LENGTH * mag;
-  return { from: [RIM_START * ux, RIM_START * uy, 0], to: [r * ux, r * uy, 0] };
+  const mid = (RIM_START + r) / 2;
+  // The label floats just above the middle of the arrow, so it stays inside the plotted range at any strength.
+  return { from: [RIM_START * ux, RIM_START * uy, 0], to: [r * ux, r * uy, 0], label: [mid * ux, mid * uy, 0.14] };
 }
 
 // Nominal flip angle (degrees, on resonance) the current pulse has applied by frame `frameIndex`: the B1 area so

@@ -182,7 +182,7 @@ function drawScene() {
     // shows them during pulses when "Show B1 field" is on.
     { ...line(b1.shaft, B1_FADED, 6), name: "B1", visible: false },
     { ...headTrace(COLORS.b1, b1.mesh), opacity: 0.75, name: "B1", visible: false },
-    { type: "scatter3d", mode: "text", x: [1.6], y: [0], z: [0.08], text: ["B1"], name: "B1", visible: false,
+    { type: "scatter3d", mode: "text", x: [1.28], y: [0], z: [0.14], text: ["B1"], name: "B1", visible: false,
       textfont: { color: COLORS.b1, size: 14 }, hoverinfo: "skip", showlegend: false },
   ];
   // room outside the sphere for the B1 field
@@ -262,7 +262,7 @@ function showFrame(i) {
   const B1_TRACES = [DYNAMIC + 5, DYNAMIC + 6, DYNAMIC + 7];
   if (rim) {
     const v = rim.to.map((c, n) => c - rim.from[n]), b = arrows([v], HEAD.b1, [rim.from]);
-    const lab = rim.to.map((c, n) => (n < 2 ? c * 1.1 : 0.08));
+    const lab = rim.label;
     Plotly.restyle("scene", { x: [b.shaft.x, b.mesh.x, [lab[0]]], y: [b.shaft.y, b.mesh.y, [lab[1]]],
                               z: [b.shaft.z, b.mesh.z, [lab[2]]], visible: true }, B1_TRACES);
   } else {

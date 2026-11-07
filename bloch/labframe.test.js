@@ -75,6 +75,15 @@ test("rimArrow: a reversed field sits on the opposite side; no field, no arrow",
   assert.equal(rimArrow(0, 0), null);
 });
 
+test("rimArrow: the B1 label sits above the arrow and inside the plotted range (±1.6)", () => {
+  for (const [bx, by] of [[1, 0], [0, -1], [Math.SQRT1_2, Math.SQRT1_2], [0.2, 0]]) {
+    const { label, from, to } = rimArrow(bx, by);
+    for (const c of label) assert.ok(Math.abs(c) <= 1.55, `label ${label} outside the range`);
+    near(label[0], (from[0] + to[0]) / 2); near(label[1], (from[1] + to[1]) / 2);
+    near(label[2], 0.14);
+  }
+});
+
 test("flipSoFar: nominal flip built up within the current pulse", () => {
   const events = [{ type: "rf", flipDeg: 90, durMs: 1, dtMs: 0.1, shape: "rect" },
                   { type: "delay", durMs: 1, dtMs: 0.1 },
