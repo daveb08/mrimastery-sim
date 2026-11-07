@@ -1,12 +1,13 @@
 import { runProgram, meanTransverse, flipFromB1, b1ForFlip, shapeFraction } from "./bloch.js";
 import { draw } from "../shared/plot.js";
+import { labAngle, toLab, rfAt, rimArrow, flipSoFar } from "./labframe.js";
 
 const $ = (id) => document.getElementById(id);
 const SHOWN = 15;      // spins drawn as arrows
 const STRIDE = 8;      // the signal averages SHOWN*STRIDE - 7 spins, so refocusing
 const SPINS = (SHOWN - 1) * STRIDE + 1; // is not spoiled by false revivals
-const COLORS = { x: "#ff6b6b", y: "#6bd66b", z: "#6ba6ff", mean: "#FFD700", spin: "#c77dff" };
-const HEAD = { mean: 0.16, spin: 0.11 }; // arrowhead length (sphere radius = 1)
+const COLORS = { x: "#ff6b6b", y: "#6bd66b", z: "#6ba6ff", mean: "#FFD700", spin: "#c77dff", b1: "#ff9f43" };
+const HEAD = { mean: 0.16, spin: 0.11, b1: 0.13 }; // arrowhead length (sphere radius = 1)
 const SIDES = 10; // facets around each arrowhead
 const FMT = {
   flip: (v) => `${v}°`, phase: (v) => `${v}°`, pdur: (v) => `${(+v).toFixed(2)} ms`,
@@ -78,22 +79,24 @@ function eventAt(i) {
 // Arrows from the origin to each vector: shafts (one line trace, broken by nulls) that stop at the base of an
 // arrowhead, and the heads as one triangle mesh (a tip plus a ring of SIDES base points each). Plotly's own cone
 // traces size themselves from the spacing between cones, so they balloon when the spin tips bunch together.
-// Heads shrink with short vectors so a decayed vector does not become all head.
-function arrows(vecs, head) {
+// Heads shrink with short vectors so a decayed vector does not become all head. Arrows start at the origin unless
+// `origins` gives a start point for each.
+function arrows(vecs, head, origins = null) {
   const shaft = { x: [], y: [], z: [] }, mesh = { x: [], y: [], z: [], i: [], j: [], k: [] };
-  for (const [vx, vy, vz] of vecs) {
+  for (const [idx, [vx, vy, vz]] of vecs.entries()) {
+    const [ox, oy, oz] = origins ? origins[idx] : [0, 0, 0];
     const n = Math.hypot(vx, vy, vz);
     const h = head * Math.min(1, n / (2.5 * head));
     const s = n > 1e-9 ? (n - h) / n : 0;
-    shaft.x.push(0, vx * s, null); shaft.y.push(0, vy * s, null); shaft.z.push(0, vz * s, null);
+    shaft.x.push(ox, ox + vx * s, null); shaft.y.push(oy, oy + vy * s, null); shaft.z.push(oz, oz + vz * s, null);
     // unit direction d and two unit vectors a, b across it
     const d = n > 1e-9 ? [vx / n, vy / n, vz / n] : [0, 0, 1];
     const ref = Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
     let a = [d[1] * ref[2] - d[2] * ref[1], d[2] * ref[0] - d[0] * ref[2], d[0] * ref[1] - d[1] * ref[0]];
     const an = Math.hypot(...a); a = a.map((c) => c / an);
     const b = [d[1] * a[2] - d[2] * a[1], d[2] * a[0] - d[0] * a[2], d[0] * a[1] - d[1] * a[0]];
-    const r = 0.38 * h, base = [vx * s, vy * s, vz * s], tip = mesh.x.length;
-    mesh.x.push(vx); mesh.y.push(vy); mesh.z.push(vz);
+    const r = 0.38 * h, base = [ox + vx * s, oy + vy * s, oz + vz * s], tip = mesh.x.length;
+    mesh.x.push(ox + vx); mesh.y.push(oy + vy); mesh.z.push(oz + vz);
     for (let m = 0; m < SIDES; m++) {
       const t = (2 * Math.PI * m) / SIDES, c = Math.cos(t) * r, sn = Math.sin(t) * r;
       mesh.x.push(base[0] + a[0] * c + b[0] * sn); mesh.y.push(base[1] + a[1] * c + b[1] * sn); mesh.z.push(base[2] + a[2] * c + b[2] * sn);
@@ -155,10 +158,18 @@ function sphereTraces() {
   ];
 }
 
-const DYNAMIC = sphereTraces().length; // then: spin shafts, mean shaft, mean trail, spin heads, mean head
+const DYNAMIC = sphereTraces().length; // then: spin shafts, mean shaft, mean trail, spin heads, mean head,
+                                       // B1 shaft, B1 head, B1 label
+const B1_FADED = "rgba(255,159,67,0.75)"; // translucent: a field acting on M, not a vector like it
+const showB1 = () => $("showB1").checked;
+
+const isLab = () => $("frame").value === "lab";
+// A rotating-frame vector at frame i as drawn: unchanged in the rotating frame, turned about z in the lab frame.
+const view = (v, i) => (isLab() ? toLab(v, labAngle(i)) : v);
 
 function drawScene() {
   const spins = arrows(spinVectors(sim.frames[0]), HEAD.spin), mean = arrows([[0, 0, 1]], HEAD.mean);
+  const b1 = arrows([[0.4, 0, 0]], HEAD.b1, [[1.08, 0, 0]]);
   const line = (d, color, width) => ({ type: "scatter3d", mode: "lines", ...d, line: { color, width }, hoverinfo: "skip", showlegend: false });
   const traces = [
     ...sphereTraces(),
@@ -167,14 +178,21 @@ function drawScene() {
     line({ x: [], y: [], z: [] }, "rgba(255,215,0,0.45)", 3),
     { ...headTrace(COLORS.spin, spins.mesh), visible: sim.count > 1 }, // one spin: it is the mean vector
     headTrace(COLORS.mean, mean.mesh),
+    // B1: one arrow outside the sphere (its head mesh keeps the same facets) and a label; showFrame moves them and
+    // shows them during pulses when "Show B1 field" is on.
+    { ...line(b1.shaft, B1_FADED, 6), name: "B1", visible: false },
+    { ...headTrace(COLORS.b1, b1.mesh), opacity: 0.75, name: "B1", visible: false },
+    { type: "scatter3d", mode: "text", x: [1.28], y: [0], z: [0.14], text: ["B1"], name: "B1", visible: false,
+      textfont: { color: COLORS.b1, size: 14 }, hoverinfo: "skip", showlegend: false },
   ];
-  const ax = { range: [-1.25, 1.25], showticklabels: false, title: "", showbackground: false,
+  // room outside the sphere for the B1 field
+  const ax = { range: [-1.6, 1.6], showticklabels: false, title: "", showbackground: false,
                gridcolor: "#333", zerolinecolor: "#333" };
   draw("scene", traces, {
     paper_bgcolor: "#242424", margin: { l: 0, r: 0, t: 0, b: 0 },
     uirevision: "scene", // same sphere in every experiment: keep the camera/zoom
     scene: { uirevision: "scene", xaxis: ax, yaxis: ax, zaxis: ax, aspectmode: "cube", bgcolor: "#242424",
-             camera: { eye: { x: 1.05, y: -1.05, z: 0.63 } } }, // close in: the sphere fills the view
+             camera: { eye: { x: 0.84, y: -0.84, z: 0.5 } } }, // close in: the sphere and the B1 rim fill the view
   });
 }
 
@@ -185,12 +203,19 @@ function drawTraces() {
     const m = meanTransverse(sim.frames[i]);
     mx[i] = m.mx; my[i] = m.my; mz[i] = m.mz; mxy[i] = m.mxy;
   }
-  sim.mean = { mx, my, mz, mxy };
-  const stride = Math.max(1, Math.floor(n / 800));
+  sim.mean = { mx, my, mz, mxy }; // rotating frame; showFrame applies the chosen frame itself
+  // Traces follow the chosen frame. Lab Mx/My oscillate a fixed angle per frame, so they use every frame:
+  // decimating them would alias the oscillation.
+  let sx = mx, sy = my;
+  if (isLab()) {
+    sx = new Float64Array(n); sy = new Float64Array(n);
+    for (let i = 0; i < n; i++) [sx[i], sy[i]] = toLab([mx[i], my[i], 0], labAngle(i));
+  }
+  const stride = isLab() ? 1 : Math.max(1, Math.floor(n / 800));
   const pick = (a) => Array.from(a).filter((_, i) => i % stride === 0);
   const t = pick(sim.t);
   const tr = (y, name, color, dash, width = 2) => ({ x: t, y: pick(y), name, mode: "lines", line: { color, width, dash } });
-  const curves = [tr(mx, "Mx", COLORS.x), tr(my, "My", COLORS.y), tr(mz, "Mz", COLORS.z),
+  const curves = [tr(sx, "Mx", COLORS.x), tr(sy, "My", COLORS.y), tr(mz, "Mz", COLORS.z),
                   tr(mxy, "|Mxy| signal envelope", COLORS.mean, "solid", 3)];
   if (sim.program !== "ir") {
     // Pure T2 decay from the end of the first pulse: spin-echo peaks sit on it,
@@ -221,15 +246,34 @@ function showFrame(i) {
   i = Math.max(0, Math.min(sim.frames.length - 1, Math.round(i)));
   const f = sim.frames[i];
   const m = sim.mean;
-  const s = arrows(spinVectors(f), HEAD.spin), a = arrows([[m.mx[i], m.my[i], m.mz[i]]], HEAD.mean);
+  const s = arrows(spinVectors(f).map((v) => view(v, i)), HEAD.spin);
+  const a = arrows([view([m.mx[i], m.my[i], m.mz[i]], i)], HEAD.mean);
   Plotly.restyle("scene", { x: [s.shaft.x, a.shaft.x], y: [s.shaft.y, a.shaft.y], z: [s.shaft.z, a.shaft.z] }, [DYNAMIC, DYNAMIC + 1]);
   Plotly.restyle("scene", { x: [s.mesh.x, a.mesh.x], y: [s.mesh.y, a.mesh.y], z: [s.mesh.z, a.mesh.z] }, [DYNAMIC + 3, DYNAMIC + 4]);
-  const j = i + 1;
-  Plotly.restyle("scene", { x: [Array.from(m.mx.subarray(0, j))], y: [Array.from(m.my.subarray(0, j))],
-                            z: [Array.from(m.mz.subarray(0, j))] }, [DYNAMIC + 2]);
+  const trail = { x: [], y: [], z: [] };
+  for (let j = 0; j <= i; j++) {
+    const [px, py, pz] = view([m.mx[j], m.my[j], m.mz[j]], j);
+    trail.x.push(px); trail.y.push(py); trail.z.push(pz);
+  }
+  Plotly.restyle("scene", { x: [trail.x], y: [trail.y], z: [trail.z] }, [DYNAMIC + 2]);
+  const rf = rfAt(sim.events, sim.eventEnds, i);
+  const field = rf ? view([rf.bx, rf.by, 0], i) : null;
+  const rim = field && showB1() ? rimArrow(field[0], field[1]) : null;
+  const B1_TRACES = [DYNAMIC + 5, DYNAMIC + 6, DYNAMIC + 7];
+  if (rim) {
+    const v = rim.to.map((c, n) => c - rim.from[n]), b = arrows([v], HEAD.b1, [rim.from]);
+    const lab = rim.label;
+    Plotly.restyle("scene", { x: [b.shaft.x, b.mesh.x, [lab[0]]], y: [b.shaft.y, b.mesh.y, [lab[1]]],
+                              z: [b.shaft.z, b.mesh.z, [lab[2]]], visible: true }, B1_TRACES);
+  } else {
+    Plotly.restyle("scene", { visible: false }, B1_TRACES);
+  }
   Plotly.relayout("traces", { "shapes[0].x0": sim.t[i], "shapes[0].x1": sim.t[i] });
   const k = eventAt(i);
-  $("readout").textContent = `${sim.t[i].toFixed(2)} ms · ${k === null ? "start" : sim.events[k].label}`;
+  const sofar = flipSoFar(sim.events, sim.eventEnds, i);
+  $("readout").textContent = `${sim.t[i].toFixed(2)} ms · ${k === null ? "start" : sim.events[k].label}`
+    + (sofar === null ? "" : ` · ${Math.round(sofar)}° of ${Math.round(sim.events[k].flipDeg)}° so far`)
+    + (isLab() ? " · lab frame" : "");
 }
 
 // The slider steps through simulation frames, not time, so a short RF pulse
@@ -293,6 +337,15 @@ for (const id of ["program", "pmode", "flip", "b1", "phase", "shape", "pdur", "d
 }
 $("time").addEventListener("input", () => { setPlaying(false); showFrame(currentFrame()); });
 $("play").addEventListener("click", () => setPlaying(!playing));
+// Reset: pause and go back to frame 0 (M at equilibrium along z), keeping every setting.
+$("reset").addEventListener("click", () => { setPlaying(false); $("time").value = 0; showFrame(0); });
+$("showB1").addEventListener("change", () => showFrame(currentFrame()));
+// Changing frame only redraws: same simulation, same place in time, playback carries on.
+$("frame").addEventListener("input", () => {
+  $("labNote").hidden = !isLab();
+  drawTraces();
+  showFrame(currentFrame());
+});
 
 if (window.Plotly) refresh();
 else $("scene").textContent = "Plotly failed to load; check your network connection.";
