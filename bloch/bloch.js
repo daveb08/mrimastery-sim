@@ -92,6 +92,7 @@ export function scaleToFlip(env, durMs, flipDeg) {
 // Run a list of events and record M after every sample.
 //   {type:"rf", flipDeg, phaseDeg, durMs, shape?, tbw?, gradMTm?}
 //   {type:"delay", durMs}
+//   {type:"spoil"}  sets Mx = My = 0 for every isochromat, instantly (one frame)
 // params: {positionsMm?, offResHz[], T1, T2, m0, dtMs, M0?}
 // Returns {t: Float64Array, frames: Float64Array[]} including t=0, plus
 // eventEnds: index in frames where each event finished.
@@ -107,6 +108,15 @@ export function runProgram(events, params) {
   let now = 0;
   const df = new Float64Array(count);
   for (const ev of events) {
+    if (ev.type === "spoil") {
+      // Spoiler: zero every isochromat's transverse magnetization at once (what crusher gradients do between
+      // repetitions). No time passes; one frame records the result.
+      for (let i = 0; i < count; i++) { M[3 * i] = 0; M[3 * i + 1] = 0; }
+      t.push(now);
+      frames.push(Float64Array.from(M));
+      eventEnds.push(frames.length - 1);
+      continue;
+    }
     const steps = Math.max(1, Math.round(ev.durMs / (ev.dtMs ?? dtMs)));
     const h = ev.durMs / steps;
     let wave = null;

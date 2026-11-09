@@ -1,5 +1,6 @@
 import { runProgram, meanTransverse, flipFromB1, b1ForFlip, shapeFraction } from "./bloch.js";
 import { draw } from "../shared/plot.js";
+import { buildProgram, minTrMs } from "./program.js";
 import { labAngle, toLab, rfAt, rimArrow, flipSoFar } from "./labframe.js";
 
 const $ = (id) => document.getElementById(id);
@@ -47,25 +48,14 @@ function readParams() {
   return v;
 }
 
-function buildEvents(p) {
-  const rf = (flipDeg, phaseDeg) => ({
-    type: "rf", label: `${Math.round(flipDeg)}° RF pulse`, flipDeg, phaseDeg, durMs: p.pdur, shape: p.shape,
-    tbw: 4, dtMs: p.pdur / 80,
-  });
-  const wait = (durMs) => ({ type: "delay", label: "free precession", durMs, dtMs: Math.max(0.1, durMs / 300) });
-  if (p.program === "se") return [rf(p.flip, p.phase), wait(p.delay), rf(180, p.phase + 90), wait(p.delay),
-      { ...wait(p.delay), label: "after the echo" }];
-  if (p.program === "ir") return [rf(180, p.phase), wait(p.delay), rf(p.flip, p.phase)];
-  return [rf(p.flip, p.phase), wait(p.delay)];
-}
-
 function simulate(p) {
   const count = p.spread === 0 ? 1 : SPINS;
   const offRes = Array.from({ length: count }, (_, i) =>
     p.off + (count === 1 ? 0 : -p.spread + (2 * p.spread * i) / (count - 1)));
-  const run = runProgram(buildEvents(p), { T1: p.t1, T2: p.t2, offResHz: offRes });
+  // One repetition, no recovery segment, until the TR and Repetitions controls arrive.
+  const { events } = buildProgram({ ...p, tr: minTrMs(p), reps: 1 });
+  const run = runProgram(events, { T1: p.t1, T2: p.t2, offResHz: offRes });
   const total = run.t[run.t.length - 1];
-  const events = buildEvents(p);
   const starts = [0, ...run.eventEnds.slice(0, -1)];
   return { ...run, offRes, total, count, events, starts, program: p.program, T2: p.t2 };
 }
