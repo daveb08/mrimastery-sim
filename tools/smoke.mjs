@@ -239,6 +239,11 @@ const PAGES = [
         return ids.length > 0 && name.trim() !== "" && !name.includes("About") && !name.includes("?"); });
       return distinct && clean; })()`],
     ["expect", "Delay reaches TI values that null long-T1 tissue", `+document.getElementById("delay").max >= 3000`],
+    ["expect", "the time slider keeps its width whatever the readout says (dragging must not bounce)", `(() => {
+      const t = document.getElementById("time"), widths = [];
+      for (const v of [0, 40, 200, 400, 900]) { t.value = v; t.dispatchEvent(new Event("input")); widths.push(t.getBoundingClientRect().width); }
+      t.value = 0; t.dispatchEvent(new Event("input"));
+      return Math.max(...widths) - Math.min(...widths) < 1; })()`],
   ] },
   { name: "coil", path: "coil/", steps: [
     ["cycle", "geometry"], ["set", "radius", 8],
