@@ -219,6 +219,26 @@ const PAGES = [
       document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
       await new Promise((r) => setTimeout(r, 100));
       return !document.querySelector(".hint-pop").checkVisibility(); })()`],
+    ["expect", "a touch tap on '?' opens the hint and leaves it open", `(async () => {
+      const b = document.querySelector('label[for="tr"] .hint-btn');
+      // the order a phone fires for one tap: pointerdown, emulated mouseenter, focus, click
+      b.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch" }));
+      b.dispatchEvent(new MouseEvent("mouseenter"));
+      b.dispatchEvent(new FocusEvent("focus"));
+      b.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, 100));
+      const p = document.querySelector(".hint-pop"), open = p.checkVisibility() && p.textContent.startsWith("The repetition time");
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      return open; })()`],
+    ["expect", "hint buttons have distinct names and stay out of each control's name", `(() => {
+      const btns = [...document.querySelectorAll(".hint-btn")], names = btns.map((b) => b.getAttribute("aria-label"));
+      const distinct = new Set(names).size === names.length && names.every((n) => n.startsWith("About "));
+      const clean = [...document.querySelectorAll("label[for]")].filter((l) => l.querySelector(".hint-btn")).every((l) => {
+        const c = document.getElementById(l.htmlFor), ids = (c.getAttribute("aria-labelledby") || "").split(" ").filter(Boolean);
+        const name = ids.map((i) => document.getElementById(i)?.textContent ?? "").join(" ");
+        return ids.length > 0 && name.trim() !== "" && !name.includes("About") && !name.includes("?"); });
+      return distinct && clean; })()`],
+    ["expect", "Delay reaches TI values that null long-T1 tissue", `+document.getElementById("delay").max >= 3000`],
   ] },
   { name: "coil", path: "coil/", steps: [
     ["cycle", "geometry"], ["set", "radius", 8],

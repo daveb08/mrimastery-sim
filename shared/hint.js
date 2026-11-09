@@ -65,25 +65,44 @@ export function attachHints(texts, doc = document) {
     btn.type = "button";
     btn.className = "hint-btn";
     btn.textContent = "?";
-    btn.setAttribute("aria-label", "What is this?");
     btn.setAttribute("aria-expanded", "false");
+    let name;
     if (label) {
-      // right after the label's own text, before any value read-out
+      // Right after the label's own text, before any value read-out. The control is named by that text alone
+      // (aria-labelledby), so the button does not leak into the control's accessible name.
       const first = label.firstChild;
-      if (first && first.nodeType === 3) first.after(btn); else label.prepend(btn);
+      const span = doc.createElement("span");
+      span.id = `hint-name-${id}`;
+      if (first && first.nodeType === 3) { span.textContent = first.textContent.trim(); first.replaceWith(span, " "); }
+      else { span.textContent = el.getAttribute("aria-label") || id; span.hidden = true; label.prepend(span); }
+      span.after(btn);
+      el.setAttribute("aria-labelledby", span.id);
+      name = span.textContent;
     } else {
-      el.after(btn);
+      // No label[for]: after the control, or after the label wrapping it (keeping the button out of its name).
+      const wrap = el.closest("label");
+      name = el.getAttribute("aria-label") || wrap?.textContent.trim() || el.textContent.trim() || id;
+      (wrap ?? el).after(btn);
     }
+    btn.setAttribute("aria-label", `About ${name}`);
     for (const t of new Set([label ?? btn, btn])) {
       t.addEventListener("mouseenter", () => open(btn, text));
       t.addEventListener("mouseleave", () => { if (owner === btn && doc.activeElement !== btn) close(); });
     }
     btn.addEventListener("focus", () => open(btn, text));
     btn.addEventListener("blur", () => { if (owner === btn) close(); });
+    // A tap fires pointerdown, an emulated mouseenter and focus (both open the hint), then click: whether the hint
+    // was open when the gesture began decides whether the click closes it. A mouse click always leaves it open.
+    let openAtPress = null;
+    btn.addEventListener("pointerdown", (e) => {
+      openAtPress = e.pointerType === "mouse" ? false : owner === btn && !pop.hidden;
+    });
     btn.addEventListener("click", (e) => {
       e.preventDefault(); // a "?" inside a label must not toggle or focus the control
       e.stopPropagation();
-      if (owner === btn && !pop.hidden) close(); else open(btn, text);
+      const wasOpen = openAtPress ?? (owner === btn && !pop.hidden); // keyboard: toggle
+      openAtPress = null;
+      if (wasOpen) close(); else open(btn, text);
     });
   }
   doc.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });

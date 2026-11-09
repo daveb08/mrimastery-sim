@@ -52,3 +52,30 @@ test("repetitions approach the spoiled steady state", () => {
   const E1 = Math.exp(-0.5), ss = (1 - E1) / (1 - Math.cos(Math.PI / 3) * E1);
   near(mzBeforeExcitation(events, run, 4), ss, 0.01);
 });
+
+test("free precession after an excitation is sampled finely even at long TR", () => {
+  const p = { ...base, program: "pulse", pdur: 0.5, tr: 5000, reps: 1, t2: 100, off: 0, spread: 0 };
+  const { events, trMs } = buildProgram(p);
+  const waits = events.filter((e) => e.type === "delay");
+  assert.equal(waits[0].label, "free precession");
+  near(waits[0].durMs, 500, 1e-6); // 5 x T2 of finely sampled decay first ...
+  assert.ok(waits[0].durMs / waits[0].dtMs >= 300);
+  assert.ok(waits[0].dtMs <= 500 / 300 + 1e-9);
+  assert.equal(waits[1].label, "recovery"); // ... then the coarse recovery to TR
+  near(events.reduce((s, e) => s + (e.durMs ?? 0), 0), trMs, 1e-6);
+});
+
+test("fast off-resonance gets finer steps, up to a frame cap", () => {
+  const p = { ...base, program: "pulse", pdur: 0.5, tr: 5000, reps: 1, t2: 100, off: 300, spread: 200 };
+  const fp = buildProgram(p).events.find((e) => e.label === "free precession");
+  // 8 samples per turn at 500 Hz would be 0.25 ms; capped at 1500 frames over the 500 ms segment -> 1/3 ms
+  near(fp.dtMs, 500 / 1500, 1e-9);
+  const slow = buildProgram({ ...p, off: 20, spread: 0 }).events.find((e) => e.label === "free precession");
+  near(slow.dtMs, 500 / 300, 1e-9); // 20 Hz needs no more than the usual 300 frames
+});
+
+test("spin echo: the decay after the echo is finely sampled too", () => {
+  const { events } = buildProgram({ ...base, program: "se", tr: 3000, reps: 1, t2: 100, off: 0, spread: 0 });
+  const after = events.slice(events.findIndex((e) => e.label === "to the echo") + 1);
+  assert.deepEqual(after.map((e) => e.label), ["free precession", "recovery"]);
+});
