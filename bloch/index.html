@@ -78,6 +78,11 @@
       <input id="phase" type="range" min="0" max="360" step="5" value="0">
       <label for="delay">Delay / τ / TI <span class="v" id="delayV"></span></label>
       <input id="delay" type="range" min="1" max="200" step="1" value="20">
+      <label for="tr">TR <span class="v" id="trV"></span></label>
+      <input id="tr" type="range" min="50" max="5000" step="10" value="500">
+      <label for="reps">Repetitions</label>
+      <select id="reps"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option></select>
+      <p class="note" id="trNote" hidden></p>
       <label for="off">Center off-resonance <span class="v" id="offV"></span></label>
       <input id="off" type="range" min="-300" max="300" step="5" value="0">
       <label for="spread">Isochromat spread (±) <span class="v" id="spreadV"></span></label>
@@ -90,6 +95,7 @@
       A spread of 0 shows a single spin; otherwise the signal averages 113 spins across the range and 15 of them are drawn.
       The yellow arrow is the mean magnetization; the violet arrows are individual spins.
       The orange arrow outside the sphere is the RF field B1 (the part rotating with the spins), drawn while a pulse plays.
+      Leftover transverse magnetization is spoiled between repetitions, as crusher gradients do on a scanner.
       B1 is the same throughout the sample; it is drawn outside so it is not mistaken for magnetization. Its length shows
       B1 strength relative to the strongest pulse, not the tip angle, which builds up over the pulse (see "so far").</p>
     </section>

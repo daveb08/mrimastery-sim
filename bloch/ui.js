@@ -1,6 +1,6 @@
 import { runProgram, meanTransverse, flipFromB1, b1ForFlip, shapeFraction } from "./bloch.js";
 import { draw } from "../shared/plot.js";
-import { buildProgram, minTrMs } from "./program.js";
+import { buildProgram } from "./program.js";
 import { labAngle, toLab, rfAt, rimArrow, flipSoFar } from "./labframe.js";
 
 const $ = (id) => document.getElementById(id);
@@ -13,7 +13,7 @@ const SIDES = 10; // facets around each arrowhead
 const FMT = {
   flip: (v) => `${v}°`, phase: (v) => `${v}°`, pdur: (v) => `${(+v).toFixed(2)} ms`,
   delay: (v) => `${v} ms`, off: (v) => `${v} Hz`, spread: (v) => `${v} Hz`,
-  t1: (v) => `${v} ms`, t2: (v) => `${v} ms`,
+  t1: (v) => `${v} ms`, t2: (v) => `${v} ms`, tr: (v) => `${v} ms`,
 };
 
 let sim = null;       // {t, frames, offRes, total}
@@ -23,12 +23,13 @@ let lastStamp = 0;
 
 function readParams() {
   const v = Object.fromEntries(
-    ["flip", "b1", "phase", "pdur", "delay", "off", "spread", "t1", "t2"].map((k) => [k, +$(k).value]));
+    ["flip", "b1", "phase", "pdur", "delay", "off", "spread", "t1", "t2", "tr", "reps"].map((k) => [k, +$(k).value]));
   // B1 and duration come from the exact-entry boxes (the sliders snap to their steps)
   v.b1 = +$("b1Num").value;
   v.pdur = +$("pdurNum").value;
   v.program = $("program").value;
   v.shape = $("shape").value;
+  $("delay").disabled = v.program === "pulse"; // TR sets the precession time of the plain pulse experiment
   for (const k of Object.keys(FMT)) $(k + "V").textContent = FMT[k](v[k]);
   // The pulse is set either by its flip angle (B1 follows) or by its B1 amplitude (the flip angle follows); the
   // follower's slider is disabled and shows the value the pulse actually uses.
@@ -52,12 +53,13 @@ function simulate(p) {
   const count = p.spread === 0 ? 1 : SPINS;
   const offRes = Array.from({ length: count }, (_, i) =>
     p.off + (count === 1 ? 0 : -p.spread + (2 * p.spread * i) / (count - 1)));
-  // One repetition, no recovery segment, until the TR and Repetitions controls arrive.
-  const { events } = buildProgram({ ...p, tr: minTrMs(p), reps: 1 });
+  const { events, trMs, raised } = buildProgram(p);
+  $("trNote").hidden = !raised;
+  $("trNote").textContent = raised ? `TR raised to ${trMs} ms, the shortest this experiment allows.` : "";
   const run = runProgram(events, { T1: p.t1, T2: p.t2, offResHz: offRes });
   const total = run.t[run.t.length - 1];
   const starts = [0, ...run.eventEnds.slice(0, -1)];
-  return { ...run, offRes, total, count, events, starts, program: p.program, T2: p.t2 };
+  return { ...run, offRes, total, count, events, starts, program: p.program, T2: p.t2, reps: p.reps };
 }
 
 // Event containing frame i (frame 0 is the initial state, before any event).
@@ -207,12 +209,21 @@ function drawTraces() {
   const tr = (y, name, color, dash, width = 2) => ({ x: t, y: pick(y), name, mode: "lines", line: { color, width, dash } });
   const curves = [tr(sx, "Mx", COLORS.x), tr(sy, "My", COLORS.y), tr(mz, "Mz", COLORS.z),
                   tr(mxy, "|Mxy| signal envelope", COLORS.mean, "solid", 3)];
-  if (sim.program !== "ir") {
-    // Pure T2 decay from the end of the first pulse: spin-echo peaks sit on it,
-    // while the free induction decay falls below it.
-    const k0 = sim.eventEnds[0], t0 = sim.t[k0], a0 = mxy[k0];
-    curves.push({ x: t, y: t.map((tt) => (tt < t0 ? null : a0 * Math.exp(-(tt - t0) / sim.T2))),
-                  name: "T2 decay", mode: "lines", line: { color: "#ffffff", width: 1, dash: "dash" } });
+  // Pure T2 decay from the end of each excitation, until the next one: spin-echo peaks sit on it, while the free
+  // induction decay falls below it. Nothing before the first excitation (the inversion of inversion recovery).
+  const segs = [];
+  sim.events.forEach((ev, k) => {
+    if (ev.role !== "excite") return;
+    const e = sim.eventEnds[k];
+    if (segs.length) segs[segs.length - 1].end = sim.t[sim.starts[k]];
+    segs.push({ t0: sim.t[e], a0: mxy[e], end: Infinity });
+  });
+  if (segs.length) {
+    const y = t.map((tt) => {
+      const s = segs.find((g) => tt >= g.t0 && tt < g.end) ?? (tt >= segs[segs.length - 1].t0 ? segs[segs.length - 1] : null);
+      return s ? s.a0 * Math.exp(-(tt - s.t0) / sim.T2) : null;
+    });
+    curves.push({ x: t, y, name: "T2 decay", mode: "lines", line: { color: "#ffffff", width: 1, dash: "dash" } });
   }
   draw("traces", curves, {
     paper_bgcolor: "#242424", plot_bgcolor: "#242424", font: { color: "#ccc", size: 11 },
@@ -261,7 +272,8 @@ function showFrame(i) {
   Plotly.relayout("traces", { "shapes[0].x0": sim.t[i], "shapes[0].x1": sim.t[i] });
   const k = eventAt(i);
   const sofar = flipSoFar(sim.events, sim.eventEnds, i);
-  $("readout").textContent = `${sim.t[i].toFixed(2)} ms · ${k === null ? "start" : sim.events[k].label}`
+  const rep = k === null ? 0 : sim.events[k].rep ?? 0;
+  $("readout").textContent = `${sim.t[i].toFixed(2)} ms · TR ${rep + 1} of ${sim.reps} · ${k === null ? "start" : sim.events[k].label}`
     + (sofar === null ? "" : ` · ${Math.round(sofar)}° of ${Math.round(sim.events[k].flipDeg)}° so far`)
     + (isLab() ? " · lab frame" : "");
 }
@@ -322,7 +334,7 @@ for (const [slider, box] of [["b1", "b1Num"], ["pdur", "pdurNum"]]) {
     setPlaying(false); refresh();
   });
 }
-for (const id of ["program", "pmode", "flip", "b1", "phase", "shape", "pdur", "delay", "off", "spread", "t1", "t2"]) {
+for (const id of ["program", "pmode", "flip", "b1", "phase", "shape", "pdur", "delay", "off", "spread", "t1", "t2", "tr", "reps"]) {
   $(id).addEventListener("input", () => { setPlaying(false); refresh(); });
 }
 $("time").addEventListener("input", () => { setPlaying(false); showFrame(currentFrame()); });
