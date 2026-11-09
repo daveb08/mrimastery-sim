@@ -1,0 +1,21 @@
+// Hover explanations for the Bloch simulator's controls (shared/hint.js). Text approved by the project owner.
+export const HINTS = {
+  program: "Which RF pulse sequence to run. Pulse shows a single excitation and the free induction decay. Spin echo adds a 180° pulse that refocuses dephasing, so an echo forms at TE = 2τ. Inversion recovery starts with a 180° pulse that flips Mz to −z, then excites after TI to show T1 recovery.",
+  pmode: "Choose what you control. The flip angle and the B1 strength are linked by θ = 360° × γ̄ × B1 × duration (× a shape factor), so fixing one sets the other.",
+  flip: "How far the pulse tips the magnetization away from B0 (the z axis), for spins exactly on resonance. 90° puts it all into the transverse plane, which gives the most signal. 180° inverts it, or refocuses it in a spin echo.",
+  b1: "The strength of the RF magnetic field, B1, at its peak, in microtesla. A stronger B1 tips the spins faster. Clinical scanners typically use roughly 5–25 µT.",
+  pdur: "How long the RF pulse is on. For the same flip angle, a longer pulse needs less B1. That deposits less RF energy (lower SAR) and excites a narrower range of frequencies.",
+  shape: "How B1 varies during the pulse. A rectangular (\"hard\") pulse is simplest. Sinc and Gaussian pulses concentrate the excitation on a band of frequencies, which is how a slice is selected when a gradient is on. Try them with off-resonance spins to see the difference.",
+  phase: "The direction B1 points in the rotating frame (0° = along x, 90° = along y). It sets the axis the magnetization tips about. The spin echo's 180° is shifted 90° from the excitation.",
+  delay: "Spin echo: τ, the time from the 90° to the 180°. The echo forms τ after the 180°, at TE = 2τ. Inversion recovery: TI, the time from the 180° inversion to the 90° excitation. Choose TI ≈ 0.69 × T1 to null a tissue (when TR is much longer than T1). Pulse: not used; TR sets the time.",
+  off: "How far the spins' precession frequency is from the RF frequency, in hertz. In the rotating frame, off-resonance spins keep precessing, clockwise for positive values. Real causes include B0 inhomogeneity and chemical shift (fat is about 440 Hz below water at 3 T).",
+  spread: "A range of frequencies across the spins in a voxel, from small field differences. The spins fan out and the signal decays faster than T2. This is T2* decay. A 180° pulse reverses the fan-out and forms an echo.",
+  t1: "The longitudinal relaxation time. After a 90° pulse, Mz regrows towards its equilibrium value, recovering 63 % in one T1. Short TR relative to T1 leaves less Mz for the next pulse.",
+  t2: "The transverse relaxation time. Spin–spin interactions irreversibly decay Mxy, losing 63 % in one T2. Unlike T2* dephasing, a 180° pulse cannot undo T2 decay, so echo peaks fall along the T2 curve.",
+  tr: "The repetition time: the time from one excitation to the next. If TR is short compared with T1, Mz has not fully recovered and the next signal is smaller. This is T1 weighting.",
+  reps: "How many TRs to simulate (1–5). Over a few TRs, the signal settles to the steady state that real imaging runs in. Leftover transverse magnetization is spoiled at the end of each TR, as crusher gradients do on a scanner.",
+  frame: "The lab frame shows precession about B0, slowed down millions of times. The rotating frame turns with the spins at the Larmor frequency, so on-resonance spins stand still and only the effects of RF, off-resonance and relaxation remain.",
+  showB1: "Show or hide the RF field B1 (orange, outside the sphere) while a pulse plays. Its length shows B1 strength relative to the strongest pulse, not the tip angle.",
+  play: "Play runs the experiment (about 12 s). Reset pauses and returns to the start, with M at equilibrium along z.",
+  time: "Steps through the simulation. Short RF pulses get as much of the slider as long delays, so you can watch them.",
+};

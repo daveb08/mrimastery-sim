@@ -205,6 +205,20 @@ const PAGES = [
     ["set", "program", "pulse"],
     ["expect", "Delay is disabled for the pulse experiment", `document.getElementById("delay").disabled`],
     ["set", "program", "se"], ["set", "tr", 500], ["set", "delay", 20],
+    ["expect", "every control has a hint marker", `document.querySelectorAll(".hint-btn").length >= 18`],
+    ["expect", "a hint opens on focus with the approved text", `(async () => {
+      const b = document.querySelector('label[for="flip"] .hint-btn'); b.focus();
+      // headless pages never have window focus, so focus() fires no focus event there; a real browser does
+      if (!document.hasFocus()) b.dispatchEvent(new FocusEvent("focus"));
+      await new Promise((r) => setTimeout(r, 100));
+      const p = document.querySelector(".hint-pop");
+      const r = p.getBoundingClientRect();
+      return p.checkVisibility() && p.textContent.startsWith("How far the pulse tips the magnetization")
+        && r.left >= 0 && r.right <= innerWidth; })()`],
+    ["expect", "Escape closes the hint", `(async () => {
+      document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await new Promise((r) => setTimeout(r, 100));
+      return !document.querySelector(".hint-pop").checkVisibility(); })()`],
   ] },
   { name: "coil", path: "coil/", steps: [
     ["cycle", "geometry"], ["set", "radius", 8],

@@ -13,7 +13,7 @@ Plotly (pinned, from jsDelivr) draws the plots.
 | `tuning/` | Coil tuning and matching: loop inductance, coil and patient losses, parallel-tune / series-match to 50 ohm, S11 and Smith chart (`tuning/tuning.js`) |
 | `phantom/` | Procedural 3D head phantom (labels as a function of position) with a three-plane viewer; optional BrainWeb anatomy (local data only, see `tools/prepare-brainweb.mjs`) |
 | `contrast/` | Contrast simulator and multi-slice protocol page: physics core, trade-off meters, controls (slices, gap, order, concatenations), signal plots, phantom images, pulse-sequence diagrams, TR timeline strip and k-space; see `docs/contrast-port-plan.md` |
-| `shared/` | Common stylesheet, Plotly dark-theme helpers, FFT |
+| `shared/` | Common stylesheet, Plotly dark-theme helpers, FFT, hover/focus/tap explanations for controls (`shared/hint.js`) |
 
 Each simulator keeps its numerics in DOM-free modules (`bloch/bloch.js`, `signal/fourier.js`,
 `signal/rfslice.js`, `coil/coilfields.js`, `coil/rfexcitation.js`, `phantom/phantom.js`, `contrast/physics.js`, `contrast/protocol.js`, `contrast/trstrip.js`, `shared/crosstalk.js`) with tests beside them. The signal tests check against values computed

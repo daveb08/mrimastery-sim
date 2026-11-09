@@ -1,6 +1,8 @@
 import { runProgram, meanTransverse, flipFromB1, b1ForFlip, shapeFraction } from "./bloch.js";
 import { draw } from "../shared/plot.js";
 import { buildProgram } from "./program.js";
+import { attachHints } from "../shared/hint.js";
+import { HINTS } from "./hints.js";
 import { labAngle, toLab, rfAt, rimArrow, flipSoFar } from "./labframe.js";
 
 const $ = (id) => document.getElementById(id);
@@ -349,5 +351,6 @@ $("frame").addEventListener("input", () => {
   showFrame(currentFrame());
 });
 
+attachHints(HINTS);
 if (window.Plotly) refresh();
 else $("scene").textContent = "Plotly failed to load; check your network connection.";
