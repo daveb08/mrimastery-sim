@@ -117,3 +117,17 @@ test("explorerParams: concatenation 1 raises TR, anything else makes passes", ()
   assert.deepEqual([auto.concatenations, auto.overflow], ["auto", "passes"]);
   assert.deepEqual([explorerParams(initialState("?seq=GRE&slices=6&conc=2")).overflow], ["passes"]);
 });
+
+test("fromQuery reads phantom=brainweb and ignores other values", () => {
+  assert.equal(fromQuery("phantom=brainweb").phantom, "brainweb");
+  assert.equal(fromQuery("phantom=generated").phantom, "generated");
+  assert.ok(!("phantom" in fromQuery("phantom=xyz")));
+  assert.equal(toQuery({ seq: "GRE", phantom: "brainweb" }).includes("phantom=brainweb"), true);
+});
+
+test("fromContrast carries phantom brainweb into the explorer URL", () => {
+  const p = defaultParams("GRE", "3.0T"), timing = protocolTiming(p, PROTOCOL_DEFAULTS);
+  assert.ok(explorerUrl("../kspace/", { ...p, phantom: "brainweb" }, timing).includes("phantom=brainweb"));
+  assert.ok(!explorerUrl("../kspace/", p, timing).includes("phantom="));
+  assert.ok(!explorerUrl("../kspace/", { ...p, phantom: "generated" }, timing).includes("phantom="));
+});

@@ -1,5 +1,7 @@
 import { createPhantom, sliceLabels, LABELS } from "./phantom.js";
+import { brainwebAvailable, makePhantom } from "./brainweb.js";
 import { tissuesAt } from "../contrast/physics.js";
+import { patientToScreen, screenToPatient, clampPos } from "../contrast/image.js";
 
 const $ = (id) => document.getElementById(id);
 const FOV = 250;
@@ -53,15 +55,42 @@ function lookup(mode, windowMode) {
   return lut;
 }
 
-let phantom = null, key = "";
+let phantom = null, key = "", requested = "", shown = "generated"; // shown: source of the phantom on screen
+function setStatus(text) { $("bwStatus").textContent = text; $("bwStatus").hidden = !text; }
+// The phantom arrives asynchronously (BrainWeb loads a file). A result is used only if it is still the latest choice.
+function requestPhantom(k, source, seed, sulcal, lesions) {
+  requested = k;
+  if (source === "brainweb") setStatus("Loading BrainWeb anatomy…");
+  makePhantom(source, { rootUrl: "../", seed, sulcalDepthMm: sulcal, lesions }).then((p) => {
+    if (k !== requested) return;
+    phantom = p; key = k; shown = source;
+    document.body.dataset.phantom = source;
+    setStatus("");
+    draw();
+  }, () => {
+    if (k !== requested) return;
+    requested = "";
+    $("phantomSrc").value = "generated";
+    setStatus("BrainWeb anatomy could not be loaded");
+    draw();
+  });
+}
 function draw() {
   const sulcal = +$("sulcal").value, seed = +$("seed").value, lesions = $("lesions").checked;
   const mode = $("mode").value, size = +$("res").value;
+  const source = $("phantomSrc").value;
+  const bw = shown === "brainweb"; // credit and fixed-anatomy controls follow what is drawn, not the pending choice
+  $("sulcal").disabled = $("seed").disabled = bw;
+  $("bwCredit").hidden = !bw; $("bwCite").hidden = !bw;
+  if (source !== "brainweb" && $("bwStatus").textContent.startsWith("Loading")) setStatus("");
   $("sulcalV").textContent = sulcal; $("seedV").textContent = seed;
   const pos = { axial: +$("zpos").value, coronal: +$("ypos").value, sagittal: +$("xpos").value };
   $("zposV").textContent = pos.axial; $("yposV").textContent = pos.coronal; $("xposV").textContent = pos.sagittal;
-  const k = `${sulcal}|${seed}|${lesions}`;
-  if (k !== key) { phantom = createPhantom({ seed, sulcalDepthMm: sulcal, lesions }); key = k; }
+  placeSliceLines({ x: pos.sagittal, y: pos.coronal, z: pos.axial });
+  const k = `${source}|${seed}|${sulcal}|${lesions}`;
+  if (k === key) requested = k; // back to the phantom already shown: drop any load still in flight
+  else if (k !== requested) requestPhantom(k, source, seed, sulcal, lesions);
+  if (!phantom) return; // first phantom still on its way
   const lut = lookup(mode, $("window").value);
   const t0 = performance.now();
   for (const plane of ["axial", "coronal", "sagittal"]) {
@@ -76,7 +105,38 @@ function draw() {
     }
     ctx.putImageData(img, 0, 0);
   }
-  $("stats").textContent = `Rendered three ${size} × ${size} slices in ${(performance.now() - t0).toFixed(0)} ms (FOV ${FOV} mm).`;
+  $("stats").textContent = `Rendered three ${size} × ${size} slices in ${(performance.now() - t0).toFixed(0)} ms (FOV ${FOV} mm). Click or drag an image to move the other two slices.`;
+}
+
+// Linked slice lines: on each view, a vertical and a horizontal line where the other two slices cut it.
+function placeSliceLines(p) {
+  for (const plane of ["axial", "coronal", "sagittal"]) {
+    const f = $(`frame_${plane}`), [cr, cu] = CENTER[plane], [r, u] = patientToScreen(plane, p);
+    f.querySelector(".xh.v").style.left = `${((r - (cr - FOV / 2)) / FOV) * 100}%`;
+    f.querySelector(".xh.h").style.top = `${((cu + FOV / 2 - u) / FOV) * 100}%`;
+  }
+}
+
+// Click or drag an image to move the other two slices to that point.
+const SLIDER = { x: "xpos", y: "ypos", z: "zpos" };
+for (const plane of ["axial", "coronal", "sagittal"]) {
+  const f = $(`frame_${plane}`);
+  const pick = (e) => {
+    const rect = f.getBoundingClientRect(), [cr, cu] = CENTER[plane];
+    const right = cr + ((e.clientX - rect.left) / rect.width - 0.5) * FOV;
+    const up = cu + (0.5 - (e.clientY - rect.top) / rect.height) * FOV;
+    for (const [axis, v] of Object.entries(clampPos(screenToPatient(plane, right, up)))) $(SLIDER[axis]).value = v;
+    schedule();
+  };
+  let dragging = false;
+  f.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    try { f.setPointerCapture(e.pointerId); } catch { /* no active pointer (synthetic event) */ }
+    pick(e);
+  });
+  f.addEventListener("pointermove", (e) => { if (dragging) pick(e); });
+  f.addEventListener("pointerup", () => { dragging = false; });
+  f.addEventListener("pointercancel", () => { dragging = false; });
 }
 
 // Optional URL settings, e.g. ?mode=T1w&res=384&lesions=1&seed=3&z=20
@@ -88,5 +148,11 @@ if (q.get("lesions") === "1") $("lesions").checked = true;
 
 let pending = false;
 const schedule = () => { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; draw(); }); } };
-for (const id of ["mode", "window", "res", "sulcal", "seed", "lesions", "zpos", "ypos", "xpos"]) $(id).addEventListener("input", schedule);
+for (const id of ["mode", "window", "res", "sulcal", "seed", "lesions", "zpos", "ypos", "xpos", "phantomSrc"]) $(id).addEventListener("input", schedule);
 draw();
+// Offer BrainWeb only if its data file is present; otherwise the page stays exactly as it is.
+brainwebAvailable("../").then((ok) => {
+  if (!ok) return;
+  $("phantomSrcBox").hidden = $("phantomSrc").hidden = $("bwHint").hidden = false;
+  if (q.get("phantom") === "brainweb") { $("phantomSrc").value = "brainweb"; schedule(); }
+});

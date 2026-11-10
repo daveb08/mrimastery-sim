@@ -46,6 +46,30 @@ const PAGES = [
     ["click", "tabBtnImages"],
     ["click", "tabBtnGeometry"], ["click", "tabBtnSignal"], ["click", "tabBtnBars"], ["click", "tabBtnCurves"],
     ["click", "tabBtnContrast"],
+    ["expect", "BrainWeb choice shown only when its data is present", `(async () => {
+      const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
+      await new Promise((r) => setTimeout(r, 300));
+      return document.getElementById("phantomSrc").hidden === !ok; })()`],
+    ["expect", "BrainWeb draws with its credit and the explorer link (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      s.value = "brainweb"; s.dispatchEvent(new Event("change", { bubbles: true }));
+      for (let i = 0; i < 50 && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      const lit = ["cv_axial", "cv_coronal", "cv_sagittal"].every((id) => { const c = document.getElementById(id);
+        const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; for (let i = 0; i < d.length; i += 4 * 53) if (d[i] > 20) return true; return false; });
+      return document.body.dataset.phantom === "brainweb" && document.getElementById("bwStatus").textContent === ""
+        && !document.getElementById("bwCredit").hidden && lit && document.getElementById("kExplorer").href.includes("phantom=brainweb")
+        && document.getElementById("bwCite").checkVisibility() && document.getElementById("bwCite").textContent.includes("Aubert-Broche"); })()`],
+    ["click", "tabBtnKspace"],
+    ["expect", "credit and citations stay visible on the K-space tab with BrainWeb; back to Generated hides them (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      const c = document.getElementById("bwCredit"), t = document.getElementById("bwCite");
+      const onK = c.checkVisibility() && t.checkVisibility();
+      s.value = "generated"; s.dispatchEvent(new Event("change", { bubbles: true }));
+      for (let i = 0; i < 50 && document.body.dataset.phantom !== "generated"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      return onK && document.body.dataset.phantom === "generated" && !c.checkVisibility() && !t.checkVisibility(); })()`],
+    ["click", "tabBtnImages"],
     // multi-slice protocol: cross-talk changes the bars (32 tightly packed GRE slices); a short TR needs concatenations
     ["set", "seq", "GRE"], ["click", "tabBtnGeometry"], ["click", "tabBtnBars"], ["set", "c_gapPct", 0], ["set", "c_slices", 32],
     ["expect", "slices 32: gap, order, concatenations and cross-talk shown", `["c_gapPct", "c_sliceOrder", "c_concatenations", "c_crossTalkOn"].every((i) => document.getElementById(i).checkVisibility())`],
@@ -97,6 +121,38 @@ const PAGES = [
     ["expect", "selecting a slice in the other pass plays that pass", `(() => { document.querySelector('#strip figure[data-j="1"]').click();
       return (document.getElementById("passNote").innerText.startsWith("Pass 2 of 2") && document.querySelector("#strip figure.sel")?.dataset.j === "1") || document.getElementById("passNote").innerText; })()`],
     ["expect", "profile plot drawn", `!!document.querySelector('#profilePlot .main-svg')`],
+    ["expect", "BrainWeb choice shown only when its data is present", `(async () => {
+      const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
+      await new Promise((r) => setTimeout(r, 300));
+      return document.getElementById("phantomSrc").hidden === !ok; })()`],
+    ["expect", "BrainWeb redraws the image with its credit (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      const lit = () => { const c = document.getElementById("rCanvas"); const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+        let n = 0; for (let i = 0; i < d.length; i += 4) n += d[i]; return n; };
+      document.getElementById("fillAll").click(); const before = lit();
+      s.value = "brainweb"; s.dispatchEvent(new Event("change", { bubbles: true }));
+      for (let i = 0; i < 80 && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      return document.body.dataset.phantom === "brainweb" && document.getElementById("bwStatus").textContent === ""
+        && !document.getElementById("bwCredit").hidden && (() => { document.getElementById("fillAll").click(); const after = lit(); return after > 0 && after !== before; })()
+        && location.search.includes("phantom=brainweb")
+        && document.getElementById("bwCite").checkVisibility() && document.getElementById("bwCite").textContent.includes("Kwan"); })()`],
+    ["expect", "back to Generated hides the credit and citations (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      s.value = "generated"; s.dispatchEvent(new Event("change", { bubbles: true }));
+      for (let i = 0; i < 50 && document.body.dataset.phantom !== "generated"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      return document.body.dataset.phantom === "generated" && !document.getElementById("bwCredit").checkVisibility() && !document.getElementById("bwCite").checkVisibility(); })()`],
+    ["url", "?seq=SE&slices=3&phantom=brainweb"], ["click", "fillAll"],
+    ["expect", "?phantom=brainweb: BrainWeb with data; silently Generated, select hidden and no error without it", `(async () => {
+      const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
+      for (let i = 0; i < 80 && ok && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      const s = document.getElementById("phantomSrc");
+      const thumbs = document.querySelectorAll("#strip canvas").length === 3;
+      if (ok) return document.body.dataset.phantom === "brainweb" && s.value === "brainweb" && !document.getElementById("bwCredit").hidden && thumbs;
+      return s.hidden && s.value === "generated" && document.body.dataset.phantom !== "brainweb" && document.getElementById("bwCredit").hidden
+        && document.getElementById("bwStatus").hidden && !location.search.includes("phantom") && thumbs; })()`],
     ["expect", "no sequence error shown", `(${VISIBLE_ALERTS}) || true`],
     // dragging Slices across 1 shows the gap and order and hides the inversion, without a rebuild of the slider
     ["url", "?seq=SE"], ["set", "k_slices", 5],
@@ -140,6 +196,57 @@ const PAGES = [
     ["click", "showB1"],
     ["expect", "Show B1 off hides the field", `document.getElementById("scene").data.filter((t) => t.name === "B1").every((t) => t.visible === false)`],
     ["click", "showB1"],
+    ["set", "program", "se"], ["set", "reps", 2], ["set", "tr", 500],
+    ["expect", "TR and repetitions controls exist; no raise note at TR 500", `document.getElementById("trNote").hidden && document.getElementById("trV").textContent === "500 ms"`],
+    ["set", "time", 1e6],
+    ["expect", "readout shows the second TR at the end", `document.getElementById("readout").textContent.includes("TR 2 of 2")`],
+    ["set", "tr", 50], ["set", "delay", 100],
+    ["expect", "too-short TR is raised with a note", `!document.getElementById("trNote").hidden && document.getElementById("trNote").textContent.includes("201 ms")`],
+    ["set", "program", "pulse"],
+    ["expect", "Delay is disabled for the pulse experiment", `document.getElementById("delay").disabled`],
+    ["set", "program", "se"], ["set", "tr", 500], ["set", "delay", 20],
+    ["expect", "every control has a hint marker", `document.querySelectorAll(".hint-btn").length >= 18`],
+    ["expect", "a hint opens on focus with the approved text", `(async () => {
+      const b = document.querySelector('label[for="flip"] .hint-btn'); b.focus();
+      // headless pages never have window focus, so focus() fires no focus event there; a real browser does
+      if (!document.hasFocus()) b.dispatchEvent(new FocusEvent("focus"));
+      await new Promise((r) => setTimeout(r, 100));
+      const p = document.querySelector(".hint-pop");
+      const r = p.getBoundingClientRect();
+      return p.checkVisibility() && p.textContent.startsWith("How far the pulse tips the magnetization")
+        && r.left >= 0 && r.right <= innerWidth; })()`],
+    ["expect", "Escape closes the hint", `(async () => {
+      document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await new Promise((r) => setTimeout(r, 100));
+      return !document.querySelector(".hint-pop").checkVisibility(); })()`],
+    ["expect", "a touch tap on '?' opens the hint and leaves it open", `(async () => {
+      const b = document.querySelector('label[for="tr"] .hint-btn');
+      // the order a phone fires for one tap: pointerdown, emulated mouseenter, focus, click
+      b.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch" }));
+      b.dispatchEvent(new MouseEvent("mouseenter"));
+      b.dispatchEvent(new FocusEvent("focus"));
+      b.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, 100));
+      const p = document.querySelector(".hint-pop"), open = p.checkVisibility() && p.textContent.startsWith("The repetition time");
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      return open; })()`],
+    ["expect", "hint buttons have distinct names and stay out of each control's name", `(() => {
+      const btns = [...document.querySelectorAll(".hint-btn")], names = btns.map((b) => b.getAttribute("aria-label"));
+      const distinct = new Set(names).size === names.length && names.every((n) => n.startsWith("About "));
+      const clean = [...document.querySelectorAll("label[for]")].filter((l) => l.querySelector(".hint-btn")).every((l) => {
+        const c = document.getElementById(l.htmlFor), ids = (c.getAttribute("aria-labelledby") || "").split(" ").filter(Boolean);
+        const name = ids.map((i) => document.getElementById(i)?.textContent ?? "").join(" ");
+        return ids.length > 0 && name.trim() !== "" && !name.includes("About") && !name.includes("?"); });
+      return distinct && clean; })()`],
+    ["expect", "Delay reaches TI values that null long-T1 tissue", `+document.getElementById("delay").max >= 3000`],
+    ["expect", "a note under the traces explains the T2 curve versus the signal envelope", `(() => {
+      const n = document.getElementById("tracesNote"); return !!n && n.checkVisibility()
+        && n.textContent.includes("T2 decay") && n.textContent.includes("dephasing"); })()`],
+    ["expect", "the time slider keeps its width whatever the readout says (dragging must not bounce)", `(() => {
+      const t = document.getElementById("time"), widths = [];
+      for (const v of [0, 40, 200, 400, 900]) { t.value = v; t.dispatchEvent(new Event("input")); widths.push(t.getBoundingClientRect().width); }
+      t.value = 0; t.dispatchEvent(new Event("input"));
+      return Math.max(...widths) - Math.min(...widths) < 1; })()`],
   ] },
   { name: "coil", path: "coil/", steps: [
     ["cycle", "geometry"], ["set", "radius", 8],
@@ -148,6 +255,44 @@ const PAGES = [
   { name: "signal", path: "signal/", steps: [["cycle", "field"], ["cycle", "kind"], ["set", "tbw", 8]] },
   { name: "phantom", path: "phantom/", steps: [
     ["cycle", "mode"], ["cycle", "window"], ["set", "zpos", 20], ["click", "lesions"], ["cycle", "res"],
+    ["expect", "BrainWeb choice shown only when its data is present", `(async () => {
+      const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
+      await new Promise((r) => setTimeout(r, 300));
+      return document.getElementById("phantomSrc").hidden === !ok; })()`],
+    ["expect", "BrainWeb draws with its credit (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      s.value = "brainweb"; s.dispatchEvent(new Event("input", { bubbles: true }));
+      for (let i = 0; i < 50 && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
+      return document.body.dataset.phantom === "brainweb" && document.getElementById("bwStatus").textContent === ""
+        && !document.getElementById("bwStatus").offsetParent
+        && !document.getElementById("bwCredit").hidden && document.getElementById("seed").disabled
+        && document.getElementById("bwCite").checkVisibility() && document.getElementById("bwCite").textContent.includes("Collins")
+        && !document.querySelector("h1").innerText.includes("Procedural") && !document.body.innerText.includes("not a segmentation of a real person")
+        && !document.body.innerText.includes("no stored data"); })()`],
+    ["expect", "back to Generated restores the procedural wording and hides the citations (skipped without data)", `(async () => {
+      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      s.value = "generated"; s.dispatchEvent(new Event("input", { bubbles: true }));
+      for (let i = 0; i < 50 && document.body.dataset.phantom !== "generated"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      return document.body.dataset.phantom === "generated" && !document.getElementById("bwCite").checkVisibility()
+        && document.querySelector("h1").innerText === "Procedural head phantom" && document.body.innerText.includes("not a segmentation of a real person"); })()`],
+    ["set", "xpos", 5], ["set", "ypos", 0], ["set", "zpos", 14],
+    ["expect", "linked slice lines mark the other two slices on each view", `(async () => {
+      await new Promise((r) => setTimeout(r, 200));
+      const pct = (el, prop) => parseFloat(el.style[prop]);
+      const ax = document.getElementById("frame_axial"), sag = document.getElementById("frame_sagittal");
+      // axial: x = 5 -> (5 + 125) / 250 = 52 % from the left; y = 0 -> (8 + 125 - 0) / 250 = 53.2 % from the top
+      // sagittal: y = 0 -> screen-right 0 -> (0 + 8 + 125) / 250 = 53.2 %; z = 14 -> (-25 + 125 - 14) / 250 = 34.4 %
+      return Math.abs(pct(ax.querySelector(".xh.v"), "left") - 52) < 0.5 && Math.abs(pct(ax.querySelector(".xh.h"), "top") - 53.2) < 0.5
+        && Math.abs(pct(sag.querySelector(".xh.v"), "left") - 53.2) < 0.5 && Math.abs(pct(sag.querySelector(".xh.h"), "top") - 34.4) < 0.5; })()`],
+    ["expect", "clicking an image moves the other two slices to that point", `(async () => {
+      const f = document.getElementById("frame_axial"), r = f.getBoundingClientRect();
+      // the centre of the axial view is screen (0, 8) mm: patient x = 0, y = 8
+      f.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId: 1, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+      f.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 1 }));
+      await new Promise((r) => setTimeout(r, 200));
+      return +document.getElementById("xpos").value === 0 && +document.getElementById("ypos").value === 8
+        && +document.getElementById("zpos").value === 14 && document.getElementById("xposV").textContent === "0"; })()`],
   ] },
   { name: "tuning", path: "tuning/", steps: [
     ["click", "auto"], ["expect", "Tune & match gives a matched coil", `!!document.querySelector("#status .ok")`],
@@ -227,7 +372,9 @@ async function runPage(cdp, base, page, outDir) {
       problems.push(`JS error: ${(d.exception?.description ?? d.text).split("\n")[0]}`);
     } else if (m.method === "Runtime.consoleAPICalled" && m.params.type === "error") {
       problems.push(`console error: ${m.params.args.map((a) => a.value ?? a.description).join(" ")}`);
-    } else if (m.method === "Network.responseReceived" && m.params.response.status >= 400 && !m.params.response.url.endsWith("favicon.ico")) {
+    } else if (m.method === "Network.responseReceived" && m.params.response.status >= 400 && !m.params.response.url.endsWith("favicon.ico")
+      // The BrainWeb file is git-ignored until permission to redistribute it is granted, so pages probe for it and a 404 is expected.
+      && !(m.params.response.status === 404 && m.params.response.url.includes("/data/brainweb/"))) {
       problems.push(`HTTP ${m.params.response.status}: ${m.params.response.url}`);
     } else if (m.method === "Network.loadingFailed" && !m.params.canceled) {
       problems.push(`failed to load (${m.params.errorText}): ${m.params.requestId}`);

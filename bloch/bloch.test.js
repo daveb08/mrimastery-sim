@@ -118,3 +118,12 @@ test("hannSinc: the TBW-4 sinc under a Hann window is symmetric, peaks at 1 in t
   const absMean = (e) => e.reduce((s, v) => s + Math.abs(v), 0) / e.length;
   assert.ok(absMean(envelope("hannSinc", 2000, 4)) < absMean(envelope("sinc", 2000, 4)));
 });
+
+test("spoil zeroes the transverse magnetization and keeps Mz", () => {
+  const r = runProgram([{ type: "rf", flipDeg: 45, durMs: 0.1 }, { type: "spoil" }], INF);
+  const n = r.frames.length, before = r.frames[n - 2], after = r.frames[n - 1];
+  assert.equal(r.eventEnds[1], r.eventEnds[0] + 1); // exactly one frame
+  assert.equal(r.t[n - 1], r.t[n - 2]); // no time passes
+  near(meanTransverse(before).mxy, Math.SQRT1_2);
+  near(after[0], 0, 1e-12); near(after[1], 0, 1e-12); near(after[2], before[2], 1e-12);
+});

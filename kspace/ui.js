@@ -8,6 +8,7 @@ import { kspaceOf, reconstruct, toInferno, autoWindowLevelObject } from "../cont
 import { thumbMatrix, thumbRow, createSampleCache, pump } from "./strip.js";
 import { labelFactors, TISSUE_T1 } from "../shared/crosstalk.js";
 import { createPhantom } from "../phantom/phantom.js";
+import { brainwebAvailable, makePhantom } from "../phantom/brainweb.js";
 import { buildShots, stackCrossTalk } from "./scan.js";
 import { toQuery, contrastNote, applies, clampSel, initialState, explorerParams, SEQ_DEFAULTS, RANGES, INVERSION_SEQS } from "./settings.js";
 
@@ -81,7 +82,9 @@ function buildScan() {
 }
 
 // k-space of the noise-free phantom slice with this sequence's contrast
-const phantom = createPhantom({ seed: 1, sulcalDepthMm: 14 });
+// Generated is the default; BrainWeb replaces it once its data has loaded (choosePhantom). Every cache that depends on
+// the image carries the phantom's source in its key.
+let phantom = createPhantom({ seed: 1, sulcalDepthMm: 14 }), phantomSource = "generated";
 const kCache = new Map();
 // the contrast model's parameters for this scan (shared by the main image and the strip thumbnails)
 function modelParams(P, seq) {
@@ -95,7 +98,7 @@ function phantomKspace(P, seq) {
   const z = scan.xt ? scan.xt.slices[state.sel].zMm : 14;
   const factors = scan.xt ? labelFactors(scan.xt.slices[state.sel].factor) : null;
   const { name, p } = modelParams(P, seq);
-  const key = [name, p.TR.toFixed(1), p.TE.toFixed(2), p.FA, p.TI1.toFixed(1), p.TI2.toFixed(1), P.nx, P.fovRead, P.sliceMm, z.toFixed(4), factors ? Array.from(factors, (f) => f.toFixed(4)).join(",") : "-"].join("|");
+  const key = [phantomSource, name, p.TR.toFixed(1), p.TE.toFixed(2), p.FA, p.TI1.toFixed(1), p.TI2.toFixed(1), P.nx, P.fovRead, P.sliceMm, z.toFixed(4), factors ? Array.from(factors, (f) => f.toFixed(4)).join(",") : "-"].join("|");
   if (!kCache.has(key)) {
     const sampled = sampleSlice(phantom, "axial", z, { nx: P.nx, ny: P.ny, fovRead: P.fovRead, fovPhase: P.fovPhase, thicknessMm: P.sliceMm });
     const lut = labelSignals(computeModel(p), p);
@@ -393,8 +396,11 @@ $("profileTissue").addEventListener("change", drawProfiles);
 
 
 // ---- slice strip (only with more than one slice): every slice's image, filled in a few thumbnails per frame ----
-const strip = { queue: [], key: null, K: [], mask: null, lut: null, wl: null, refP99: -1, drawn: new Set(), m: 0, raf: 0, cache: createSampleCache((z, th, fov, m) =>
-  sampleSlice(phantom, "axial", z, { nx: m, ny: m, fovRead: fov[0], fovPhase: fov[1], thicknessMm: th })) };
+// one thumbnail sample cache per phantom, so a switch never shows another phantom's slices
+const stripCaches = {};
+const stripCacheFor = (source, ph) => stripCaches[source] ??= createSampleCache((z, th, fov, m) =>
+  sampleSlice(ph, "axial", z, { nx: m, ny: m, fovRead: fov[0], fovPhase: fov[1], thicknessMm: th }));
+const strip = { queue: [], key: null, K: [], mask: null, lut: null, wl: null, refP99: -1, drawn: new Set(), m: 0, raf: 0, cache: stripCacheFor("generated", phantom) };
 
 function buildStrip() {
   const el = $("strip");
@@ -572,6 +578,45 @@ $("scale").addEventListener("change", () => { renderDiagram(); renderCursor(); }
 window.addEventListener("resize", () => { renderDiagram(); renderCursor(); });
 window.addEventListener("textsizechange", () => { renderDiagram(); renderFrame(true); });
 
+// ---- phantom choice: Generated, or BrainWeb when its data file is present ----
+let wantedPhantom = ""; // the newest choice; a slower, older load is ignored
+function setBwStatus(text) { $("bwStatus").textContent = text; $("bwStatus").hidden = !text; }
+function choosePhantom() {
+  const source = $("phantomSrc").value;
+  wantedPhantom = source;
+  if (source === phantomSource) { setBwStatus(""); return; } // back to what is drawn: drop any load in flight
+  if (source === "brainweb") setBwStatus("Loading BrainWeb anatomy…");
+  makePhantom(source, { rootUrl: "../", seed: 1, sulcalDepthMm: 14 }).then((p) => {
+    if (source !== wantedPhantom) return;
+    phantom = p; phantomSource = source;
+    strip.cache = stripCacheFor(source, p);
+    kCache.clear();
+    if (source === "brainweb") state.phantom = "brainweb"; else delete state.phantom;
+    document.body.dataset.phantom = source;
+    $("bwCredit").hidden = source !== "brainweb"; $("bwCite").hidden = source !== "brainweb";
+    setBwStatus("");
+    history.replaceState(null, "", `?${toQuery(state)}`);
+    stop();
+    buildScan(); // as for any setting change
+    play.shot = 0; play.t = 0;
+    renderAll();
+  }, () => {
+    if (source !== wantedPhantom) return;
+    wantedPhantom = phantomSource;
+    $("phantomSrc").value = phantomSource;
+    setBwStatus("BrainWeb anatomy could not be loaded");
+  });
+}
+$("phantomSrc").addEventListener("change", choosePhantom);
+
+const wantBrainweb = state.phantom === "brainweb";
+delete state.phantom; // set again only once BrainWeb is what is shown, so the address describes the image
 buildControls();
 buildScan();
 renderAll();
+// Offer BrainWeb only if its data is present; otherwise the page stays exactly as it is.
+brainwebAvailable("../").then((ok) => {
+  if (!ok) { if (wantBrainweb) history.replaceState(null, "", `?${toQuery(state)}`); return; } // quietly Generated
+  $("phantomSrcBox").hidden = $("phantomSrc").hidden = false;
+  if (wantBrainweb) { $("phantomSrc").value = "brainweb"; choosePhantom(); }
+});

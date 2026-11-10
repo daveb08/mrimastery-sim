@@ -61,3 +61,10 @@ artifacts).
     - load size if several subjects are added.
   - Start with a one-subject pilot. First step: research two or three candidate datasets for licence, size and
     segmentations.
+- **BrainWeb phantom option** — built 2026-11-07, local data only.
+  - A "Phantom: Generated / BrainWeb" choice on the phantom viewer, contrast simulator and k-space explorer, shown
+    only when `data/brainweb/` is present (made by `tools/prepare-brainweb.mjs`).
+  - Pending: BrainWeb's permission to redistribute. Until it is granted `data/brainweb/` stays uncommitted, so the
+    hosted site offers only the generated phantom.
+  - Related to the OpenNeuro item above: BrainWeb is the simpler first source of a real-anatomy phantom (the labels
+    are provided, no segmentation needed).
