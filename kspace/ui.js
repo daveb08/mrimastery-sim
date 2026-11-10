@@ -345,7 +345,7 @@ function renderInfo() {
     ? `<div class="info">Inversion is off with more than one slice: interleaving inversions across slices is not modelled yet.</div>` : "";
   const from = state.from ? `<div class="info">Opened from the contrast simulator (${state.from}) with its settings. ${contrastNote(state.from)}</div>` : "";
   const passes = (i.messages ?? []).map((m) => `<div class="info">${m}.</div>`).join("");
-  $("passNote").textContent = scan.C > 1 ? `Pass ${scan.pass + 1} of ${scan.C} (slices ${i.slices.map((s) => s.index + 1).sort((a, b) => a - b).join(", ")})` : "";
+  $("passNote").textContent = scan.C > 1 ? `Pass ${scan.pass + 1} of ${scan.C} · slices played in the order ${[...i.slices].sort((a, b) => a.acq - b.acq).map((s) => s.index + 1).join(", ")} (neighbouring slices go to the other pass)` : "";
   $("passNote").hidden = scan.C <= 1;
   $("messages").innerHTML = note + from + passes + scan.errors.map((e) => `<div class="alert">${e}. The sequence is drawn at the nearest possible value.</div>`).join("");
 }

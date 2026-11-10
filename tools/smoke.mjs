@@ -98,7 +98,7 @@ const PAGES = [
     ["open", `document.getElementById("kExplorer").href`],
     ["expect", "explorer from the link: 'Pass k of C' with the linked C, and the strip dims the other passes", `(() => {
       const C = new URLSearchParams(location.search).get("conc"), t = document.getElementById("passNote").innerText;
-      return (document.getElementById("passNote").checkVisibility() && t.startsWith("Pass ") && t.includes(" of " + C + " (")
+      return (document.getElementById("passNote").checkVisibility() && t.startsWith("Pass ") && t.includes(" of " + C + " · slices played in the order ")
         && document.querySelectorAll("#strip figure").length === 32 && document.querySelectorAll("#strip figure.other").length > 0) || t; })()`],
   ] },
   { name: "kspace", path: "kspace/", steps: [
@@ -141,6 +141,11 @@ const PAGES = [
     ["url", "?seq=EPI&slices=4&order=sequential"], ["click", "fillAll"],
     ["url", "?seq=SE&slices=5&order=interleaved"], ["click", "fillAll"],
     ["expect", "strip shows five slices", `document.querySelectorAll('#strip canvas').length === 5`],
+    ["url", "?slices=6&conc=2"], ["click", "fillAll"],
+    ["url", "?seq=SE&slices=8&conc=2&order=sequential&sel=0"],
+    ["expect", "pass note lists slices in the order played: sequential", `document.getElementById("passNote").innerText === "Pass 1 of 2 · slices played in the order 1, 3, 5, 7 (neighbouring slices go to the other pass)" || document.getElementById("passNote").innerText`],
+    ["url", "?seq=SE&slices=8&conc=2&order=interleaved&sel=0"],
+    ["expect", "pass note lists slices in the order played: interleaved", `document.getElementById("passNote").innerText === "Pass 1 of 2 · slices played in the order 1, 5, 3, 7 (neighbouring slices go to the other pass)" || document.getElementById("passNote").innerText`],
     ["url", "?slices=6&conc=2"], ["click", "fillAll"],
     ["expect", "concatenations 2: 'Pass 1 of 2' (the middle slice, S3, is in pass 1) and a dimmed strip", `document.getElementById("passNote").innerText.startsWith("Pass 1 of 2")
       && document.querySelectorAll("#strip figure.other").length === 3 && document.getElementById("k_conc").value === "2"`],
