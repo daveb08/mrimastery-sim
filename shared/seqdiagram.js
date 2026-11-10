@@ -100,11 +100,14 @@ export function diagramGeometry(seq, opts = {}) {
 const LADDER_LABELS = new Set(["phase encode", "phase rewinder"]);
 const LADDER_HALF = 4; // ladder steps each side of zero (9 in all)
 
-// Amplitude (mT/m) of the latest "phase encode" lobe to have started by time t (the first one before any has); null
-// when the sequence has none (EPI uses a prephaser and blips).
+// Amplitude (mT/m) of the phase-encode gradient at time t: a "phase rewinder" while it plays, otherwise the latest
+// "phase encode" lobe to have started (the first one before any has); null when the sequence has none (EPI uses a
+// prephaser and blips).
 export function phaseEncodeAt(seq, t) {
   const pes = seq.events.filter((e) => e.kind === "grad" && e.label === "phase encode");
   if (!pes.length) return null;
+  const rw = seq.events.find((e) => e.kind === "grad" && e.label === "phase rewinder" && e.start <= t && t < gradEnd(e));
+  if (rw) return rw.amp;
   let cur = pes[0];
   for (const e of pes) if (e.start <= t && e.start >= cur.start) cur = e;
   return cur.amp;

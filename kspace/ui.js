@@ -286,7 +286,9 @@ function renderStatus() {
   $("nextTr").disabled = play.shot >= n - 1;
   const jump = $("trJump");
   jump.max = n; jump.value = play.shot + 1; jump.hidden = n <= 1;
-  $("trJumpV").textContent = n > 1 ? trReadout(state.seq, scan.shots[play.shot].rows, play.shot, n, scan.ny) : "";
+  const readout = n > 1 ? trReadout(state.seq, scan.shots[play.shot].rows, play.shot, n, scan.ny) : "";
+  $("trJumpV").textContent = readout;
+  jump.setAttribute("aria-valuetext", readout); // screen readers hear "TR 65 of 128 · line 64 (centre)", not "65"
   $("trJumpV").hidden = n <= 1;
   // what the gradients are doing at this moment
   const g = shot.prep.gAt(play.t);

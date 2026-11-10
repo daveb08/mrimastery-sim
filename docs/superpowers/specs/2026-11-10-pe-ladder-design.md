@@ -19,7 +19,8 @@ stepping visible and the number honest.
    phase prephaser.
 2. **Live Gpe value.** Under the Gpe label: this TR's phase-encode amplitude with its sign (e.g. "+29.7 mT/m") and, on a
    second line, the row's scale ("of ±30.7"). In an FSE train it follows the playback cursor: the value of the most
-   recent phase-encode lobe that has started (the first one before any has). Gss and Gfe labels are unchanged.
+   recent phase-encode lobe that has started (the first one before any has). While a phase rewinder plays, the value is the rewinder's
+   (added after the final review, so the label never shows the opposite sign to the lobe under the cursor). Gss and Gfe labels are unchanged.
 3. **Jump to any TR.** A slider beside ◀ TR / TR ▶, 1…N TRs, with a read-out "TR k of N · line r" (SE / GRE; "(centre)"
    added at ky = 0) or "TR k of N" plus "· holds the centre line" for an FSE shot that contains it. Jumping stops
    playback and goes to the start of that TR; earlier TRs show as acquired (as stepping there would). Hidden when the

@@ -163,3 +163,11 @@ test("phaseEncodeAt follows the latest phase encode to start, and gpeValueSvg fo
   assert.match(gpeValueSvg(fse, geom, 0), new RegExp(`>${pes[0].amp >= 0 ? "\+" : "−"}${Math.abs(pes[0].amp).toFixed(1)} mT/m<`));
   assert.equal(gpeValueSvg(epi({ ...P }, [0, 1]), geom, 1), "");
 });
+
+test("phaseEncodeAt shows a rewinder's value while it plays, then the phase encode's again", () => {
+  const gre = gradientEcho({ ...P, TE: 5, TR: 50 }, 0);
+  const pe = gre.events.find((e) => e.label === "phase encode"), rw = gre.events.find((e) => e.label === "phase rewinder");
+  assert.equal(phaseEncodeAt(gre, rw.start + 1e-6), rw.amp);
+  assert.equal(phaseEncodeAt(gre, gradEnd(rw) + 1e-6), pe.amp);
+  assert.equal(phaseEncodeAt(gre, pe.start + 1e-6), pe.amp);
+});

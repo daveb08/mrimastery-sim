@@ -110,6 +110,9 @@ const PAGES = [
       const v = document.getElementById("trJumpV").innerText, g = document.querySelector('#cursor .gpe-now').textContent;
       const c = document.getElementById("clock").innerText;
       return (v === "TR 65 of 128 · line 64 (centre)" && g === "0.0 mT/m" && c.startsWith("TR 65 of 128")) || [v, g, c].join(" | "); })()`],
+    ["expect", "the TR slider stretches with the bar, and screen readers hear its read-out", `(() => { const s = document.getElementById("trJump");
+      return (getComputedStyle(s).flexGrow === "1" && s.getAttribute("aria-valuetext") === document.getElementById("trJumpV").innerText)
+        || [getComputedStyle(s).flexGrow, s.getAttribute("aria-valuetext")].join(" | "); })()`],
     ["expect", "jumping back to TR 3", `(() => { const s = document.getElementById("trJump"); s.value = "3"; s.dispatchEvent(new Event("input"));
       return document.getElementById("trJumpV").innerText === "TR 3 of 128 · line 2" || document.getElementById("trJumpV").innerText; })()`],
     ["expect", "shared scale: ladder and live value kept, no 'of ±' line", `(() => { const s = document.getElementById("scale"); s.value = "shared"; s.dispatchEvent(new Event("change"));
