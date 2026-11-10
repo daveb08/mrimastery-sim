@@ -97,6 +97,29 @@ export function diagramGeometry(seq, opts = {}) {
 // opts: { width, rowHeight, window: [t0, t1], cursor: t, fontScale, scale: "axis" | "shared", signal: [{ t, v }], peaks: { x, y, z } }
 // "axis" gives each gradient row its own full height (its peak is labelled); "shared" keeps true relative strengths.
 // `signal` (v from 0 to 1) is drawn on the ADC row: the received signal magnitude at each sample.
+const LADDER_LABELS = new Set(["phase encode", "phase rewinder"]);
+const LADDER_HALF = 4; // ladder steps each side of zero (9 in all)
+
+// Amplitude (mT/m) of the latest "phase encode" lobe to have started by time t (the first one before any has); null
+// when the sequence has none (EPI uses a prephaser and blips).
+export function phaseEncodeAt(seq, t) {
+  const pes = seq.events.filter((e) => e.kind === "grad" && e.label === "phase encode");
+  if (!pes.length) return null;
+  let cur = pes[0];
+  for (const e of pes) if (e.start <= t && e.start >= cur.start) cur = e;
+  return cur.amp;
+}
+
+// This moment's phase-encode amplitude as SVG text under the Gpe label, for an overlay on diagramSvg(seq, { ladder }).
+export function gpeValueSvg(seq, geom, t, fontScale = 1) {
+  const a = phaseEncodeAt(seq, t);
+  if (a === null) return "";
+  const fs = 12 * fontScale, y = geom.top + 2.5 * geom.rowH + fs * 1.35;
+  const r = Math.round(Math.abs(a) * 10) / 10;
+  const txt = r === 0 ? "0.0" : `${a > 0 ? "+" : "−"}${r.toFixed(1)}`;
+  return `<text class="gpe-now" x="${geom.left - 8}" y="${y.toFixed(1)}" fill="#ccc" font-size="${(fs * 0.72).toFixed(1)}" text-anchor="end">${txt} mT/m</text>`;
+}
+
 export function diagramSvg(seq, opts = {}) {
   const fs = 12 * (opts.fontScale ?? 1);
   const { W, H, left, right, top, rowH, plotW, t0, t1, axis: ax, X } = diagramGeometry(seq, opts);
@@ -127,13 +150,28 @@ export function diagramSvg(seq, opts = {}) {
   ROWS.forEach((row, i) => {
     const y = rowMid(i);
     parts.push(`<text x="${left - 8}" y="${f(y + fs * 0.35)}" fill="${row.color}" font-size="${f(fs)}" text-anchor="end">${row.label}</text>`);
-    if (!shared && rowPeak[row.key]) {
+    if (!shared && rowPeak[row.key] && opts.ladder && row.key === "y") {
+      // with the ladder, the value under the label is this TR's (gpeValueSvg, drawn by the page); the scale goes above
+      parts.push(`<text x="${left - 8}" y="${f(y - fs * 0.75)}" fill="#888" font-size="${f(fs * 0.72)}" text-anchor="end">of ±${rowPeak.y.toFixed(1)}</text>`);
+    } else if (!shared && rowPeak[row.key]) {
       parts.push(`<text x="${left - 8}" y="${f(y + fs * 1.35)}" fill="#888" font-size="${f(fs * 0.72)}" text-anchor="end">${rowPeak[row.key].toFixed(1)} mT/m</text>`);
     }
     parts.push(`<line x1="${left}" y1="${f(y)}" x2="${W - right}" y2="${f(y)}" stroke="#3a3a3a" stroke-width="1"/>`);
   });
 
   const body = [];
+  // the textbook phase-encode ladder: every step this lobe can take (9 evenly spaced, -peak..+peak), faint, behind it
+  if (opts.ladder) {
+    const i = ROWS.findIndex((r) => r.key === "y"), col = ROWS[i].color;
+    const peak = Math.max(opts.peaks?.y ?? 0, own("y")), y0 = rowMid(i);
+    for (const g of grads.filter((e) => e.axis === "y" && LADDER_LABELS.has(e.label))) {
+      const xs = [g.start, g.start + g.rise, g.start + g.rise + g.flat, gradEnd(g)].map(X);
+      for (let j = -LADDER_HALF; j <= LADDER_HALF; j++) {
+        const ya = amp(i, (peak * j) / LADDER_HALF);
+        body.push(`<path class="pe-ladder" d="M${f(xs[0])},${f(y0)}L${f(xs[1])},${f(ya)}L${f(xs[2])},${f(ya)}L${f(xs[3])},${f(y0)}" fill="none" stroke="${col}" stroke-opacity=".35" stroke-width="1"/>`);
+      }
+    }
+  }
   // gradients as filled trapezoids
   for (const g of grads) {
     const i = ROWS.findIndex((r) => r.key === g.axis);

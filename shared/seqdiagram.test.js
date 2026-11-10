@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { timeAxis, diagramSvg } from "./seqdiagram.js";
+import { timeAxis, diagramSvg, diagramGeometry, phaseEncodeAt, gpeValueSvg } from "./seqdiagram.js";
 import { DEFAULTS, spinEcho, gradientEcho, fastSpinEcho, epi, gradEnd, BUILDERS } from "./sequence.js";
 
 const P = { ...DEFAULTS, nx: 64, ny: 64 };
@@ -121,4 +121,45 @@ test("the RF envelope is the windowed pulse: it starts and ends on the baseline 
   // an unwindowed TBW-4 sinc dips 22 % of its peak below the baseline; the Hann window brings that under 10 %
   const dip = Math.max(...ys) - y0, height = y0 - peak;
   assert.ok(height > 0 && dip < 0.1 * height, `dip ${dip}, height ${height}`);
+});
+
+test("ladder: 9 outlines behind every phase encode and rewinder, none without opts.ladder or for EPI", () => {
+  const se = spinEcho({ ...P, TE: 30, TR: 1000 }, 3);
+  assert.equal((diagramSvg(se, { ladder: true }).match(/class="pe-ladder"/g) ?? []).length, 9);
+  assert.equal(diagramSvg(se), diagramSvg(se, {})); // contrast page untouched
+  assert.ok(!diagramSvg(se).includes("pe-ladder"));
+  const fse = fastSpinEcho({ ...P, ETL: 4 }, [0, 1, 2, 3]); // a phase encode and a rewinder per echo
+  assert.equal((diagramSvg(fse, { ladder: true }).match(/class="pe-ladder"/g) ?? []).length, 9 * 8);
+  const e = epi({ ...P }, Array.from({ length: P.ny }, (_, i) => i));
+  assert.ok(!diagramSvg(e, { ladder: true }).includes("pe-ladder"));
+});
+
+test("ladder spans the scan-wide peak: symmetric about the baseline, with a zero step", () => {
+  const mid = spinEcho({ ...P, TE: 30, TR: 1000 }, P.ny / 2 - 1), peaks = { y: 20 };
+  const ys = [...diagramSvg(mid, { ladder: true, peaks }).matchAll(/class="pe-ladder" d="M[\d.]+,([\d.]+)L[\d.]+,([\d.]+)/g)]
+    .map((m) => Number(m[2]) - Number(m[1]));
+  assert.equal(ys.length, 9);
+  assert.ok(Math.abs(Math.min(...ys) + Math.max(...ys)) < 0.5, "symmetric about the baseline");
+  assert.ok(ys.some((y) => Math.abs(y) < 1e-6), "includes zero");
+  assert.ok(Math.max(...ys.map(Math.abs)) > 0);
+});
+
+test("with the ladder the Gpe label shows the scale as 'of ±peak'; without it, the old peak line", () => {
+  const se = spinEcho({ ...P, TE: 30, TR: 1000 }, 0), peaks = { y: 30.66 };
+  assert.ok(diagramSvg(se, { ladder: true, peaks }).includes(">of ±30.7<"));
+  assert.ok(diagramSvg(se, { peaks }).includes(">30.7 mT/m<"));
+  assert.ok(!diagramSvg(se, { ladder: true, peaks, scale: "shared" }).includes("of ±"));
+});
+
+test("phaseEncodeAt follows the latest phase encode to start, and gpeValueSvg formats it with its sign", () => {
+  const fse = fastSpinEcho({ ...P, ETL: 4 }, [0, 10, P.ny / 2, P.ny - 1]);
+  const pes = fse.events.filter((e) => e.label === "phase encode");
+  assert.equal(phaseEncodeAt(fse, 0), pes[0].amp); // before any has started: the first
+  assert.equal(phaseEncodeAt(fse, pes[2].start + 1e-6), pes[2].amp);
+  assert.equal(phaseEncodeAt(fse, fse.tr), pes[3].amp);
+  assert.equal(phaseEncodeAt(epi({ ...P }, [0, 1]), 1), null);
+  const geom = diagramGeometry(fse, {});
+  assert.match(gpeValueSvg(fse, geom, pes[2].start + 1e-6), />0\.0 mT\/m</);
+  assert.match(gpeValueSvg(fse, geom, 0), new RegExp(`>${pes[0].amp >= 0 ? "\+" : "−"}${Math.abs(pes[0].amp).toFixed(1)} mT/m<`));
+  assert.equal(gpeValueSvg(epi({ ...P }, [0, 1]), geom, 1), "");
 });
