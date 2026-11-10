@@ -102,10 +102,26 @@ const PAGES = [
         && document.querySelectorAll("#strip figure").length === 32 && document.querySelectorAll("#strip figure.other").length > 0) || t; })()`],
   ] },
   { name: "kspace", path: "kspace/", steps: [
+    ["expect", "ladder drawn behind the phase encode", `document.querySelectorAll('#diagram .pe-ladder').length === 9`],
+    ["expect", "live Gpe value under the label", `/^[+−]\\d+\\.\\d mT\\/m$/.test(document.querySelector('#cursor .gpe-now')?.textContent ?? "")
+      || document.querySelector('#cursor .gpe-now')?.textContent`],
+    ["expect", "jump to the centre line: read-out, zero phase encode, TR in the clock", `(() => {
+      const s = document.getElementById("trJump"); s.value = "65"; s.dispatchEvent(new Event("input"));
+      const v = document.getElementById("trJumpV").innerText, g = document.querySelector('#cursor .gpe-now').textContent;
+      const c = document.getElementById("clock").innerText;
+      return (v === "TR 65 of 128 · line 64 (centre)" && g === "0.0 mT/m" && c.startsWith("TR 65 of 128")) || [v, g, c].join(" | "); })()`],
+    ["expect", "jumping back to TR 3", `(() => { const s = document.getElementById("trJump"); s.value = "3"; s.dispatchEvent(new Event("input"));
+      return document.getElementById("trJumpV").innerText === "TR 3 of 128 · line 2" || document.getElementById("trJumpV").innerText; })()`],
+    ["expect", "shared scale: ladder and live value kept, no 'of ±' line", `(() => { const s = document.getElementById("scale"); s.value = "shared"; s.dispatchEvent(new Event("change"));
+      const ok = document.querySelectorAll('#diagram .pe-ladder').length === 9 && !!document.querySelector('#cursor .gpe-now')
+        && !document.getElementById("diagram").textContent.includes("of ±");
+      s.value = "axis"; s.dispatchEvent(new Event("change")); return ok; })()`],
     ["click", "play"], ["wait", 1500], ["click", "play"], ["click", "nextTr"], ["click", "fillAll"], ["click", "reset"],
     ["url", "?seq=GRE"], ["click", "fillAll"],
     ["url", "?seq=EPI"], ["click", "fillAll"],
+    ["expect", "one-TR scan: no jump slider", "document.getElementById('trJump').hidden"],
     ["url", "?seq=FSE&inv=IR"], ["click", "fillAll"],
+    ["expect", "FSE: slider max is the number of TRs", `+document.getElementById('trJump').max === Number(document.getElementById('clock').innerText.match(/of (\\d+)/)[1])`],
     ["url", "?seq=FSE&inv=DIR&tr=8000"], ["click", "fillAll"],
     ["url", "?seq=SE&slices=5&gap=0&order=sequential&sel=1"], ["click", "fillAll"],
     ["expect", "multi-slice info shows cross-talk", `document.getElementById("info").innerText.includes("Cross-talk signal change")`],

@@ -1,6 +1,6 @@
 import { DEFAULTS, gradEnd } from "../shared/sequence.js";
 import { sampleTrajectory } from "../shared/ktraj.js";
-import { diagramSvg, diagramGeometry } from "../shared/seqdiagram.js";
+import { diagramSvg, diagramGeometry, gpeValueSvg } from "../shared/seqdiagram.js";
 import { textScale, draw, layout, axisStyle, COLORS } from "../shared/plot.js";
 import { defaultParams, computeModel, tissuesAt, csfNullTi, dirNullTi2 } from "../contrast/physics.js";
 import { sampleSlice, composeSignal, labelSignals, toRgba } from "../contrast/image.js";
@@ -9,7 +9,7 @@ import { thumbMatrix, thumbRow, createSampleCache, pump } from "./strip.js";
 import { labelFactors, TISSUE_T1 } from "../shared/crosstalk.js";
 import { createPhantom } from "../phantom/phantom.js";
 import { brainwebAvailable, makePhantom } from "../phantom/brainweb.js";
-import { buildShots, stackCrossTalk } from "./scan.js";
+import { buildShots, stackCrossTalk, trReadout } from "./scan.js";
 import { toQuery, contrastNote, applies, clampSel, initialState, explorerParams, SEQ_DEFAULTS, RANGES, INVERSION_SEQS } from "./settings.js";
 
 const $ = (id) => document.getElementById(id);
@@ -204,7 +204,7 @@ function renderDiagram() {
     return { t: p.t, v: Math.sqrt(Math.hypot(scan.K.re[i], scan.K.im[i]) / (scan.K.max || 1)) }; // max is 0 for a slice in air
   });
   const width = Math.max(700, $("diagram").clientWidth || 1000);
-  const opts = { width, rowHeight: 42, window, fontScale: textScale(), scale: $("scale").value, signal, peaks: scan.peaks };
+  const opts = { width, rowHeight: 42, window, fontScale: textScale(), scale: $("scale").value, signal, peaks: scan.peaks, ladder: true };
   $("diagram").innerHTML = diagramSvg(seq, opts);
   geom = diagramGeometry(seq, opts);
   $("cursor").setAttribute("viewBox", `0 0 ${geom.W} ${geom.H}`);
@@ -213,8 +213,9 @@ function renderDiagram() {
 function renderCursor() {
   if (!geom) return;
   const t = play.t;
-  $("cursor").innerHTML = t >= geom.t0 && t <= geom.t1
-    ? `<line x1="${geom.X(t).toFixed(1)}" y1="${geom.top - 6}" x2="${geom.X(t).toFixed(1)}" y2="${geom.top + 5 * geom.rowH}" stroke="#7fd8ff" stroke-width="2.5"/>` : "";
+  $("cursor").innerHTML = (t >= geom.t0 && t <= geom.t1
+    ? `<line x1="${geom.X(t).toFixed(1)}" y1="${geom.top - 6}" x2="${geom.X(t).toFixed(1)}" y2="${geom.top + 5 * geom.rowH}" stroke="#7fd8ff" stroke-width="2.5"/>` : "")
+    + gpeValueSvg(shotNow().seq, geom, t, textScale()); // this moment's phase encode, under the Gpe label
 }
 
 function drawKspace() {
@@ -283,6 +284,10 @@ function renderStatus() {
   $("play").textContent = play.playing ? "❚❚ Pause" : "▶ Play";
   $("prevTr").disabled = play.shot === 0;
   $("nextTr").disabled = play.shot >= n - 1;
+  const jump = $("trJump");
+  jump.max = n; jump.value = play.shot + 1; jump.hidden = n <= 1;
+  $("trJumpV").textContent = n > 1 ? trReadout(state.seq, scan.shots[play.shot].rows, play.shot, n, scan.ny) : "";
+  $("trJumpV").hidden = n <= 1;
   // what the gradients are doing at this moment
   const g = shot.prep.gAt(play.t);
   const active = shot.seq.events.filter((e) => e.kind === "grad" && play.t > e.start && play.t < gradEnd(e)).map((e) => e.label);
@@ -570,6 +575,7 @@ $("play").addEventListener("click", () => {
 });
 $("reset").addEventListener("click", () => { stop(); play.shot = 0; play.t = 0; renderDiagram(); renderFrame(true); });
 $("prevTr").addEventListener("click", () => { stop(); play.shot = Math.max(0, play.shot - 1); play.t = 0; renderDiagram(); renderFrame(true); });
+$("trJump").addEventListener("input", () => { stop(); play.shot = Math.min(scan.shots.length - 1, Math.max(0, $("trJump").value - 1)); play.t = 0; renderDiagram(); renderFrame(true); });
 $("nextTr").addEventListener("click", () => { stop(); play.shot = Math.min(scan.shots.length - 1, play.shot + 1); play.t = 0; renderDiagram(); renderFrame(true); });
 $("fillAll").addEventListener("click", () => { stop(); play.shot = scan.shots.length - 1; play.t = shotNow().seq.tr; renderDiagram(); renderFrame(true); });
 $("time").addEventListener("input", () => { stop(); play.t = (Number($("time").value) / 1000) * shotNow().seq.tr; renderFrame(true); });
