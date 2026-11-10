@@ -116,14 +116,13 @@ const PAGES = [
       || document.querySelector('#cursor .gpe-now')?.textContent`],
     ["expect", "jump to the centre line: read-out, zero phase encode, TR in the clock", `(() => {
       const s = document.getElementById("trJump"); s.value = "65"; s.dispatchEvent(new Event("input"));
-      const v = document.getElementById("trJumpV").innerText, g = document.querySelector('#cursor .gpe-now').textContent;
-      const c = document.getElementById("clock").innerText;
-      return (v === "TR 65 of 128 · line 64 (centre)" && g === "0.0 mT/m" && c.startsWith("TR 65 of 128")) || [v, g, c].join(" | "); })()`],
+      const g = document.querySelector('#cursor .gpe-now').textContent, c = document.getElementById("clock").innerText;
+      return (c.startsWith("TR 65 of 128 · line 64 (centre) · t = ") && c.split("TR ").length === 2 && g === "0.0 mT/m") || [g, c].join(" | "); })()`],
     ["expect", "the TR slider stretches with the bar, and screen readers hear its read-out", `(() => { const s = document.getElementById("trJump");
-      return (getComputedStyle(s).flexGrow === "1" && s.getAttribute("aria-valuetext") === document.getElementById("trJumpV").innerText)
+      return (getComputedStyle(s).flexGrow === "1" && s.getAttribute("aria-valuetext") === "TR 65 of 128 · line 64 (centre)")
         || [getComputedStyle(s).flexGrow, s.getAttribute("aria-valuetext")].join(" | "); })()`],
     ["expect", "jumping back to TR 3", `(() => { const s = document.getElementById("trJump"); s.value = "3"; s.dispatchEvent(new Event("input"));
-      return document.getElementById("trJumpV").innerText === "TR 3 of 128 · line 2" || document.getElementById("trJumpV").innerText; })()`],
+      return document.getElementById("clock").innerText.startsWith("TR 3 of 128 · line 2 · t = ") || document.getElementById("clock").innerText; })()`],
     ["expect", "shared scale: ladder and live value kept, no 'of ±' line", `(() => { const s = document.getElementById("scale"); s.value = "shared"; s.dispatchEvent(new Event("change"));
       const ok = document.querySelectorAll('#diagram .pe-ladder').length === 9 && !!document.querySelector('#cursor .gpe-now')
         && !document.getElementById("diagram").textContent.includes("of ±");
@@ -150,6 +149,8 @@ const PAGES = [
     ["expect", "clicking another slice in the strip updates the headings", `(() => { document.querySelector('#strip figure[data-j="4"]').click();
       const h = [...document.querySelectorAll(".kpanels h2")].map((e) => e.innerText);
       return h.every((t) => t.endsWith("· slice 5 of 5")) || h.join(" | "); })()`],
+    ["url", "?seq=SE&slices=9&conc=4&sel=3"],
+    ["expect", "more than two passes: the note says 'other passes'", `document.getElementById("passNote").innerText === "Pass 4 of 4 · slices played in the order 4, 8 (neighbouring slices go to other passes)" || document.getElementById("passNote").innerText`],
     ["url", "?seq=SE&slices=6&conc=2&sel=1"],
     ["expect", "slice in pass 2: pass 1 thumbnails say done, pass 2 ones carry no pass state, and the strip note explains", `(() => {
       const cap = (j) => document.querySelector('#strip figure[data-j="' + j + '"] figcaption').innerText;

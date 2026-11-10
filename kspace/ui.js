@@ -280,7 +280,9 @@ function renderStatus() {
   const shot = shotNow(), n = scan.shots.length;
   $("time").value = Math.round((play.t / shot.seq.tr) * 1000);
   const k = shot.prep.kAt(play.t);
-  $("clock").textContent = `TR ${play.shot + 1} of ${n} · t = ${play.t.toFixed(2)} ms · k = (${(k[0] / scan.info.dkx).toFixed(1)}, ${(k[1] / scan.info.dky).toFixed(1)}) Δk`;
+  // one read-out: the TR and its line(s), then the moment within it
+  const readout = n > 1 ? trReadout(state.seq, scan.shots[play.shot].rows, play.shot, n, scan.ny) : `TR 1 of 1`;
+  $("clock").textContent = `${readout} · t = ${play.t.toFixed(2)} ms · k = (${(k[0] / scan.info.dkx).toFixed(1)}, ${(k[1] / scan.info.dky).toFixed(1)}) Δk`;
   $("play").textContent = play.playing ? "❚❚ Pause" : "▶ Play";
   $("prevTr").disabled = play.shot === 0;
   $("nextTr").disabled = play.shot >= n - 1;
@@ -288,10 +290,7 @@ function renderStatus() {
   for (const el of document.querySelectorAll(".kpanels .slice-of")) el.textContent = scan.N > 1 ? ` · slice ${state.sel + 1} of ${scan.N}` : "";
   const jump = $("trJump");
   jump.max = n; jump.value = play.shot + 1; jump.hidden = n <= 1; jump.parentElement.hidden = n <= 1; // the whole TR row, label too
-  const readout = n > 1 ? trReadout(state.seq, scan.shots[play.shot].rows, play.shot, n, scan.ny) : "";
-  $("trJumpV").textContent = readout;
   jump.setAttribute("aria-valuetext", readout); // screen readers hear "TR 65 of 128 · line 64 (centre)", not "65"
-  $("trJumpV").hidden = n <= 1;
   // what the gradients are doing at this moment
   const g = shot.prep.gAt(play.t);
   const active = shot.seq.events.filter((e) => e.kind === "grad" && play.t > e.start && play.t < gradEnd(e)).map((e) => e.label);
@@ -347,7 +346,7 @@ function renderInfo() {
     ? `<div class="info">Inversion is off with more than one slice: interleaving inversions across slices is not modelled yet.</div>` : "";
   const from = state.from ? `<div class="info">Opened from the contrast simulator (${state.from}) with its settings. ${contrastNote(state.from)}</div>` : "";
   const passes = (i.messages ?? []).map((m) => `<div class="info">${m}.</div>`).join("");
-  $("passNote").textContent = scan.C > 1 ? `Pass ${scan.pass + 1} of ${scan.C} · slices played in the order ${[...i.slices].sort((a, b) => a.acq - b.acq).map((s) => s.index + 1).join(", ")} (neighbouring slices go to the other pass)` : "";
+  $("passNote").textContent = scan.C > 1 ? `Pass ${scan.pass + 1} of ${scan.C} · slices played in the order ${[...i.slices].sort((a, b) => a.acq - b.acq).map((s) => s.index + 1).join(", ")} (neighbouring slices go to ${scan.C === 2 ? "the other pass" : "other passes"})` : "";
   $("passNote").hidden = scan.C <= 1;
   $("messages").innerHTML = note + from + passes + scan.errors.map((e) => `<div class="alert">${e}. The sequence is drawn at the nearest possible value.</div>`).join("");
 }
