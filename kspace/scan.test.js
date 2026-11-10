@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildShots, shotRows, stackCrossTalk } from "./scan.js";
+import { buildShots, shotRows, stackCrossTalk, trReadout } from "./scan.js";
 import { crossTalk, TISSUE_T1 } from "../shared/crosstalk.js";
 import { initialState, explorerParams, explorerUrl } from "./settings.js";
 import { protocolTiming, PROTOCOL_DEFAULTS } from "../contrast/protocol.js";
@@ -131,4 +131,21 @@ test("contrast page and explorer agree: max slices, concatenations and scan time
   const explorerSec = s.scanMs / 1000, contrastSec = computeModel(p, { scanFactor: timing.scanFactor }).scanSec;
   assert.ok(Math.abs(explorerSec - contrastSec) < 1e-9, `${explorerSec} s vs ${contrastSec} s`);
   assert.deepEqual([timing.maxSlices, timing.concatenations, contrastSec], [4, 5, 320]); // 4 slices per TR, 5 passes, 500 ms x 128 x 5
+});
+
+test("each shot records the rows it plays", () => {
+  const s = buildShots("SE", explorerParams(initialState("?seq=SE&matrix=32")));
+  assert.deepEqual(s.shots.map((x) => x.rows), Array.from({ length: 32 }, (_, i) => [i]));
+  const f = buildShots("FSE", explorerParams(initialState("?seq=FSE&matrix=32&etl=4")));
+  assert.deepEqual(f.shots.flatMap((x) => x.rows).sort((a, b) => a - b), Array.from({ length: 32 }, (_, i) => i));
+  assert.deepEqual(f.full(1).rows, f.shots[1].rows);
+  const m = buildShots("SE", explorerParams(initialState("?seq=SE&matrix=32&slices=3")));
+  assert.deepEqual(m.full(5).rows, [5]);
+});
+
+test("TR read-out names the line, and flags the centre", () => {
+  assert.equal(trReadout("SE", [64], 64, 128, 128), "TR 65 of 128 · line 64 (centre)");
+  assert.equal(trReadout("GRE", [3], 3, 128, 128), "TR 4 of 128 · line 3");
+  assert.equal(trReadout("FSE", [2, 18, 34, 50], 2, 16, 64), "TR 3 of 16");
+  assert.equal(trReadout("FSE", [8, 24, 32, 40], 0, 16, 64), "TR 1 of 16 · holds the centre line");
 });

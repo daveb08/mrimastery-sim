@@ -52,7 +52,7 @@ const concatenationsOf = (name, P, rows) => (stackSize(P) > 1 ? sliceTiming({ ..
 // Returns { first, eff, N, C, pass, shots, offset(j), full(i), scanMs }:
 //   first      the full sequence of the first TR (for timing, errors, info and the cross-talk)
 //   N, C, pass slices in the whole stack, concatenations, and the pass shown
-//   shots[i]   TR i as one slice: { seq, prep, samples [{ t, col, row, slice: 0 }], activeEnd, path }
+//   shots[i]   TR i as one slice: { seq, prep, samples [{ t, col, row, slice: 0 }], activeEnd, path, rows }
 //   offset(j)  ms from a single-slice time to the same moment in full-stack slice j's block (null: not in this pass)
 //   full(i)    TR i with every slice block: { seq, prep, samples (time order, with slice), activeEnd, path }
 //   scanMs     TR x TRs to fill k-space x concatenations
@@ -64,11 +64,11 @@ export function buildShots(name, P0, sel) {
   const slices = first.info.slices, N = stackSize(P), pass = first.info.pass ?? 0;
   const scanMs = first.tr * rowsPerShot.length * C;
   if (N <= 1) {
-    const shots = rowsPerShot.map((rows, i) => shotOf(i === 0 ? first : buildOne(name, P, rows)));
+    const shots = rowsPerShot.map((rows, i) => ({ ...shotOf(i === 0 ? first : buildOne(name, P, rows)), rows }));
     return { first, eff, N, C, pass, shots, offset: () => 0, full: (i) => shots[i], scanMs };
   }
   const single = { ...P, slices: 1, inversion: "none", TR: first.tr };
-  const shots = rowsPerShot.map((rows) => shotOf(buildOne(name, single, rows)));
+  const shots = rowsPerShot.map((rows) => ({ ...shotOf(buildOne(name, single, rows)), rows }));
   const block = first.info.block;
   const byAcq = [...slices].sort((a, b) => a.acq - b.acq).map((s) => s.index); // slice played at each block
   const byIndex = new Map(slices.map((s) => [s.index, s]));
@@ -83,7 +83,7 @@ export function buildShots(name, P0, sel) {
       const dt = a * block;
       for (const p of shots[i].samples) samples.push({ t: p.t + dt, col: p.col, row: p.row, slice: j });
     });
-    shot = { seq, prep: prepare(seq), samples, activeEnd: activeEndOf(seq), path: null };
+    shot = { seq, prep: prepare(seq), samples, activeEnd: activeEndOf(seq), path: null, rows: shots[i].rows };
     if (i !== 0 && kept.size > FULL_KEEP) for (const k of kept.keys()) if (k !== 0) { kept.delete(k); break; }
     kept.set(i, shot);
     return shot;
@@ -103,4 +103,12 @@ export function stackCrossTalk(name, P, tissues) {
   const slices = [];
   passes.forEach((xt, k) => { for (const s of xt.slices) slices[s.index] = { ...s, pass: k }; });
   return { slices, passes };
+}
+
+// Read-out for TR k (0-based) of n, which plays k-space rows `rows` of ny: the line for SE / GRE ("(centre)" at
+// ky = 0, row ny / 2); for an echo train, whether it holds the centre line.
+export function trReadout(name, rows, k, n, ny) {
+  const head = `TR ${k + 1} of ${n}`;
+  if (name === "SE" || name === "GRE") return `${head} · line ${rows[0]}${rows[0] === ny / 2 ? " (centre)" : ""}`;
+  return rows.includes(ny / 2) ? `${head} · holds the centre line` : head;
 }
