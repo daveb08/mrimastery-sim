@@ -142,6 +142,14 @@ const PAGES = [
     ["url", "?seq=SE&slices=5&order=interleaved"], ["click", "fillAll"],
     ["expect", "strip shows five slices", `document.querySelectorAll('#strip canvas').length === 5`],
     ["url", "?slices=6&conc=2"], ["click", "fillAll"],
+    ["url", "?seq=SE"],
+    ["expect", "one slice: the panel headings name no slice", `![...document.querySelectorAll(".kpanels h2")].some((h) => h.innerText.includes("slice "))`],
+    ["url", "?seq=SE&slices=5&sel=2"],
+    ["expect", "both panel headings name the slice shown", `(() => { const h = [...document.querySelectorAll(".kpanels h2")].map((e) => e.innerText);
+      return h.every((t) => t.endsWith("· slice 3 of 5")) || h.join(" | "); })()`],
+    ["expect", "clicking another slice in the strip updates the headings", `(() => { document.querySelector('#strip figure[data-j="4"]').click();
+      const h = [...document.querySelectorAll(".kpanels h2")].map((e) => e.innerText);
+      return h.every((t) => t.endsWith("· slice 5 of 5")) || h.join(" | "); })()`],
     ["url", "?seq=SE&slices=8&conc=2&order=sequential&sel=0"],
     ["expect", "pass note lists slices in the order played: sequential", `document.getElementById("passNote").innerText === "Pass 1 of 2 · slices played in the order 1, 3, 5, 7 (neighbouring slices go to the other pass)" || document.getElementById("passNote").innerText`],
     ["url", "?seq=SE&slices=8&conc=2&order=interleaved&sel=0"],

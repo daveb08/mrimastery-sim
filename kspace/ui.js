@@ -284,6 +284,8 @@ function renderStatus() {
   $("play").textContent = play.playing ? "❚❚ Pause" : "▶ Play";
   $("prevTr").disabled = play.shot === 0;
   $("nextTr").disabled = play.shot >= n - 1;
+  // with several slices, the k-space and image panels show the selected one: say which
+  for (const el of document.querySelectorAll(".kpanels .slice-of")) el.textContent = scan.N > 1 ? ` · slice ${state.sel + 1} of ${scan.N}` : "";
   const jump = $("trJump");
   jump.max = n; jump.value = play.shot + 1; jump.hidden = n <= 1; jump.parentElement.hidden = n <= 1; // the whole TR row, label too
   const readout = n > 1 ? trReadout(state.seq, scan.shots[play.shot].rows, play.shot, n, scan.ny) : "";
