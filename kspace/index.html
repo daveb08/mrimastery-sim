@@ -37,6 +37,7 @@
   #strip figure.other { opacity: .45; }
   #passNote { font-size: .9rem; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
   #strip figcaption { font-size: .72rem; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  #strip figcaption .pass-state { display: block; }
   @media (max-width: 800px) { .kpanels { grid-template-columns: 1fr; } }
 </style>
 <script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
@@ -116,6 +117,7 @@
     </div>
     <div class="panel" id="stripPanel" style="margin-bottom:12px" hidden>
       <h2 style="margin:0 0 6px">Slices in spatial order (click one to select it)</h2>
+      <p class="caption" id="passOrderNote" style="margin:0 0 6px" hidden></p>
       <div id="strip"></div>
       <p class="caption">Each thumbnail is built from the same TRs as the main image, with the signal change its neighbours' pulses cause. All use one window and level, so a dimmer slice has lost signal.
         Labels give the slice number, its place in the acquisition order and the white-matter signal change.

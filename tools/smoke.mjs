@@ -150,6 +150,17 @@ const PAGES = [
     ["expect", "clicking another slice in the strip updates the headings", `(() => { document.querySelector('#strip figure[data-j="4"]').click();
       const h = [...document.querySelectorAll(".kpanels h2")].map((e) => e.innerText);
       return h.every((t) => t.endsWith("· slice 5 of 5")) || h.join(" | "); })()`],
+    ["url", "?seq=SE&slices=6&conc=2&sel=1"],
+    ["expect", "slice in pass 2: pass 1 thumbnails say done, pass 2 ones carry no pass state, and the strip note explains", `(() => {
+      const cap = (j) => document.querySelector('#strip figure[data-j="' + j + '"] figcaption').innerText;
+      const n = document.getElementById("passOrderNote");
+      return (cap(0).includes("pass 1 · done") && !cap(1).includes("pass ") && n.checkVisibility()
+        && n.innerText === "Passes run one after another: pass 1 is complete before pass 2 starts.") || [cap(0), cap(1), n.innerText].join(" | "); })()`],
+    ["url", "?seq=SE&slices=6&conc=2&sel=0"],
+    ["expect", "slice in pass 1: pass 2 thumbnails say not started", `document.querySelector('#strip figure[data-j="1"] figcaption').innerText.includes("pass 2 · not started")
+      || document.querySelector('#strip figure[data-j="1"] figcaption').innerText`],
+    ["url", "?seq=SE&slices=5"],
+    ["expect", "one pass: no pass note", `!document.getElementById("passOrderNote").checkVisibility()`],
     ["url", "?seq=SE&slices=8&conc=2&order=sequential&sel=0"],
     ["expect", "pass note lists slices in the order played: sequential", `document.getElementById("passNote").innerText === "Pass 1 of 2 · slices played in the order 1, 3, 5, 7 (neighbouring slices go to the other pass)" || document.getElementById("passNote").innerText`],
     ["url", "?seq=SE&slices=8&conc=2&order=interleaved&sel=0"],

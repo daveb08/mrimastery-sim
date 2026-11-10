@@ -437,12 +437,20 @@ function buildStrip() {
 
 // signed WM change and acquisition order under each thumbnail; outline the selected slice
 function markStrip() {
+  const note = $("passOrderNote");
+  note.hidden = !scan.xt || scan.C <= 1;
+  note.textContent = scan.C === 2 ? "Passes run one after another: pass 1 is complete before pass 2 starts."
+    : "Passes run one after another: each is complete before the next starts.";
   if (!scan.xt) return;
   for (const fig of $("strip").children) {
     const j = Number(fig.dataset.j), sl = scan.xt.slices[j], d = (sl.factor.WM - 1) * 100;
     const sign = Math.abs(d) < 0.05 ? "" : d > 0 ? "+" : "−";
     const where = scan.C > 1 ? `P${sl.pass + 1} #${sl.acq + 1}` : `#${sl.acq + 1}`;
-    fig.querySelector("figcaption").textContent = `S${j + 1} · ${where} · WM ${sign}${Math.abs(d).toFixed(1)} %`;
+    // a slice in another pass: passes run one after another, so an earlier one is finished and a later one not started
+    const passState = scan.C > 1 && sl.pass !== scan.pass ? `pass ${sl.pass + 1} · ${sl.pass < scan.pass ? "done" : "not started"}` : "";
+    const cap = fig.querySelector("figcaption");
+    cap.textContent = `S${j + 1} · ${where} · WM ${sign}${Math.abs(d).toFixed(1)} %`;
+    if (passState) { const s = document.createElement("span"); s.className = "pass-state"; s.textContent = passState; cap.append(s); }
     fig.classList.toggle("sel", j === state.sel);
     fig.classList.toggle("other", sl.pass !== scan.pass); // in another pass: not played in the TRs shown
     fig.title = sl.pass === scan.pass ? "" : sl.pass < scan.pass ? `Pass ${sl.pass + 1}: acquired before this pass` : `Pass ${sl.pass + 1}: acquired after this pass`;
