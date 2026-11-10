@@ -102,6 +102,15 @@ const PAGES = [
         && document.querySelectorAll("#strip figure").length === 32 && document.querySelectorAll("#strip figure.other").length > 0) || t; })()`],
   ] },
   { name: "kspace", path: "kspace/", steps: [
+    ["expect", "both sliders keep their width whatever the read-outs say (dragging must not bounce)", `(() => {
+      const t = document.getElementById("time"), j = document.getElementById("trJump"), w = [], wj = [];
+      for (const v of [0, 5, 37, 120, 333, 500, 777, 999]) { t.value = v; t.dispatchEvent(new Event("input"));
+        w.push(t.getBoundingClientRect().width); wj.push(j.getBoundingClientRect().width); }
+      for (const v of [1, 2, 65, 100, 128]) { j.value = v; j.dispatchEvent(new Event("input"));
+        w.push(t.getBoundingClientRect().width); wj.push(j.getBoundingClientRect().width); }
+      j.value = 1; j.dispatchEvent(new Event("input"));
+      const spread = (a) => Math.max(...a) - Math.min(...a);
+      return (spread(w) < 1 && spread(wj) < 1) || "time " + w.map(Math.round).join(",") + " / TR " + wj.map(Math.round).join(","); })()`],
     ["expect", "ladder drawn behind the phase encode", `document.querySelectorAll('#diagram .pe-ladder').length === 9`],
     ["expect", "live Gpe value under the label", `/^[+−]\\d+\\.\\d mT\\/m$/.test(document.querySelector('#cursor .gpe-now')?.textContent ?? "")
       || document.querySelector('#cursor .gpe-now')?.textContent`],
@@ -122,7 +131,7 @@ const PAGES = [
     ["click", "play"], ["wait", 1500], ["click", "play"], ["click", "nextTr"], ["click", "fillAll"], ["click", "reset"],
     ["url", "?seq=GRE"], ["click", "fillAll"],
     ["url", "?seq=EPI"], ["click", "fillAll"],
-    ["expect", "one-TR scan: no jump slider", "document.getElementById('trJump').hidden"],
+    ["expect", "one-TR scan: no jump slider", "!document.getElementById('trJump').checkVisibility()"],
     ["url", "?seq=FSE&inv=IR"], ["click", "fillAll"],
     ["expect", "FSE: slider max is the number of TRs", `+document.getElementById('trJump').max === Number(document.getElementById('clock').innerText.match(/of (\\d+)/)[1])`],
     ["url", "?seq=FSE&inv=DIR&tr=8000"], ["click", "fillAll"],

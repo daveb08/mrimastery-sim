@@ -24,6 +24,11 @@
   .transport { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
   .transport input[type=range] { flex: 1 1 220px; width: auto; }
   .transport select { width: auto; }
+  .transport .slider-row { flex: 1 1 100%; display: flex; align-items: center; gap: 10px; }
+  .transport .slider-label { flex: 0 0 3.2em; font-size: .9rem; color: var(--muted); }
+  .transport .slider-row input[type=range] { flex: 1 1 auto; min-width: 0; }
+  .transport .readouts { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: .9rem; color: var(--muted); }
+  .transport .slider-row[hidden] { display: none; }
   #clock { font-variant-numeric: tabular-nums; }
   #strip { display: flex; flex-wrap: wrap; gap: 8px; }
   #strip figure { margin: 0; width: 112px; cursor: pointer; text-align: center; }
@@ -75,12 +80,9 @@
         <button class="btn" id="play">▶ Play</button>
         <button class="btn" id="prevTr" title="Previous TR">◀ TR</button>
         <button class="btn" id="nextTr" title="Next TR">TR ▶</button>
-        <input type="range" id="trJump" min="1" max="1" step="1" value="1" aria-label="Jump to TR" title="Jump to any TR">
-        <span id="trJumpV" style="font-size:.9rem;color:var(--muted)"></span>
         <span id="passNote" hidden></span>
         <button class="btn" id="fillAll" title="Acquire every TR">Fill all</button>
         <button class="btn" id="reset">Reset</button>
-        <input type="range" id="time" min="0" max="1000" step="1" value="0" aria-label="Time within this TR">
         <label style="font-size:.9rem;color:var(--muted)">Speed <select id="speed">
           <option value="0.5">0.5 ms per second</option>
           <option value="2" selected>2 ms per second</option>
@@ -89,7 +91,13 @@
           <option value="tr10">10 TRs per second</option>
           <option value="real">Real time</option>
         </select></label>
-        <span id="clock"></span>
+        <!-- each slider on a row of its own and the read-outs on their own line, so changing text can never resize a
+             slider under the mouse while it is dragged -->
+        <div class="slider-row"><span class="slider-label">TR</span>
+          <input type="range" id="trJump" min="1" max="1" step="1" value="1" aria-label="Jump to TR" title="Jump to any TR"></div>
+        <div class="slider-row"><span class="slider-label">Time</span>
+          <input type="range" id="time" min="0" max="1000" step="1" value="0" aria-label="Time within this TR"></div>
+        <div class="readouts"><span id="trJumpV"></span><span id="clock"></span></div>
       </div>
       <p class="caption" id="kNote"></p>
       <p class="caption" id="bwStatus" role="status" hidden></p>
