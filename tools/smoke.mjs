@@ -239,6 +239,9 @@ const PAGES = [
         return ids.length > 0 && name.trim() !== "" && !name.includes("About") && !name.includes("?"); });
       return distinct && clean; })()`],
     ["expect", "Delay reaches TI values that null long-T1 tissue", `+document.getElementById("delay").max >= 3000`],
+    ["expect", "a note under the traces explains the T2 curve versus the signal envelope", `(() => {
+      const n = document.getElementById("tracesNote"); return !!n && n.checkVisibility()
+        && n.textContent.includes("T2 decay") && n.textContent.includes("dephasing"); })()`],
     ["expect", "the time slider keeps its width whatever the readout says (dragging must not bounce)", `(() => {
       const t = document.getElementById("time"), widths = [];
       for (const v of [0, 40, 200, 400, 900]) { t.value = v; t.dispatchEvent(new Event("input")); widths.push(t.getBoundingClientRect().width); }
