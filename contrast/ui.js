@@ -264,7 +264,7 @@ function renderNotes(m) {
   if ($("geomNote")) $("geomNote").textContent = `Pixel ${px.toFixed(2)} × ${py.toFixed(2)} mm, voxel ${m.voxelVol.toFixed(2)} mm³`
     + (p.seq === "EPI (single-shot)" ? ". Single-shot EPI: echo train length equals the phase matrix." : "")
     + (m.is3d ? ". For 3D MPRAGE the partitions set the voxel size, not the noise." : "");
-  if ($("signalNote")) $("signalNote").textContent = "Noise depends only on bandwidth, NEX and field strength. "
+  if ($("signalNote")) $("signalNote").textContent = "Noise depends on bandwidth, NEX, the number of phase-encode lines and field strength. "
     + `Noise floor ${m.noiseFloor.toFixed(5)}.`;
 }
 

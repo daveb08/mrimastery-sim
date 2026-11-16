@@ -16,6 +16,7 @@ export const TISSUE_NAMES = ["WM", "GM", "CSF", "Fat"];
 export const SNR_SCALE = 200.0;
 export const BW_REF = 200.0;
 export const NEX_REF = 1.0;
+export const LINES_REF = 256; // phase-encode lines of the reference image
 const REF_PX = 240.0 / 256.0;
 export const REF_VOXEL_VOL = REF_PX ** 2 * 5.0; // 2-D reference voxel, about 4.394 mm^3
 export const NOISE_REF = Math.sqrt(BW_REF) / (REF_VOXEL_VOL * SNR_SCALE);
@@ -115,6 +116,7 @@ export function ernstAngle(TR, T1) {
 // Scan time in seconds (before any partial-Fourier factor).
 export function calcScanTime(TR, phaseMatrix, ETL, NEX, seq, nPartitions = 1) {
   if (seq === "GRE") return (TR * phaseMatrix * NEX) / 1000.0;
+  if (seq === "DWI") return (TR * NEX) / 1000.0; // single shot: every line in one TR. One b-value image, one direction.
   if (seq === "MPRAGE") return (TR * phaseMatrix * NEX) / 1000.0; // partitions do not enter the formula
   return (TR * (phaseMatrix / ETL) * nPartitions * NEX) / 1000.0;
 }
@@ -208,8 +210,11 @@ export function computeModel(p, { scanFactor = 1, crossTalk = null } = {}) {
   const signals = {};
   for (const name of TISSUE_NAMES) signals[name] = round2(baseSignals[name] * volScale * Math.sqrt(p.pfFraction));
 
-  // Step 2: noise depends only on bandwidth, NEX and field strength.
-  const noiseFloor = (NOISE_REF / FIELD_SNR_SCALE[p.field]) * Math.sqrt(p.BW / BW_REF) / Math.sqrt(p.NEX / NEX_REF);
+  // Step 2: noise depends on bandwidth, field strength and how many read-outs are averaged into the image: NEX times the
+  // phase-encode lines (times the partitions in 3-D). The frequency matrix does not enter: at a fixed bandwidth per pixel the
+  // read-out lasts the same time. So SNR goes as voxel volume x sqrt(NEX x lines / bandwidth).
+  const lines = (p.phaseMatrix / LINES_REF) * (is3d ? p.nPartitions / MPRAGE_NPART_DEFAULT : 1);
+  const noiseFloor = (NOISE_REF / FIELD_SNR_SCALE[p.field]) * Math.sqrt(p.BW / BW_REF) / Math.sqrt((p.NEX / NEX_REF) * lines);
 
   // Step 3: SNR = Signal / Noise, no other dependencies.
   const snrs = {};
@@ -261,7 +266,7 @@ const SEQ_DEFAULTS = {
   FSE: { TR: 4000, TE: 80, ETL: 16 },
   GRE: { TR: 4000, TE: 5, FA: 30 }, // the original's default TE (5) is below the 7 ms minimum
   FLAIR: { TR: 9000, TI: 2500, TE: 90, ETL: 16 },
-  STIR: { TR: 3000, TI: 210, TE: 60, ETL: 8 },
+  STIR: { TR: 3000, TE: 60, ETL: 8 }, // TI is set to the fat null for the field (stirDefaultTi)
   bSSFP: { TR: 5, FA: 50 },
   DIR: { TR: 8000, TI1: 3400, TI2: 800, TE: 25, ETL: 8 },
   DWI: { TR: 5000, TE: 80, b: 1000 },
@@ -303,6 +308,14 @@ export function sequenceControls(seq) {
   }
 }
 
+// The STIR starting TI: the fat null at this field and TR, on the TI slider's grid. Fat T1 changes with field strength, so
+// one fixed TI (the original used 210 ms) nulls fat at no field in this model.
+export function stirDefaultTi(TR, field) {
+  const { min, max, step } = sequenceControls("STIR").find((c) => c.key === "TI");
+  const ti = Math.round(csfNullTi(TR, tissuesAt(field).Fat.T1) / step) * step;
+  return Math.min(max, Math.max(min, ti));
+}
+
 // Fully-populated parameters for a sequence, with optional preset overrides (a key of PROTOCOL_PRESETS or a dict).
 export function defaultParams(seq = "FSE", field = "3.0T", preset = null) {
   const src = preset ? (typeof preset === "string" ? PROTOCOL_PRESETS[preset] : preset) : null;
@@ -324,5 +337,6 @@ export function defaultParams(seq = "FSE", field = "3.0T", preset = null) {
   if (base.seq === "MPRAGE") base.sliceMm = 1.0;
   else base.nPartitions = 1;
   if (base.seq === "DIR") base.TI = base.TI1;
+  if (base.seq === "STIR" && !(src && "TI" in src)) base.TI = stirDefaultTi(base.TR, field);
   return base;
 }

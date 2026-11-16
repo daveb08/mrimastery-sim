@@ -13,7 +13,8 @@ const FN = {
   csfNullTi: P.csfNullTi, ernstAngle: P.ernstAngle, bssfpOptimalFa: P.bssfpOptimalFa, dirNullTi2: P.dirNullTi2,
 };
 
-// ---- golden values computed with the original Python physics ----
+// ---- golden values: the signal equations and helpers were computed with the original Python physics; the scan-time and
+// pipeline cases were re-recorded from this model after the 2026-11-16 accuracy fixes (lines in the noise, DWI time, tables) ----
 
 test(`signal equations match Python (${golden.signals.length} cases)`, () => {
   for (const g of golden.signals) near(FN[g.fn](...g.args), g.value, 1e-11, 1e-14, `${g.fn}(${g.args})`);
@@ -27,11 +28,11 @@ test(`helper functions match Python (${golden.helpers.length} cases)`, () => {
   }
 });
 
-test("scan time matches Python for every sequence", () => {
+test("scan time matches the recorded reference for every sequence", () => {
   for (const g of golden.scanTime) near(P.calcScanTime(...g.args), g.value, 1e-12, 0, `${g.args}`);
 });
 
-test(`the Signal -> Noise -> SNR chain matches the app's own statements (${golden.pipeline.length} scenarios)`, () => {
+test(`the Signal -> Noise -> SNR chain matches the recorded reference (${golden.pipeline.length} scenarios)`, () => {
   for (const g of golden.pipeline) {
     const m = P.computeModel({ ...g.params, seq: g.seq, field: g.field });
     const tag = `${g.seq} ${g.field}`;
@@ -56,7 +57,7 @@ test("tables are complete and the field-specific T1/T2 override the base table",
     for (const t of P.TISSUE_NAMES) assert.ok(P.tissuesAt(f)[t].T1 > 0);
   }
   const wm3 = P.tissuesAt("3.0T").WM;
-  assert.equal(wm3.T1, 832); assert.equal(wm3.T2, 80); assert.equal(wm3.T2s, 26);
+  assert.equal(wm3.T1, 832); assert.equal(wm3.T2, 80); assert.equal(wm3.T2s, 53);
   assert.equal(wm3.PD, 0.7); assert.equal(wm3.ADC, 0.0007); // PD and ADC come from the base table
   assert.notEqual(P.TISSUES_BASE.WM.T1, wm3.T1, "the base T1 is overwritten at runtime");
   assert.throws(() => P.tissuesAt("2.0T"));
@@ -121,7 +122,7 @@ test("Ernst angle maximises GRE signal; bSSFP optimal FA maximises bSSFP signal"
   assert.ok(bs(opt) >= bs(opt - 3) && bs(opt) >= bs(opt + 3) - 1e-3);
 });
 
-test("noise depends only on BW, NEX and field; SNR scales with voxel volume", () => {
+test("noise scales with BW, NEX and field, not with the frequency matrix or slice; SNR scales with voxel volume", () => {
   const base = P.defaultParams("FSE", "3.0T");
   const m0 = P.computeModel(base);
   near(P.computeModel({ ...base, BW: 800 }).noiseFloor, m0.noiseFloor * 2, 1e-12);
@@ -130,14 +131,6 @@ test("noise depends only on BW, NEX and field; SNR scales with voxel volume", ()
   near(P.computeModel({ ...base, field: "1.5T" }).noiseFloor, m0.noiseFloor * 2, 1e-12);
   const double = P.computeModel({ ...base, sliceMm: 10 });
   near(double.volScale, m0.volScale * 2, 1e-12);
-});
-
-test("3-D MPRAGE: partitions set the voxel volume, never the noise", () => {
-  const a = P.computeModel(P.defaultParams("MPRAGE", "3.0T"));
-  const b = P.computeModel({ ...P.defaultParams("MPRAGE", "3.0T"), nPartitions: 352 });
-  assert.equal(a.noiseFloor, b.noiseFloor);
-  near(b.voxelVol, a.voxelVol / 2, 1e-12);
-  near(a.scanSec, (2300 * 256 * 1) / 1000, 1e-12, 0, "scan time ignores partitions");
 });
 
 test("partial Fourier scales SNR by sqrt(fraction) and scan time by fraction", () => {
@@ -233,9 +226,9 @@ test("defaults: every sequence yields a valid, fully-populated model", () => {
 
 test("protocol presets produce the documented parameters and respect their TR ranges", () => {
   const flair = P.defaultParams("FSE", "3.0T", "FLAIR brain");
-  assert.equal(flair.seq, "FLAIR"); assert.equal(flair.TI, 2500); assert.equal(flair.TR, 9000); assert.equal(flair.fovRead, 400);
+  assert.equal(flair.seq, "FLAIR"); assert.equal(flair.TI, 2500); assert.equal(flair.TR, 9000); assert.equal(flair.fovRead, 240);
   const stir = P.defaultParams("FSE", "3.0T", "STIR fat suppression");
-  assert.equal(stir.seq, "STIR"); assert.equal(stir.fatSat, true); assert.equal(stir.phaseMatrix, 224);
+  assert.equal(stir.seq, "STIR"); assert.equal(stir.fatSat, false); assert.equal(stir.phaseMatrix, 224);
   const t2 = P.defaultParams("FSE", "3.0T", "T2 FSE brain");
   assert.equal(t2.freqMatrix, 320); assert.equal(t2.pfFraction, 1.0);
   const epi = P.defaultParams("FSE", "3.0T", "EPI BOLD");
@@ -256,11 +249,11 @@ test("sequence controls list the right sliders", () => {
   assert.deepEqual(P.sequenceControls("DWI").map((c) => c.key), ["b", "TE"]);
 });
 
-test("optimal window/level matches the app's computation", () => {
+test("optimal window/level matches the recorded values", () => {
   const cases = [
-    ["FSE", "3.0T", { TR: 4000, TE: 80 }, 0.31806538530928374, 0.3831561383176662],
-    ["GRE", "3.0T", { TR: 700, TE: 25, FA: 25 }, 0.14053057848145045, 0.17283650513938],
-    ["FLAIR", "3.0T", { TR: 9000, TE: 90, TI: 2500 }, 0.1531950942950345, 0.14107428604160357],
+    ["FSE", "3.0T", { TR: 4000, TE: 80 }, 0.29194347506407575, 0.41312250302513337],
+    ["GRE", "3.0T", { TR: 700, TE: 25, FA: 25 }, 0.0804021314826813, 0.21704960887973068],
+    ["FLAIR", "3.0T", { TR: 9000, TE: 90, TI: 2500 }, 0.18764303513959152, 0.16323518957739616],
     ["DWI", "1.5T", { TR: 5000, TE: 80, b: 1000 }, 0.09990176263159838, 0.10369195459477125],
   ];
   for (const [seq, field, over, w, l] of cases) {
@@ -274,7 +267,7 @@ test("key metric per sequence", () => {
   assert.deepEqual(m("GRE", { TR: 100 }).label, "Ernst ∠ WM");
   assert.match(m("FLAIR").value, /^\d+ ms$/);
   assert.equal(m("DWI").label, "WM ADC"); assert.equal(m("DWI").value, "0.70 ×10⁻³ mm²/s");
-  assert.equal(m("EPI (single-shot)").value, "33 ms  (T2*)"); // GM T2* at 3 T
+  assert.equal(m("EPI (single-shot)").value, "66 ms  (T2*)"); // GM T2* at 3 T
   assert.equal(m("FSE").label, "Sequence");
 });
 
@@ -307,4 +300,76 @@ test("cross-talk scales signal not noise", () => {
     assert.ok(Math.abs(b.signals[n] - a.signals[n] * crossTalk[n]) <= 0.01, n);
     assert.ok(Math.abs(b.snrs[n] - a.snrs[n] * crossTalk[n]) <= 0.02 / a.noiseFloor, n);
   }
+});
+
+// ---- accuracy fixes (2026-11-16 review) ----
+
+test("grey matter T2 is longer than white matter T2 at every field, so a longer TE raises grey/white contrast", () => {
+  for (const f of P.FIELDS) assert.ok(P.tissuesAt(f).GM.T2 > P.tissuesAt(f).WM.T2, f);
+  const t = P.tissuesAt("3.0T");
+  assert.equal(t.WM.T2, 80); assert.equal(t.GM.T2, 110); // Wansapura 1999
+  const ratio = (TE) => P.fseSignal(4000, TE, t.GM.T1, t.GM.T2, t.GM.PD) / P.fseSignal(4000, TE, t.WM.T1, t.WM.T2, t.WM.PD);
+  assert.ok(ratio(100) > ratio(20) * 1.2, "T2 weighting grows with TE");
+  const flair = P.computeModel(P.defaultParams("FSE", "3.0T", "FLAIR brain")).baseSignals;
+  assert.ok(flair.GM > flair.WM, "FLAIR: grey matter brighter than white");
+});
+
+test("T2* of brain tissue follows Peters 2007 at 1.5, 3 and 7 T, shortens as the field rises and never exceeds T2", () => {
+  const s = (f, n) => P.tissuesAt(f)[n].T2s;
+  assert.deepEqual([s("1.5T", "WM"), s("3.0T", "WM"), s("7.0T", "WM")], [66, 53, 27]);
+  assert.deepEqual([s("1.5T", "GM"), s("3.0T", "GM"), s("7.0T", "GM")], [84, 66, 33]);
+  for (const n of ["WM", "GM"]) for (let i = 1; i < P.FIELDS.length; i++) {
+    assert.ok(s(P.FIELDS[i], n) <= s(P.FIELDS[i - 1], n), `${n} T2* at ${P.FIELDS[i]}`);
+  }
+  for (const f of P.FIELDS) for (const n of P.TISSUE_NAMES) assert.ok(s(f, n) <= P.tissuesAt(f)[n].T2, `${n} at ${f}`);
+});
+
+test("noise falls with the square root of the phase-encode lines: doubling the phase matrix costs 1/sqrt(2) in SNR, not 1/2", () => {
+  const base = P.defaultParams("FSE", "3.0T");
+  const m0 = P.computeModel(base), m2 = P.computeModel({ ...base, phaseMatrix: 512 });
+  near(m2.noiseFloor, m0.noiseFloor / Math.SQRT2, 1e-12);
+  near(m2.voxelVol, m0.voxelVol / 2, 1e-12);
+  assert.ok(Math.abs(m2.snrs.WM / m0.snrs.WM - Math.SQRT1_2) < 0.02, "SNR ratio");
+  // the frequency matrix does not change the read-out time at a fixed bandwidth per pixel, so only the voxel shrinks
+  const f2 = P.computeModel({ ...base, freqMatrix: 512 });
+  assert.equal(f2.noiseFloor, m0.noiseFloor);
+  // halving the phase FOV at a fixed matrix halves the voxel with the same number of lines
+  assert.equal(P.computeModel({ ...base, fovPhase: base.fovPhase / 2 }).noiseFloor, m0.noiseFloor);
+});
+
+test("3-D MPRAGE: doubling the partitions over the same slab halves the voxel and averages sqrt(2) more", () => {
+  const p = P.defaultParams("MPRAGE", "3.0T");
+  const a = P.computeModel(p), b = P.computeModel({ ...p, nPartitions: 352 });
+  near(b.voxelVol, a.voxelVol / 2, 1e-12);
+  near(b.noiseFloor, a.noiseFloor / Math.SQRT2, 1e-12);
+  near(a.scanSec, (2300 * 256 * 1) / 1000, 1e-12, 0, "scan time ignores partitions");
+});
+
+test("STIR nulls fat with its inversion time, at every field, without the fat-saturation switch", () => {
+  for (const field of ["1.5T", "3.0T"]) for (const p of [P.defaultParams("STIR", field), P.defaultParams("FSE", field, "STIR fat suppression")]) {
+    assert.equal(p.seq, "STIR"); assert.equal(p.fatSat, false);
+    assert.ok(Math.abs(p.TI - P.csfNullTi(p.TR, P.tissuesAt(field).Fat.T1)) <= 5, `${field} TI ${p.TI}`);
+    assert.ok(P.computeModel(p).baseSignals.Fat < 0.02, `${field} fat signal`);
+  }
+  assert.equal(P.defaultParams("STIR", "3.0T").TI, 250);
+  assert.equal(P.defaultParams("STIR", "1.5T").TI, 170);
+  const ti = P.sequenceControls("STIR").find((c) => c.key === "TI");
+  for (const f of P.FIELDS) {
+    const v = P.defaultParams("STIR", f).TI;
+    assert.ok(v >= ti.min && v <= ti.max && v % ti.step === 0, `${f} TI ${v} fits its slider`);
+  }
+});
+
+test("protocol presets use a head-sized field of view", () => {
+  for (const name of Object.keys(P.PROTOCOL_PRESETS)) {
+    if (name === "Custom") continue;
+    const p = P.defaultParams("FSE", "3.0T", name);
+    assert.equal(p.fovRead, 240, name); assert.equal(p.fovPhase, 240, name);
+  }
+});
+
+test("DWI is single-shot: one image takes TR x NEX, whatever the matrix", () => {
+  assert.equal(P.calcScanTime(5000, 128, 1, 2, "DWI"), 10);
+  assert.equal(P.calcScanTime(5000, 256, 1, 2, "DWI"), 10);
+  assert.equal(P.computeModel(P.defaultParams("FSE", "3.0T", "DWI b1000")).scanSec, 10);
 });

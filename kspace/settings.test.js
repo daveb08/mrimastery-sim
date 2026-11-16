@@ -48,7 +48,7 @@ test("contrast-simulator sequences map to explorer sequences, with notes for the
 test("FLAIR, STIR and DIR carry their inversion times over, with a TR range wide enough for them", () => {
   const flair = fromContrast(defaultParams("FLAIR", "3.0T"));
   assert.deepEqual([flair.seq, flair.inversion, flair.TI, flair.TR], ["FSE", "IR", 2500, 9000]);
-  assert.equal(fromContrast(defaultParams("STIR", "3.0T")).TI, 210);
+  assert.equal(fromContrast(defaultParams("STIR", "3.0T")).TI, 250); // the fat null at 3 T
   const dir = fromContrast(defaultParams("DIR", "3.0T"));
   assert.deepEqual([dir.inversion, dir.TI1, dir.TI2, dir.TR], ["DIR", 3400, 800, defaultParams("DIR", "3.0T").TR]);
   for (const seq of ["FLAIR", "STIR", "DIR"]) assert.equal(contrastNote(seq), "");
