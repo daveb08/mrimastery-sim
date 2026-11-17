@@ -249,6 +249,12 @@ function showFrame(i) {
   i = Math.max(0, Math.min(sim.frames.length - 1, Math.round(i)));
   const f = sim.frames[i];
   const m = sim.mean;
+  if ($("scene").data) drawVectors(i, f, m); // no plot there when WebGL is off
+  Plotly.relayout("traces", { "shapes[0].x0": sim.t[i], "shapes[0].x1": sim.t[i] });
+  readout(i);
+}
+
+function drawVectors(i, f, m) {
   const s = arrows(spinVectors(f).map((v) => view(v, i)), HEAD.spin);
   const a = arrows([view([m.mx[i], m.my[i], m.mz[i]], i)], HEAD.mean);
   Plotly.restyle("scene", { x: [s.shaft.x, a.shaft.x], y: [s.shaft.y, a.shaft.y], z: [s.shaft.z, a.shaft.z] }, [DYNAMIC, DYNAMIC + 1]);
@@ -271,7 +277,9 @@ function showFrame(i) {
   } else {
     Plotly.restyle("scene", { visible: false }, B1_TRACES);
   }
-  Plotly.relayout("traces", { "shapes[0].x0": sim.t[i], "shapes[0].x1": sim.t[i] });
+}
+
+function readout(i) {
   const k = eventAt(i);
   const sofar = flipSoFar(sim.events, sim.eventEnds, i);
   const rep = k === null ? 0 : sim.events[k].rep ?? 0;

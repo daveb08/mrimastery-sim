@@ -41,11 +41,32 @@ export function scaleFonts(obj, s) {
   return out;
 }
 
+// 3D plots need WebGL. Some browsers have it switched off (no graphics acceleration, school or work policy, a crashed
+// GPU process); Plotly then prints its own banner at the top of the page and draws nothing.
+const GL_TYPES = new Set(["scatter3d", "surface", "mesh3d", "cone", "streamtube", "isosurface", "volume"]);
+let webgl;
+export function hasWebGL() {
+  if (webgl === undefined) {
+    try {
+      const c = document.createElement("canvas");
+      webgl = !!(c.getContext("webgl2") || c.getContext("webgl") || c.getContext("experimental-webgl"));
+    } catch { webgl = false; }
+  }
+  return webgl;
+}
+export const NO_WEBGL_TEXT = "This 3D view needs WebGL, which this browser has turned off. Turn on graphics acceleration "
+  + "in the browser's settings (or restart the browser), then reload. The rest of the page still works.";
+
 // Draw with fonts at the current text size, and remember the call so a text-size change can redraw it.
 const lastDraw = new Map();
 export function draw(id, traces, lay, cfg = config) {
   lastDraw.set(id, [traces, lay, cfg]);
   const el = document.getElementById(id);
+  if (traces.some((t) => GL_TYPES.has(t.type)) && !hasWebGL()) {
+    el.classList.add("no-webgl");
+    el.textContent = NO_WEBGL_TEXT;
+    return Promise.resolve(el);
+  }
   const s = textScale();
   const result = Plotly.react(el, scaleFonts(traces, s), withLiveCameras(el, scaleFonts(lay, s)), { ...cfg, scrollZoom: el.classList.contains("plot-active") });
   wireScrollZoom(el);
@@ -108,7 +129,9 @@ if (typeof document !== "undefined") {
   style.textContent = ".js-plotly-plot.plot-active{outline:1px solid #FFD700;outline-offset:2px;border-radius:2px}"
     + ".plot-zoom-hint{position:fixed;z-index:1000;pointer-events:none;background:rgba(20,20,20,.92);color:#e6e6e6;"
     + "border:1px solid #FFD700;border-radius:6px;padding:5px 9px;font:.85rem system-ui,sans-serif;opacity:0;transition:opacity .2s}"
-    + ".plot-zoom-hint.show{opacity:1}";
+    + ".plot-zoom-hint.show{opacity:1}"
+    + ".no-webgl{display:flex;align-items:center;justify-content:center;text-align:center;padding:1.5em;color:#ccc;"
+    + "line-height:1.5;border:1px dashed #666;border-radius:6px;min-height:200px;box-sizing:border-box}";
   document.head.appendChild(style);
 }
 
