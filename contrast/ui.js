@@ -54,7 +54,19 @@ fillSelect($("field"), FIELDS.map((f) => ({ value: f, label: f.replace("T", " T"
 fillSelect($("preset"), [{ value: "", label: "Choose a protocol…" },
   ...Object.keys(PROTOCOL_PRESETS).filter((k) => k !== "Custom").map((k) => ({ value: k, label: k }))], "");
 
-function clearPreset() { $("preset").value = ""; }
+// After a protocol is picked and a setting is then changed, the menu reads "Custom (from <protocol>)" so it is clear the
+// settings started from that protocol; picking the protocol again restores it. A new sequence or field strength starts from
+// fresh defaults, so the menu goes back to "Choose a protocol…".
+const customOption = Object.assign(document.createElement("option"), { value: "custom", hidden: true, disabled: true });
+$("preset").options[0].after(customOption);
+let basePreset = "";
+function clearPreset() { basePreset = ""; customOption.hidden = customOption.disabled = true; $("preset").value = ""; }
+function markEdited() {
+  if (!basePreset) { clearPreset(); return; }
+  customOption.textContent = `Custom (from ${basePreset})`;
+  customOption.hidden = customOption.disabled = false;
+  $("preset").value = "custom";
+}
 
 // The original's default GRE TE (5 ms) is below the 7 ms minimum, so a fresh GRE start would open with an error.
 function freshStart(q) {
@@ -76,7 +88,9 @@ $("field").addEventListener("change", () => {
 });
 $("preset").addEventListener("change", () => {
   const key = $("preset").value;
-  if (!key) return;
+  if (key === "custom") return;
+  if (!key) { clearPreset(); return; }
+  basePreset = key; customOption.hidden = customOption.disabled = true;
   p = { ...PROTOCOL_DEFAULTS, ...defaultParams(null, p.field, key) }; // protocol presets are single-slice
   $("seq").value = p.seq;
   buildControls(); update();
@@ -96,7 +110,7 @@ function slider(key, label, min, max, step, fmt = (v) => v) {
   input.addEventListener("input", () => {
     p[key] = Number(input.value);
     out.textContent = fmt(p[key]);
-    clearPreset(); update();
+    markEdited(); update();
   });
   return wrap;
 }
@@ -107,7 +121,7 @@ function checkbox(key, label) {
   wrap.innerHTML = `<input type="checkbox" id="c_${key}"><label for="c_${key}" style="margin:0;color:var(--text)">${label}</label>`;
   const input = wrap.querySelector("input");
   input.checked = !!p[key];
-  input.addEventListener("change", () => { p[key] = input.checked; clearPreset(); update(); });
+  input.addEventListener("change", () => { p[key] = input.checked; markEdited(); update(); });
   return wrap;
 }
 
@@ -147,7 +161,7 @@ function buildControls() {
     const sel = wrap.querySelector("select");
     fillSelect(sel, Object.keys(PARTIAL_FOURIER).map((k) => ({ value: k, label: k })),
       Object.keys(PARTIAL_FOURIER).find((k) => Math.abs(PARTIAL_FOURIER[k] - p.pfFraction) < 1e-9) || "8/8 (Full)");
-    sel.addEventListener("change", () => { p.pfFraction = PARTIAL_FOURIER[sel.value]; clearPreset(); update(); });
+    sel.addEventListener("change", () => { p.pfFraction = PARTIAL_FOURIER[sel.value]; markEdited(); update(); });
     signal.append(wrap);
   }
   signal.append(note("signalNote"));
@@ -162,7 +176,7 @@ function selectControl(key, label, options) {
     + `${options.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select>`;
   const sel = wrap.querySelector("select");
   sel.value = String(p[key]);
-  sel.addEventListener("change", () => { p[key] = sel.value === "auto" || isNaN(sel.value) ? sel.value : Number(sel.value); clearPreset(); update(); });
+  sel.addEventListener("change", () => { p[key] = sel.value === "auto" || isNaN(sel.value) ? sel.value : Number(sel.value); markEdited(); update(); });
   return wrap;
 }
 

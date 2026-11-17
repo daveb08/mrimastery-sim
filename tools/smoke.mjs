@@ -42,6 +42,19 @@ const PAGES = [
   ] },
   { name: "contrast", path: "contrast/", steps: [
     ["cycle", "seq"], ["cycle", "field"], ["cycle", "preset"],
+    ["expect", "editing a protocol's setting shows 'Custom (from <protocol>)'; picking the protocol again restores it", `(async () => {
+      const s = document.getElementById("preset"), wait = () => new Promise((r) => setTimeout(r, 300));
+      const pick = (v) => { s.value = v; s.dispatchEvent(new Event("change", { bubbles: true })); };
+      const name = [...s.options].filter((o) => o.value && o.value !== "custom").pop().value;
+      pick(name); await wait();
+      const tr = document.getElementById("c_TR"), tr0 = tr.value;
+      tr.value = Number(tr0) + Number(tr.step || 1) * 5; tr.dispatchEvent(new Event("input", { bubbles: true })); await wait();
+      const edited = s.selectedOptions[0].textContent === "Custom (from " + name + ")" && tr.value !== tr0;
+      pick(name); await wait();
+      const restored = s.value === name && document.getElementById("c_TR").value === tr0;
+      pick(""); await wait();
+      const cleared = s.selectedOptions[0].textContent.startsWith("Choose a protocol") && s.querySelector('[value="custom"]').hidden;
+      return edited && restored && cleared; })()`],
     ["click", "tabBtnKspace"], ["click", "kPlay"], ["wait", 1200], ["click", "kPlay"], ["click", "kReset"],
     ["click", "tabBtnImages"],
     ["click", "tabBtnGeometry"], ["click", "tabBtnSignal"], ["click", "tabBtnBars"], ["click", "tabBtnCurves"], ["click", "tabBtnCnr"],
