@@ -63,3 +63,20 @@ test("the comparison detects a perturbed waveform and a changed label", () => {
   fig.axes[0].texts[0].s += "x";
   assert.notEqual(diff(comparable(fig), g.figure), null);
 });
+
+// ---- timing handed over from the model (2026-11-17): the diagram no longer derives its own echo spacing ----
+test("FSE diagram follows the model's echo timing: it draws when the model allows the TR, and names an effective echo beyond the six shown", async () => {
+  const { computeModel, defaultParams } = await import("./physics.js");
+  const { psdParams } = await import("./psd.js");
+  const texts = (fig) => JSON.stringify(fig);
+  // 16 echoes at 10 ms need 160 ms; the diagram's own rule (20 ms spacing) would have refused a TR of 200 ms
+  const p = { ...defaultParams("FSE", "3.0T"), TR: 200, TE: 80, ETL: 16 };
+  const ok = texts(drawPulseSequence(psdParams(p, computeModel(p))));
+  assert.ok(!ok.includes("TR too short"), "drawn, not refused");
+  assert.ok(ok.includes("Showing 6 of 16 echoes; TEeff is echo 8"));
+  const q = { ...p, TR: 150 };
+  assert.ok(texts(drawPulseSequence(psdParams(q, computeModel(q)))).includes("minimum TR for current ETL and TEeff is 160 ms"));
+  const r = { ...defaultParams("FSE", "3.0T"), TE: 30, ETL: 8 }; // third echo: inside the six shown, so it is marked as before
+  const shown = texts(drawPulseSequence(psdParams(r, computeModel(r))));
+  assert.ok(shown.includes("TEeff = 30 ms") && !shown.includes("TEeff is echo"));
+});

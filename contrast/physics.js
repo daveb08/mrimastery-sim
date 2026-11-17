@@ -25,13 +25,11 @@ export const MPRAGE_NPART_DEFAULT = 176;
 export const MPRAGE_TR_READOUT = 7; // ms, gradient-echo spacing within the partition train
 export const FAT_SAT_FACTOR = 0.05;
 
-// Nominal echo spacings (ms) that map a TE slider to an effective echo index, and display limits.
-const FSE_NOMINAL_ESP_MS = 20.0;
-const FLAIR_NOMINAL_ESP_MS = 25.0; // also used for STIR
-const DIR_NOMINAL_ESP_MS = 25.0;
+// Echo spacing of an echo train: the read-out lasts 1 / (bandwidth per pixel), and the refocusing pulse with its crushers
+// and the phase-encode blips need about 4 ms more. So 9 ms at 200 Hz/px, 24 ms at 50 Hz/px.
+export const ESP_OVERHEAD_MS = 4.0;
+export const echoSpacingMin = (BW) => 1000.0 / BW + ESP_OVERHEAD_MS;
 const EPI_NOMINAL_ESP_MS = 0.8;
-const FSE_MAX_ECHOES_TO_SHOW = 6;
-const MIN_REALISTIC_ESP_MS = 10.0;
 // Minimum GRE TE follows from the schematic gradient geometry of the original pulse diagram:
 // ceil((rep_end + 2*dep_rise + dep_flat + rise + read_flat/2 - TE_min) * TE_max_ms / TE_range)
 export const GRE_MIN_TE_MS = (() => {
@@ -151,13 +149,13 @@ export function derivedTiming(seq, p) {
   const out = { messages: [], blocking: false };
   const err = (text) => out.messages.push({ level: "error", text });
   const warn = (text) => out.messages.push({ level: "warning", text });
-  const echo = (nominal) => {
-    const idx = Math.max(0, Math.min(Math.min(p.ETL, FSE_MAX_ECHOES_TO_SHOW) - 1, roundHalfEven(p.TE / nominal) - 1));
-    return { effIdx: idx, espMs: p.TE / (idx + 1) };
-  };
   if (seq === "FSE" || seq === "FLAIR" || seq === "STIR" || seq === "DIR") {
-    const nominal = seq === "FSE" ? FSE_NOMINAL_ESP_MS : seq === "DIR" ? DIR_NOMINAL_ESP_MS : FLAIR_NOMINAL_ESP_MS;
-    const { effIdx, espMs } = echo(nominal);
+    // The effective echo is the last one that fits before TEeff at the minimum spacing; the spacing then stretches a little
+    // so that echo sits exactly at TEeff. With a short train the last echo is used and the spacing stretches further.
+    const espMin = echoSpacingMin(p.BW ?? BW_REF);
+    const effIdx = Math.max(0, Math.min(p.ETL - 1, Math.floor(p.TE / espMin + 1e-9) - 1));
+    const espMs = p.TE / (effIdx + 1);
+    out.espMinMs = espMin;
     const lead = seq === "FSE" ? 0 : seq === "DIR" ? p.TI1 + p.TI2 : p.TI;
     out.effIdx = effIdx; out.espMs = espMs; out.minTR = lead + p.ETL * espMs;
     if (p.TR < out.minTR) {
@@ -165,7 +163,7 @@ export function derivedTiming(seq, p) {
         : seq === "DIR" ? `TR too short: minimum TR for current TI1, TI2, ETL and TEeff is ${Math.trunc(out.minTR)} ms`
           : `TR too short: minimum TR for current TI, ETL and TEeff is ${Math.trunc(out.minTR)} ms`);
     }
-    if (espMs < MIN_REALISTIC_ESP_MS) err("Echo spacing too short to be physically realistic — minimum ESP is approximately 10 ms");
+    if (espMs < espMin - 1e-9) err(`TE too short: at this bandwidth the echo spacing cannot be below ${espMin.toFixed(0)} ms`);
   } else if (seq === "GRE") {
     out.minTE = GRE_MIN_TE_MS;
     if (p.TE < GRE_MIN_TE_MS) err(`TE too short: minimum achievable TE is ${GRE_MIN_TE_MS.toFixed(0)} ms`);

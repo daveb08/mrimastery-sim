@@ -26,21 +26,30 @@ export function rowWeights(ny, pfFraction, etl, effIdx, espMs, T2) {
 }
 
 // Mean weight over the acquired rows: the peak signal of a structure one pixel wide in the phase direction, relative to
-// the same scan with a single echo. Its reciprocal is the equivalent width of the point-spread function in pixels.
+// the same scan with a single echo. It can exceed 1 when the early, stronger echoes fill the outer lines.
 export function detailFactor(ny, pfFraction, etl, effIdx, espMs, T2) {
   const w = rowWeights(ny, pfFraction, etl, effIdx, espMs, T2), rows = acquiredRows(ny, pfFraction ?? 1);
   return rows.reduce((s, r) => s + w[r], 0) / rows.length;
 }
 
-// Echo spacing, train duration and, per tissue, the fine-detail signal factor and the blur in pixels (never below 1:
-// a factor above 1 is edge enhancement, not finer resolution). null for sequences without an echo train.
+// Blur along the phase direction in pixels: the energy width of the point-spread function, N x sum(w^2) / sum(w)^2 over the
+// acquired rows. It is 1 for equal weights (whatever their size) and grows as fewer lines carry most of the signal. Unlike
+// the mean weight it does not read as "sharper" when the early, stronger echoes fill the outer lines.
+export function blurFactor(weights, ny, pfFraction) {
+  let s = 0, s2 = 0, n = 0;
+  for (const r of acquiredRows(ny, pfFraction ?? 1)) { s += weights[r]; s2 += weights[r] * weights[r]; n++; }
+  return s > 0 ? Math.max(1, (n * s2) / (s * s)) : 1;
+}
+
+// Echo spacing, train duration and, per tissue, the mean line weight (the peak of a one-pixel structure relative to a
+// single-echo scan) and the blur in pixels. null for sequences without an echo train.
 export function echoTrainSummary(p, model) {
   if (!ECHO_TRAIN_SEQUENCES.includes(p.seq)) return null;
   const espMs = model.timing.espMs, effIdx = model.timing.effIdx ?? 0;
   const detail = {}, blur = {};
   for (const [name, t] of Object.entries(model.tissues)) {
     detail[name] = detailFactor(p.phaseMatrix, p.pfFraction, p.ETL, effIdx, espMs, t.T2);
-    blur[name] = Math.max(1, 1 / detail[name]);
+    blur[name] = blurFactor(rowWeights(p.phaseMatrix, p.pfFraction, p.ETL, effIdx, espMs, t.T2), p.phaseMatrix, p.pfFraction);
   }
   return { espMs, effIdx, trainMs: p.ETL * espMs, detail, blur };
 }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { echoWeights, rowWeights, echoTrainSummary, ECHO_TRAIN_SEQUENCES } from "./echotrain.js";
+import { echoWeights, rowWeights, blurFactor, echoTrainSummary, ECHO_TRAIN_SEQUENCES } from "./echotrain.js";
 import { acquiredRows, echoTrainReadouts } from "./acquisition.js";
 import { defaultParams, computeModel } from "./physics.js";
 import { composeSignal, composeEchoTrain, labelT2 } from "./image.js";
@@ -29,20 +29,27 @@ test("row weights: every k-space line carries the weight of the echo that fills 
   assert.ok(pf.slice(0, 16).every((v) => v === 1), "lines never acquired are left for the zero filling");
 });
 
-test("a longer echo train lowers fine-detail signal and blurs more, at the same effective TE", () => {
+test("a longer echo train blurs more at the same effective TE", () => {
   const at = (ETL) => { const p = { ...defaultParams("FSE", "3.0T"), TE: 80, ETL }; return echoTrainSummary(p, computeModel(p)); };
   const s4 = at(4), s16 = at(16), s32 = at(32);
-  assert.ok(s16.detail.WM < s4.detail.WM && s32.detail.WM < s16.detail.WM);
-  assert.ok(s32.blur.WM > s16.blur.WM && s16.blur.WM > 1);
-  near(s16.detail.WM, 0.59, 0.02, "WM, T2 80 ms, 16 echoes at 20 ms, fourth echo effective");
-  near(s16.blur.WM, 1 / s16.detail.WM, 1e-12);
-  assert.equal(s4.blur.WM, 1, "blur never reads below one pixel");
-  assert.equal(s16.espMs, 20); assert.equal(s16.trainMs, 320);
+  assert.ok(s4.blur.WM < s16.blur.WM && s16.blur.WM < s32.blur.WM);
+  near(s16.blur.WM, 1.31, 0.02, "WM, T2 80 ms, 16 echoes at 10 ms, eighth echo effective");
+  near(s32.blur.WM, 2.07, 0.03, "32 echoes");
+  assert.equal(s16.espMs, 10); assert.equal(s16.effIdx, 7); assert.equal(s16.trainMs, 160);
+});
+
+test("blur is the energy width of the point-spread function: N x sum(w^2) / sum(w)^2, never below one pixel", () => {
+  assert.equal(blurFactor(new Float64Array(64).fill(1), 64, 1), 1);
+  assert.equal(blurFactor(new Float64Array(64).fill(2.5), 64, 1), 1, "a uniform scale is not blur");
+  const w = rowWeights(64, 1, 16, 7, 10, 80);
+  let s = 0, s2 = 0; for (const v of w) { s += v; s2 += v * v; }
+  near(blurFactor(w, 64, 1), (64 * s2) / (s * s), 1e-12);
+  assert.ok(blurFactor(w, 64, 1) > 1);
 });
 
 test("short-T2 tissue blurs more than CSF; a single echo does not blur; other sequences have no echo train", () => {
   const p = { ...defaultParams("FSE", "3.0T"), TE: 80, ETL: 16 }, s = echoTrainSummary(p, computeModel(p));
-  assert.ok(s.blur.WM > s.blur.GM && s.blur.GM > s.blur.CSF);
+  assert.ok(s.blur.WM > s.blur.GM && s.blur.GM > s.blur.CSF && s.blur.CSF < 1.01);
   const one = { ...p, ETL: 1 };
   assert.equal(echoTrainSummary(one, computeModel(one)).blur.WM, 1);
   for (const seq of ["GRE", "bSSFP", "DWI", "MPRAGE", "EPI (single-shot)"]) {

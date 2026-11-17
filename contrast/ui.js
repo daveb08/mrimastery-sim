@@ -246,10 +246,11 @@ function renderChips(m) {
     [m.keyMetric.label, m.keyMetric.value],
   ];
   if (train && p.ETL > 1) {
-    const b = train.blur.WM, d = train.detail.WM;
-    chips.push(["Echo-train blur WM", b > 1.005 ? `×${b.toFixed(1)}` : "none",
-      `Each echo of the train fills different k-space lines with a different T2 decay. Fine white-matter detail keeps ${(d * 100).toFixed(0)}% `
-      + "of its single-echo signal along the phase direction; large areas are unchanged. A longer train or a shorter T2 blurs more."]);
+    const b = train.blur.WM;
+    chips.push(["Echo-train blur WM", b >= 1.05 ? `×${b.toFixed(1)}` : "none",
+      "Each echo of the train fills different k-space lines with a different T2 decay, which spreads fine white-matter detail over "
+      + "about this many pixels along the phase direction. Large areas are unchanged. A longer train, a wider echo spacing "
+      + "(lower bandwidth) or a shorter T2 blurs more."]);
   }
   $("chips").innerHTML = chips.map(([k, v, title]) => `<span${title ? ` title="${title}"` : ""}>${k} <b>${v}</b></span>`).join("");
 }

@@ -217,9 +217,22 @@ function fseGeometry(p, nominalEsp) {
   const nShow = Math.min(p.ETL, K.FSE_MAX_ECHOES_TO_SHOW);
   const tauS = K.FSE_MAX_ESP - K.FSE_RF_TC;
   const esp = 2.0 * tauS;
-  const effIdx = Math.max(0, Math.min(nShow - 1, roundHalfEven(p.TE / nominalEsp) - 1));
+  // p.fse is the model's echo timing (effective echo, spacing, minimum spacing). The effective echo can lie beyond the echoes
+  // drawn. Without it (the original app's behaviour, kept for the reference figures) the diagram derives its own.
+  const m = p.fse;
+  const effIdx = m ? m.effIdx : Math.max(0, Math.min(nShow - 1, roundHalfEven(p.TE / nominalEsp) - 1));
   const maxDist = Math.max(effIdx, nShow - 1 - effIdx, 1);
-  return { nShow, tauS, esp, effIdx, maxDist, espMs: p.TE / (effIdx + 1) };
+  return { nShow, tauS, esp, effIdx, maxDist, espMs: m ? m.espMs : p.TE / (effIdx + 1), espMinMs: m ? m.espMinMs : null };
+}
+
+const espTooShort = (g) => (g.espMinMs === null ? g.espMs < 10.0 : g.espMs < g.espMinMs - 1e-9);
+const espWarning = (g) => (g.espMinMs === null ? ESP_WARNING
+  : `TE too short: at this bandwidth the echo spacing
+cannot be below ${g.espMinMs.toFixed(0)} ms`);
+function showingEchoes(f, p, g) {
+  if (p.ETL <= K.FSE_MAX_ECHOES_TO_SHOW) return;
+  showingNote(f, g.effIdx >= g.nShow ? `(Showing ${K.FSE_MAX_ECHOES_TO_SHOW} of ${p.ETL} echoes; TEeff is echo ${g.effIdx + 1})`
+    : `(Showing ${K.FSE_MAX_ECHOES_TO_SHOW} of ${p.ETL} echoes)`);
 }
 
 function drawFse(f, p) {
@@ -227,7 +240,7 @@ function drawFse(f, p) {
   const minTr = p.ETL * g.espMs;
   const warn = [];
   if (p.TR < minTr) warn.push(`TR too short: minimum TR for current ETL and TEeff is ${Math.trunc(minTr)} ms`);
-  if (g.espMs < 10.0) warn.push(ESP_WARNING);
+  if (espTooShort(g)) warn.push(espWarning(g));
   if (warn.length) return { early: warn };
   sincRf(f, K.FSE_RF_TC, 1.0, K.RF_HW_EXCITE, "90°");
   excitationMarker(f, K.FSE_RF_TC);
@@ -235,7 +248,7 @@ function drawFse(f, p) {
   const tePos = fseEchoTrain(f, { off: 0, ...g });
   const tEnd = K.FSE_RF_TC + 2 * g.nShow * g.tauS;
   if (tePos !== null) annTe(f, p, K.FSE_RF_TC, tePos, { label: `TEeff = ${p.TE} ms`, rows: [SIG] });
-  if (p.ETL > K.FSE_MAX_ECHOES_TO_SHOW) showingNote(f, `(Showing ${K.FSE_MAX_ECHOES_TO_SHOW} of ${p.ETL} echoes)`);
+  showingEchoes(f, p, g);
   annTr(f, p, K.FSE_RF_TC, tEnd, SS);
   return { xlimRight: tEnd + K.FSE_XLIM_PAD };
 }
@@ -250,7 +263,7 @@ function drawFlair(f, p) {
   const minTr = p.TI + p.ETL * g.espMs;
   const warn = [];
   if (p.TR < minTr) warn.push(`TR too short: minimum TR for current TI, ETL and TEeff is ${Math.trunc(minTr)} ms`);
-  if (g.espMs < 10.0) warn.push(ESP_WARNING);
+  if (espTooShort(g)) warn.push(espWarning(g));
   if (warn.length) return { early: warn };
   sincRf(f, tInv, 1.0, K.RF_HW_INV, "180° inv");
   trap(f, SS, tInv - K.FLAIR_GSS_INV_OFFSET, K.GRAD_RISE_MD, K.GRAD_SS_INV_FLAT, K.GRAD_RISE_MD, K.GRAD_SS_INV_AMP, C_SS);
@@ -263,7 +276,7 @@ function drawFlair(f, p) {
   const tePos = fseEchoTrain(f, { off, ...g });
   const tEnd = tExc + 2 * g.nShow * g.tauS;
   if (tePos !== null) annTe(f, p, tExc, tePos, { label: `TEeff = ${p.TE} ms`, rows: [SIG] });
-  if (p.ETL > K.FSE_MAX_ECHOES_TO_SHOW) showingNote(f, `(Showing ${K.FSE_MAX_ECHOES_TO_SHOW} of ${p.ETL} echoes)`);
+  showingEchoes(f, p, g);
   annTi(f, p, tInv, tExc);
   annTr(f, p, tInv, tEnd, SS);
   return { xlimRight: tEnd + K.FSE_XLIM_PAD };
@@ -287,7 +300,7 @@ function drawDir(f, p) {
   const minTr = ti1 + ti2 + p.ETL * g.espMs;
   const warn = [];
   if (p.TR < minTr) warn.push(`TR too short: minimum TR for current TI1, TI2, ETL and TEeff is ${Math.trunc(minTr)} ms`);
-  if (g.espMs < 10.0) warn.push(ESP_WARNING);
+  if (espTooShort(g)) warn.push(espWarning(g));
   if (spoilAvail < K.DIR_GSPOILER_MIN_WIDTH_S) {
     warn.push(`TI2 too short: the inversion spoiler gradient cannot fit between the second inversion and the 90° excitation at TI1=${ti1} ms, TI2=${ti2} ms — increase TI2 (or decrease TI1)`);
   }
@@ -312,7 +325,7 @@ function drawDir(f, p) {
   const tePos = fseEchoTrain(f, { off, ...g });
   const tEnd = tExc + 2 * g.nShow * g.tauS;
   if (tePos !== null) annTe(f, p, tExc, tePos, { label: `TEeff = ${p.TE} ms`, rows: [SIG] });
-  if (p.ETL > K.FSE_MAX_ECHOES_TO_SHOW) showingNote(f, `(Showing ${K.FSE_MAX_ECHOES_TO_SHOW} of ${p.ETL} echoes)`);
+  showingEchoes(f, p, g);
   for (const r of [SS, SIG]) f.arrow(r, tInv1, tInv2, K.ANN_TI_Y, "#FFAA44");
   f.text(SIG, (tInv1 + tInv2) / 2, K.ANN_TI_Y - K.ANN_LABEL_OFFSET, `TI1 = ${ti1} ms`, { color: "#FFAA44", size: K.FONT_ANN, ha: "center", va: "top" });
   const ti2Y = K.ANN_TI_Y + 0.38;
@@ -535,5 +548,7 @@ export function psdParams(p, model) {
   return {
     ...p, TI: p.TI, TI2: p.TI2,
     epiEffIdx: model?.timing?.effIdx ?? 1, epiReadouts: p.phaseMatrix,
+    ...(model?.timing?.espMinMs !== undefined
+      ? { fse: { effIdx: model.timing.effIdx, espMs: model.timing.espMs, espMinMs: model.timing.espMinMs } } : {}),
   };
 }

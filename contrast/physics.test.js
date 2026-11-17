@@ -152,26 +152,41 @@ test("GRE minimum TE is 7 ms and shorter TEs raise an error", () => {
   assert.deepEqual(P.computeModel({ ...P.defaultParams("GRE"), TE: 7 }).timing.messages, []);
 });
 
-test("FSE: effective echo index, ESP, minimum TR (with Python's banker's rounding)", () => {
-  // TE 50 / 20 = 2.5 -> Python rounds to 2, so effIdx = 1 and ESP = 25 ms.
-  const t = P.derivedTiming("FSE", { ...P.defaultParams("FSE"), TE: 50, ETL: 16, TR: 4000 });
-  assert.equal(t.effIdx, 1); assert.equal(t.espMs, 25); assert.equal(t.minTR, 16 * 25);
-  // TE 80 / 20 = 4 -> effIdx 3, ESP 20 ms, minimum TR = 16 * 20 = 320 ms.
-  const ok = P.derivedTiming("FSE", { ...P.defaultParams("FSE"), TE: 80, ETL: 16, TR: 500 });
-  assert.equal(ok.minTR, 320); assert.deepEqual(ok.messages, []);
-  const short = P.derivedTiming("FSE", { ...P.defaultParams("FSE"), TE: 80, ETL: 16, TR: 300 });
-  assert.match(short.messages[0].text, /TR too short: minimum TR for current ETL and TEeff is 320 ms/);
-  // The echo index is clamped to the sixth echo, so a long ETL does not shorten the spacing.
-  const clamped = P.derivedTiming("FSE", { ...P.defaultParams("FSE"), TE: 200, ETL: 32, TR: 8000 });
-  assert.equal(clamped.effIdx, 5); near(clamped.espMs, 200 / 6, 1e-12);
+test("echo spacing comes from the bandwidth: read-out time plus 4 ms for the refocusing pulse and crushers", () => {
+  assert.equal(P.echoSpacingMin(200), 9); assert.equal(P.echoSpacingMin(50), 24); assert.equal(P.echoSpacingMin(500), 6);
+});
+
+test("FSE: the effective echo is the last one that fits before TEeff at the minimum spacing, anywhere in the train", () => {
+  const at = (over) => P.derivedTiming("FSE", { ...P.defaultParams("FSE"), TR: 4000, ...over });
+  const t = at({ TE: 80, ETL: 16 }); // 80 / 9 = 8.9 -> eighth echo, spacing 10 ms
+  assert.equal(t.effIdx, 7); assert.equal(t.espMs, 10); assert.equal(t.minTR, 160); assert.deepEqual(t.messages, []);
+  const far = at({ TE: 100, ETL: 16 }); // eleventh echo: not limited to the six echoes the diagram draws
+  assert.equal(far.effIdx, 10); near(far.espMs, 100 / 11, 1e-12);
+  const stretched = at({ TE: 80, ETL: 4 }); // a short train: the spacing stretches so the last echo reaches TEeff
+  assert.equal(stretched.effIdx, 3); assert.equal(stretched.espMs, 20);
+  const lowBw = at({ TE: 80, ETL: 16, BW: 50 }); // a long read-out: fewer, wider-spaced echoes before TEeff
+  assert.equal(lowBw.effIdx, 2); near(lowBw.espMs, 80 / 3, 1e-12);
+  for (let TE = 10; TE <= 300; TE += 5) for (const ETL of [1, 2, 8, 16, 32]) {
+    const x = at({ TE, ETL });
+    assert.ok(x.espMs >= 9 - 1e-9 && x.effIdx >= 0 && x.effIdx <= ETL - 1, `TE ${TE} ETL ${ETL}`);
+    near((x.effIdx + 1) * x.espMs, TE, 1e-9, 0, "the effective echo sits exactly at TEeff");
+  }
+});
+
+test("FSE: a TR shorter than the echo train, or a TE shorter than one echo spacing, is an error", () => {
+  const short = P.derivedTiming("FSE", { ...P.defaultParams("FSE"), TE: 80, ETL: 16, TR: 150 });
+  assert.match(short.messages[0].text, /TR too short: minimum TR for current ETL and TEeff is 160 ms/);
+  const te = P.derivedTiming("FSE", { ...P.defaultParams("FSE"), TE: 10, ETL: 16, TR: 4000, BW: 100 }); // spacing at least 14 ms
+  assert.equal(te.messages[0].level, "error");
+  assert.match(te.messages[0].text, /TE too short: at this bandwidth the echo spacing cannot be below 14 ms/);
 });
 
 test("FLAIR / STIR / DIR minimum TR include the inversion times", () => {
-  const f = P.derivedTiming("FLAIR", { ...P.defaultParams("FLAIR"), TR: 2800, TI: 2500, TE: 90, ETL: 16 });
-  assert.equal(f.minTR, 2500 + 16 * f.espMs); // ESP 22.5 -> 2860 ms
-  assert.match(f.messages[0].text, /minimum TR for current TI, ETL and TEeff is/);
-  const d = P.derivedTiming("DIR", { ...P.defaultParams("DIR"), TR: 4300, TI1: 3400, TI2: 800, TE: 25, ETL: 8 });
-  assert.equal(d.minTR, 3400 + 800 + 8 * d.espMs);
+  const f = P.derivedTiming("FLAIR", { ...P.defaultParams("FLAIR"), TR: 2600, TI: 2500, TE: 90, ETL: 16 });
+  assert.equal(f.espMs, 9); assert.equal(f.minTR, 2500 + 16 * 9);
+  assert.match(f.messages[0].text, /minimum TR for current TI, ETL and TEeff is 2644 ms/);
+  const d = P.derivedTiming("DIR", { ...P.defaultParams("DIR"), TR: 4200, TI1: 3400, TI2: 800, TE: 25, ETL: 8 });
+  assert.equal(d.espMs, 12.5); assert.equal(d.minTR, 3400 + 800 + 8 * 12.5);
   assert.match(d.messages[0].text, /TI1, TI2, ETL and TEeff/);
 });
 
