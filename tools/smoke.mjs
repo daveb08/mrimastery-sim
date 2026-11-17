@@ -30,7 +30,16 @@ const VISIBLE_ALERTS = `[...document.querySelectorAll(".alert")].filter((e) => e
 // Steps: ["set", id, value] sets an input or select; ["cycle", id] steps a select through every option;
 // ["click", id]; ["wait", ms]; ["url", query] reloads the page with a query string; ["expect", label, js] fails if
 // the expression is not truthy; ["open", js] goes to the address the expression gives (a link on the page) and runs the
-// remaining steps there. Screenshots are taken of the page as first loaded, before any steps.
+// remaining steps there; ["nowebgl"] reloads the page with WebGL switched off, for the rest of that page's steps.
+// Screenshots are taken of the page as first loaded, before any steps.
+// With WebGL off, each 3D panel shows the page's own note (not Plotly's banner) and the 2D plots still draw.
+const NO_WEBGL_OK = (ids) => `(() => {
+  const notes = ${JSON.stringify(ids)}.map((id) => document.getElementById(id));
+  if (!notes.every((e) => e.classList.contains("no-webgl") && e.textContent.includes("needs WebGL"))) return "no note in the 3D panel";
+  if (document.body.innerText.includes("WebGL is not supported")) return "Plotly's banner is showing";
+  return document.querySelectorAll(".js-plotly-plot .main-svg").length > 0 || "no 2D plots drew";
+})()`;
+
 const PAGES = [
   { name: "landing", path: "", plots: false, steps: [
     ["expect", "every card links to a page that loads", `(async () => {
@@ -329,10 +338,16 @@ const PAGES = [
       for (const v of [0, 40, 200, 400, 900]) { t.value = v; t.dispatchEvent(new Event("input")); widths.push(t.getBoundingClientRect().width); }
       t.value = 0; t.dispatchEvent(new Event("input"));
       return Math.max(...widths) - Math.min(...widths) < 1; })()`],
+    ["nowebgl"], ["expect", "with WebGL off, the 3D panel says so and the signal plots still draw", NO_WEBGL_OK(["scene"])],
+    ["click", "play"], ["wait", 1000], ["click", "play"],
+    ["expect", "with WebGL off, playback still moves the time readout", `!document.getElementById("readout").textContent.startsWith("0.00 ms")`],
+    ["cycle", "program"], ["set", "frame", "lab"], ["click", "reset"],
   ] },
   { name: "coil", path: "coil/", steps: [
     ["cycle", "geometry"], ["set", "radius", 8],
     ["click", "tabBtnRf"], ["cycle", "b0axis"], ["click", "flip_standard"], ["click", "b1_full"], ["click", "tabBtnCoil"],
+    ["nowebgl"], ["expect", "with WebGL off, the coil geometry panel says so and the field maps still draw", NO_WEBGL_OK(["geom3d"])],
+    ["cycle", "geometry"], ["click", "tabBtnRf"], ["click", "tabBtnCoil"],
   ] },
   { name: "signal", path: "signal/", steps: [["cycle", "field"], ["cycle", "kind"], ["set", "tbw", 8]] },
   { name: "phantom", path: "phantom/", steps: [
@@ -511,10 +526,18 @@ async function runPage(cdp, base, page, outDir) {
   const alert = await evaluate(VISIBLE_ALERTS);
   if (alert) problems.push(`alert on load: ${alert.slice(0, 200)}`);
 
+  let noGl = null;
   for (const [kind, a, b] of page.steps) {
     try {
       if (kind === "wait") await sleep(a);
       else if (kind === "url") await load(a);
+      else if (kind === "nowebgl") {
+        ({ identifier: noGl } = await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: `{
+          const get = HTMLCanvasElement.prototype.getContext;
+          HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+            return /webgl/i.test(type) ? null : get.call(this, type, ...rest); }; }` }));
+        await load();
+      }
       else if (kind === "open") await load("", await evaluate(a));
       else if (kind === "click") await evaluate(`(() => { const e = document.getElementById(${JSON.stringify(a)});
         if (!e) throw new Error("no element #${a}"); e.click(); })()`);
@@ -535,6 +558,7 @@ async function runPage(cdp, base, page, outDir) {
       problems.push(`step ${kind} ${a ?? ""}: ${err.message.split("\n")[0]}`);
     }
   }
+  if (noGl) await cdp.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: noGl });
   await sleep(400); // let late errors arrive
   active = false;
   return { name: page.name, plots, problems: [...new Set(problems)], warnings };
