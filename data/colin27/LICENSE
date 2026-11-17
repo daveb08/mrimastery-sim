@@ -1,0 +1,18 @@
+colin27_labels_0.5mm.u8.gz in this folder is derived from the discrete tissue classification volume
+(colin27_cls_tal_hires) of the "Colin 27 Average Brain, Stereotaxic Registration Model, high-resolution version 2008",
+https://nist.mni.mcgill.ca/colin-27-average-brain-2008/ . The changes made are listed in colin27_labels_0.5mm.json
+("source.processing") and in tools/prepare-colin27.mjs. The source is distributed under the following notice:
+
+Copyright (C) 1993-2009 Louis Collins, McConnell Brain Imaging Centre, Montreal Neurological Institute, McGill University.
+Permission to use, copy, modify, and distribute this software and its documentation for any purpose and without fee is
+hereby granted, provided that the above copyright notice appear in all copies. The authors and McGill University make no
+representations about the suitability of this software for any purpose. It is provided "as is" without express or implied
+warranty. The authors are not responsible for any data loss, equipment damage, property loss, or injury to subjects or
+patients resulting from the use or misuse of this software package.
+
+Publications listed with the source:
+
+- C.J. Holmes, R. Hoge, D.L. Collins, R. Woods, A.W. Toga, A.C. Evans: Enhancement of MR images using registration for
+  signal averaging. Journal of Computer Assisted Tomography 22(2):324-333, 1998.
+- B. Aubert-Broche, A.C. Evans, D.L. Collins: A new improved version of the realistic digital brain phantom.
+  NeuroImage 32(1):138-145, 2006.

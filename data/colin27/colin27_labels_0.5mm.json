@@ -1,0 +1,55 @@
+{
+  "dims": [
+    362,
+    434,
+    362
+  ],
+  "voxelMm": 0.5,
+  "origin": [
+    -90.25,
+    -109.25,
+    -68.25
+  ],
+  "orientation": "x=left,y=anterior,z=superior",
+  "labels": {
+    "AIR": 0,
+    "WM": 1,
+    "GM": 2,
+    "CSF": 3,
+    "FAT": 4,
+    "BONE": 5,
+    "LESION": 6,
+    "MUSCLE": 7
+  },
+  "source": {
+    "name": "Colin 27 Average Brain, Stereotaxic Registration Model, high-resolution version 2008: discrete tissue classification",
+    "page": "https://nist.mni.mcgill.ca/colin-27-average-brain-2008/",
+    "url": "https://packages.bic.mni.mcgill.ca/mni-models/colin27/mni_colin27_2008_nifti.zip",
+    "file": "colin27_cls_tal_hires.nii",
+    "grid": {
+      "dims": [
+        362,
+        434,
+        362
+      ],
+      "voxelMm": 0.5,
+      "start": [
+        -90.25,
+        -126.25,
+        -72.25
+      ],
+      "order": "x fastest, then y, then z"
+    },
+    "processing": "classes mapped to the simulator's tissue labels, x mirrored (world +x = right to patient-left +x); no intensity data kept"
+  },
+  "acPlacedAt": [
+    0,
+    17,
+    4
+  ],
+  "copyright": "Copyright (C) 1993-2009 Louis Collins, McConnell Brain Imaging Centre, Montreal Neurological Institute, McGill University.",
+  "citations": [
+    "C.J. Holmes, R. Hoge, D.L. Collins, R. Woods, A.W. Toga, A.C. Evans: Enhancement of MR images using registration for signal averaging. Journal of Computer Assisted Tomography 22(2):324-333, 1998.",
+    "B. Aubert-Broche, A.C. Evans, D.L. Collins: A new improved version of the realistic digital brain phantom. NeuroImage 32(1):138-145, 2006."
+  ]
+}

@@ -1,5 +1,5 @@
 import { createPhantom, sliceLabels, LABELS } from "./phantom.js";
-import { brainwebAvailable, makePhantom } from "./brainweb.js";
+import { atlasAvailable, makePhantom, ATLASES } from "./brainweb.js";
 import { tissuesAt } from "../contrast/physics.js";
 import { patientToScreen, screenToPatient, clampPos } from "../contrast/image.js";
 
@@ -57,10 +57,10 @@ function lookup(mode, windowMode) {
 
 let phantom = null, key = "", requested = "", shown = "generated"; // shown: source of the phantom on screen
 function setStatus(text) { $("bwStatus").textContent = text; $("bwStatus").hidden = !text; }
-// The phantom arrives asynchronously (BrainWeb loads a file). A result is used only if it is still the latest choice.
+// The phantom arrives asynchronously (Colin27 and BrainWeb load a file). A result is used only if it is still the latest choice.
 function requestPhantom(k, source, seed, sulcal, lesions) {
   requested = k;
-  if (source === "brainweb") setStatus("Loading BrainWeb anatomy…");
+  if (ATLASES[source]) setStatus(`Loading ${ATLASES[source].title} anatomy…`);
   makePhantom(source, { rootUrl: "../", seed, sulcalDepthMm: sulcal, lesions }).then((p) => {
     if (k !== requested) return;
     phantom = p; key = k; shown = source;
@@ -71,7 +71,7 @@ function requestPhantom(k, source, seed, sulcal, lesions) {
     if (k !== requested) return;
     requested = "";
     $("phantomSrc").value = "generated";
-    setStatus("BrainWeb anatomy could not be loaded");
+    setStatus(`${ATLASES[source]?.title ?? "The"} anatomy could not be loaded`);
     draw();
   });
 }
@@ -79,10 +79,11 @@ function draw() {
   const sulcal = +$("sulcal").value, seed = +$("seed").value, lesions = $("lesions").checked;
   const mode = $("mode").value, size = +$("res").value;
   const source = $("phantomSrc").value;
-  const bw = shown === "brainweb"; // credit and fixed-anatomy controls follow what is drawn, not the pending choice
-  $("sulcal").disabled = $("seed").disabled = bw;
+  const bw = shown === "brainweb", c27 = shown === "colin27"; // credit and fixed-anatomy controls follow what is drawn, not the pending choice
+  $("sulcal").disabled = $("seed").disabled = bw || c27;
   $("bwCredit").hidden = !bw; $("bwCite").hidden = !bw;
-  if (source !== "brainweb" && $("bwStatus").textContent.startsWith("Loading")) setStatus("");
+  $("c27Credit").hidden = !c27; $("c27Cite").hidden = !c27;
+  if (!ATLASES[source] && $("bwStatus").textContent.startsWith("Loading")) setStatus("");
   $("sulcalV").textContent = sulcal; $("seedV").textContent = seed;
   const pos = { axial: +$("zpos").value, coronal: +$("ypos").value, sagittal: +$("xpos").value };
   $("zposV").textContent = pos.axial; $("yposV").textContent = pos.coronal; $("xposV").textContent = pos.sagittal;
@@ -150,9 +151,18 @@ let pending = false;
 const schedule = () => { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; draw(); }); } };
 for (const id of ["mode", "window", "res", "sulcal", "seed", "lesions", "zpos", "ypos", "xpos", "phantomSrc"]) $(id).addEventListener("input", schedule);
 draw();
-// Offer BrainWeb only if its data file is present; otherwise the page stays exactly as it is.
-brainwebAvailable("../").then((ok) => {
+// Colin27's real anatomy is the phantom shown when its data file loads (?phantom=generated keeps the generated one);
+// until then, and without the file, the generated phantom is drawn. BrainWeb is offered only if its local data is present.
+$("phantomSrc").value = "generated";
+const wanted = q.get("phantom");
+atlasAvailable("colin27", "../").then((ok) => {
+  if (!ok) { $("phantomSrc").querySelector('[value="colin27"]').remove(); return; }
+  $("phantomSrcBox").hidden = $("phantomSrc").hidden = false;
+  if (wanted !== "generated" && wanted !== "brainweb") { $("phantomSrc").value = "colin27"; schedule(); }
+});
+atlasAvailable("brainweb", "../").then((ok) => {
   if (!ok) return;
+  const o = $("phantomSrc").querySelector('[value="brainweb"]'); o.hidden = o.disabled = false;
   $("phantomSrcBox").hidden = $("phantomSrc").hidden = $("bwHint").hidden = false;
-  if (q.get("phantom") === "brainweb") { $("phantomSrc").value = "brainweb"; schedule(); }
+  if (wanted === "brainweb") { $("phantomSrc").value = "brainweb"; schedule(); }
 });

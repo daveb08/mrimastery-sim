@@ -32,7 +32,13 @@
           <button role="tab" id="tabBtnImages" aria-selected="true" aria-controls="tabImages">Images</button>
           <button role="tab" id="tabBtnKspace" aria-selected="false" aria-controls="tabKspace">K-space</button>
         </div>
-          <p class="caption" id="bwCredit" hidden>Anatomy: <a href="https://brainweb.bic.mni.mcgill.ca/brainweb/" target="_blank" rel="noopener">BrainWeb (McGill), subject 04</a>. BrainWeb covers the head down to about the skull base.</p>
+          <p class="caption" id="c27Credit" hidden>Anatomy: <a href="https://nist.mni.mcgill.ca/colin-27-average-brain-2008/" target="_blank" rel="noopener">Colin 27 Average Brain, high-resolution version 2008</a>: the tissue classes of one normal adult's head, covering the head down to about the skull base. Copyright (C) 1993&ndash;2009 Louis Collins, McConnell Brain Imaging Centre, Montreal Neurological Institute, McGill University. Only tissue membership is stored; the simulator computes the signal.</p>
+          <details id="c27Cite" hidden><summary>Cite Colin27</summary>
+          <ul class="caption" style="margin:4px 0 0;padding-left:18px">
+          <li>C.J. Holmes, R. Hoge, D.L. Collins, R. Woods, A.W. Toga, A.C. Evans: Enhancement of MR images using registration for signal averaging. Journal of Computer Assisted Tomography 22(2):324-333, 1998.</li>
+          <li>B. Aubert-Broche, A.C. Evans, D.L. Collins: A new improved version of the realistic digital brain phantom. NeuroImage 32(1):138-145, 2006.</li>
+          </ul></details>
+<p class="caption" id="bwCredit" hidden>Anatomy: <a href="https://brainweb.bic.mni.mcgill.ca/brainweb/" target="_blank" rel="noopener">BrainWeb (McGill), subject 04</a>. BrainWeb covers the head down to about the skull base.</p>
           <details id="bwCite" hidden><summary>Cite BrainWeb</summary>
           <ul class="caption" style="margin:4px 0 0;padding-left:18px">
           <li>C.A. Cocosco, V. Kollokian, R.K.-S. Kwan, A.C. Evans: BrainWeb: Online Interface to a 3D MRI Simulated Brain Database. NeuroImage 5(4) part 2/4, S425, 1997.</li>
@@ -50,8 +56,9 @@
             <div class="check"><input type="checkbox" id="lesions"><label for="lesions" style="margin:0;color:var(--text)">Show lesions</label></div>
             <div class="ctl" id="phantomSrcBox" hidden><label for="phantomSrc">Phantom</label>
               <select id="phantomSrc" hidden>
+                <option value="colin27">Colin27 (real anatomy)</option>
                 <option value="generated">Generated</option>
-                <option value="brainweb">BrainWeb</option>
+                <option value="brainweb" hidden disabled>BrainWeb</option>
               </select></div>
           </div>
           <p class="caption" id="viewNote"></p>

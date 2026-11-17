@@ -8,7 +8,7 @@ import { kspaceOf, reconstruct, toInferno, autoWindowLevelObject } from "../cont
 import { thumbMatrix, thumbRow, createSampleCache, pump } from "./strip.js";
 import { labelFactors, TISSUE_T1 } from "../shared/crosstalk.js";
 import { createPhantom } from "../phantom/phantom.js";
-import { brainwebAvailable, makePhantom } from "../phantom/brainweb.js";
+import { atlasAvailable, makePhantom, ATLASES } from "../phantom/brainweb.js";
 import { buildShots, stackCrossTalk, trReadout } from "./scan.js";
 import { toQuery, contrastNote, applies, clampSel, initialState, explorerParams, SEQ_DEFAULTS, RANGES, INVERSION_SEQS } from "./settings.js";
 
@@ -602,15 +602,16 @@ function choosePhantom() {
   const source = $("phantomSrc").value;
   wantedPhantom = source;
   if (source === phantomSource) { setBwStatus(""); return; } // back to what is drawn: drop any load in flight
-  if (source === "brainweb") setBwStatus("Loading BrainWeb anatomy…");
+  if (ATLASES[source]) setBwStatus(`Loading ${ATLASES[source].title} anatomy…`);
   makePhantom(source, { rootUrl: "../", seed: 1, sulcalDepthMm: 14 }).then((p) => {
     if (source !== wantedPhantom) return;
     phantom = p; phantomSource = source;
     strip.cache = stripCacheFor(source, p);
     kCache.clear();
-    if (source === "brainweb") state.phantom = "brainweb"; else delete state.phantom;
+    setPhantomState(source);
     document.body.dataset.phantom = source;
     $("bwCredit").hidden = source !== "brainweb"; $("bwCite").hidden = source !== "brainweb";
+    $("c27Credit").hidden = source !== "colin27"; $("c27Cite").hidden = source !== "colin27";
     setBwStatus("");
     history.replaceState(null, "", `?${toQuery(state)}`);
     stop();
@@ -621,19 +622,37 @@ function choosePhantom() {
     if (source !== wantedPhantom) return;
     wantedPhantom = phantomSource;
     $("phantomSrc").value = phantomSource;
-    setBwStatus("BrainWeb anatomy could not be loaded");
+    setBwStatus(`${ATLASES[source]?.title ?? "The"} anatomy could not be loaded`);
   });
 }
 $("phantomSrc").addEventListener("change", choosePhantom);
 
-const wantBrainweb = state.phantom === "brainweb";
-delete state.phantom; // set again only once BrainWeb is what is shown, so the address describes the image
+// The address names the phantom only when it is not the default: Colin27 when its data is present, else Generated.
+let colin27Present = false;
+function setPhantomState(source) {
+  if (source === "brainweb" || (source === "generated" && colin27Present)) state.phantom = source; else delete state.phantom;
+}
+const wantPhantom = state.phantom;
+delete state.phantom; // set again only once that phantom is what is shown, so the address describes the image
 buildControls();
 buildScan();
 renderAll();
-// Offer BrainWeb only if its data is present; otherwise the page stays exactly as it is.
-brainwebAvailable("../").then((ok) => {
-  if (!ok) { if (wantBrainweb) history.replaceState(null, "", `?${toQuery(state)}`); return; } // quietly Generated
+// Colin27's real anatomy is shown when its data file loads, unless the address asks for another phantom; until then, and
+// without the file, the generated phantom is drawn. BrainWeb is offered only if its local data is present.
+atlasAvailable("colin27", "../").then((ok) => {
+  if (!ok) { $("phantomSrc").querySelector('[value="colin27"]').remove(); return; }
+  colin27Present = true;
   $("phantomSrcBox").hidden = $("phantomSrc").hidden = false;
-  if (wantBrainweb) { $("phantomSrc").value = "brainweb"; choosePhantom(); }
+  if (wantPhantom === "generated") { setPhantomState("generated"); history.replaceState(null, "", `?${toQuery(state)}`); }
+  else if (wantPhantom !== "brainweb") { $("phantomSrc").value = "colin27"; choosePhantom(); }
+}).then(() => atlasAvailable("brainweb", "../")).then((ok) => {
+  if (!ok) { // quietly the default
+    if (wantPhantom === "brainweb") {
+      if (colin27Present) { $("phantomSrc").value = "colin27"; choosePhantom(); } else history.replaceState(null, "", `?${toQuery(state)}`);
+    }
+    return;
+  }
+  const o = $("phantomSrc").querySelector('[value="brainweb"]'); o.hidden = o.disabled = false;
+  $("phantomSrcBox").hidden = $("phantomSrc").hidden = false;
+  if (wantPhantom === "brainweb") { $("phantomSrc").value = "brainweb"; choosePhantom(); }
 });

@@ -11,7 +11,7 @@ Plotly (pinned, from jsDelivr) draws the plots.
 | `coil/` | Biot-Savart coil fields, B1+ and flip-angle maps (coil geometry to excitation) |
 | `kspace/` | K-space explorer: pulse sequences from real gradient events (`shared/sequence.js`), exact k-space paths (`shared/ktraj.js`), a to-scale diagram (`shared/seqdiagram.js`) and 2D multi-slice with cross-talk from Bloch-simulated pulses (`shared/crosstalk.js`) |
 | `tuning/` | Coil tuning and matching: loop inductance, coil and patient losses, parallel-tune / series-match to 50 ohm, S11 and Smith chart (`tuning/tuning.js`) |
-| `phantom/` | Procedural 3D head phantom (labels as a function of position) with a three-plane viewer; optional BrainWeb anatomy (local data only, see `tools/prepare-brainweb.mjs`) |
+| `phantom/` | 3D head phantom with a three-plane viewer: Colin27 tissue classes (real anatomy, `data/colin27/`), a procedural phantom (labels as a function of position), and optional BrainWeb anatomy (local data only, see `tools/prepare-brainweb.mjs`) |
 | `contrast/` | Contrast simulator and multi-slice protocol page: physics core, trade-off meters, controls (slices, gap, order, concatenations), signal plots, phantom images, pulse-sequence diagrams, TR timeline strip and k-space; see `docs/contrast-port-plan.md` |
 | `shared/` | Common stylesheet, Plotly dark-theme helpers, FFT, hover/focus/tap explanations for controls (`shared/hint.js`) |
 
@@ -32,11 +32,34 @@ Code, `/qc` runs both (`/qc full` adds a code review and a look at the screensho
 tests and the smoke test on every push (`.github/workflows/tests.yml`); it reports problems but does not stop
 GitHub Pages from publishing.
 
+## Colin27 anatomy (the default phantom)
+
+The phantom viewer, contrast simulator and k-space explorer image a real head's anatomy: the tissue classes of the
+"Colin 27 Average Brain, Stereotaxic Registration Model, high-resolution version 2008" (McConnell Brain Imaging Centre,
+Montreal Neurological Institute), one normal adult scanned repeatedly. Source and licence:
+<https://nist.mni.mcgill.ca/colin-27-average-brain-2008/>; the notice is reproduced in `data/colin27/LICENSE` and must
+stay with the data. The generated (procedural) phantom is still there: pages draw it until the data has loaded, fall back
+to it if the file is missing, and offer it under "Phantom".
+
+- `data/colin27/colin27_labels_0.5mm.u8.gz` (2.4 MB; 362 x 434 x 362 voxels of 0.5 mm, one byte each) holds a tissue
+  label per voxel, and `colin27_labels_0.5mm.json` its grid, origin, source and processing. No image intensities are
+  stored: the simulators compute signal from the labels and their own tissue tables.
+- Preparation (`node tools/prepare-colin27.mjs 0.5`): downloads the 291 MB NIfTI archive once into
+  `data/colin27-source/` (git-ignored), reads the discrete classification volume, maps its classes to the simulator's
+  labels, and mirrors x so that +x is patient left. The anterior commissure (MNI 0, 0, 0) is placed at (0, 17, 4) mm,
+  the same as the generated phantom. Nothing is resampled or smoothed.
+- Class mapping (`phantom/colin27.js`): CSF, grey matter, white matter, fat and skull map directly. Approximations:
+  "skin and muscle", dura and vessels use the muscle / soft-tissue values (flow is not modelled); marrow and "fat 2"
+  use the fat values.
+- Limits: the volume ends near the skull base, so there is no neck; the deep grey nuclei and much of the brainstem are in the
+  grey-matter class, as the source's classifier assigned them, and individual nuclei are not labelled separately; it is one person's anatomy and has not been validated here as an
+  anatomical reference.
+
 ## Optional BrainWeb anatomy
 
 The phantom viewer, contrast simulator and k-space explorer can show a real head's anatomy (BrainWeb subject 04)
-instead of the generated phantom. The choice appears only when the data file is present; without it every page is
-unchanged and uses the generated phantom.
+as a third choice. It appears only when the data file is present; without it every page is
+unchanged.
 
 **Do not commit `data/brainweb/` (or push it) until BrainWeb grants permission to redistribute it.** The folder is
 git-ignored, so the data stays local and the hosted site does not offer the choice.
