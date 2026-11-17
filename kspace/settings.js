@@ -18,7 +18,8 @@ const KEYS = {
   ny: "matrix", fov: "fov", bw: "bw", sliceMm: "slice", gMax: "gmax", slew: "slew", from: "from",
   slices: "slices", gapPct: "gap", sliceOrder: "order", conc: "conc", sel: "sel", phantom: "phantom",
 };
-export const PHANTOMS = ["generated", "brainweb"];
+// Colin27 is the default and is left out of the address; the other two are named in it.
+export const PHANTOMS = ["colin27", "generated", "brainweb"];
 const NUMERIC = ["TE", "TR", "flip", "ETL", "TI", "TI1", "TI2", "fov", "bw", "sliceMm", "slices", "gapPct"];
 
 const clamp = (v, [lo, hi]) => Math.min(hi, Math.max(lo, v));
@@ -101,7 +102,7 @@ export function fromContrast(p, timing) {
     sliceMm: clamp(p.sliceMm ?? 5, RANGES.sliceMm), from: p.seq,
   };
   out.nx = out.ny;
-  if (p.phantom === "brainweb") out.phantom = "brainweb";
+  if (p.phantom === "brainweb" || p.phantom === "generated") out.phantom = p.phantom;
   if (seq === "GRE") out.flip = clamp(p.FA ?? 30, RANGES.flip);
   if (seq === "FSE") out.ETL = clamp(p.ETL ?? 8, RANGES.ETL);
   if (seq === "EPI") out.bw = Math.max(out.bw, EPI_MIN_TIMING_BW);

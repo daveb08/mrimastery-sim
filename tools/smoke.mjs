@@ -46,12 +46,18 @@ const PAGES = [
     ["click", "tabBtnImages"],
     ["click", "tabBtnGeometry"], ["click", "tabBtnSignal"], ["click", "tabBtnBars"], ["click", "tabBtnCurves"],
     ["click", "tabBtnContrast"],
-    ["expect", "BrainWeb choice shown only when its data is present", `(async () => {
+    ["expect", "Colin27 is the phantom shown, with its credit; BrainWeb is offered only when its data is present", `(async () => {
       const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
+      const c27 = (await fetch("../data/colin27/colin27_labels_0.5mm.json")).ok;
+      for (let i = 0; i < 80 && c27 && document.body.dataset.phantom !== "colin27"; i++) await new Promise((r) => setTimeout(r, 100));
       await new Promise((r) => setTimeout(r, 300));
-      return document.getElementById("phantomSrc").hidden === !ok; })()`],
+      const s = document.getElementById("phantomSrc"), o = s.querySelector('[value="brainweb"]');
+      if (s.hidden !== !(ok || c27) || o.disabled !== !ok) return false;
+      return !c27 || (document.body.dataset.phantom === "colin27" && s.value === "colin27" && document.getElementById("bwCredit").hidden
+        && document.getElementById("c27Credit").checkVisibility() && document.getElementById("c27Credit").textContent.includes("Copyright (C) 1993")
+        && document.getElementById("c27Cite").textContent.includes("Holmes")); })()`],
     ["expect", "BrainWeb draws with its credit and the explorer link (skipped without data)", `(async () => {
-      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      const s = document.getElementById("phantomSrc"); if (s.hidden || s.querySelector('[value="brainweb"]').disabled) return true;
       s.value = "brainweb"; s.dispatchEvent(new Event("change", { bubbles: true }));
       for (let i = 0; i < 50 && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
       await new Promise((r) => setTimeout(r, 300));
@@ -62,7 +68,7 @@ const PAGES = [
         && document.getElementById("bwCite").checkVisibility() && document.getElementById("bwCite").textContent.includes("Aubert-Broche"); })()`],
     ["click", "tabBtnKspace"],
     ["expect", "credit and citations stay visible on the K-space tab with BrainWeb; back to Generated hides them (skipped without data)", `(async () => {
-      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      const s = document.getElementById("phantomSrc"); if (s.hidden || s.querySelector('[value="brainweb"]').disabled) return true;
       const c = document.getElementById("bwCredit"), t = document.getElementById("bwCite");
       const onK = c.checkVisibility() && t.checkVisibility();
       s.value = "generated"; s.dispatchEvent(new Event("change", { bubbles: true }));
@@ -174,12 +180,18 @@ const PAGES = [
     ["expect", "selecting a slice in the other pass plays that pass", `(() => { document.querySelector('#strip figure[data-j="1"]').click();
       return (document.getElementById("passNote").innerText.startsWith("Pass 2 of 2") && document.querySelector("#strip figure.sel")?.dataset.j === "1") || document.getElementById("passNote").innerText; })()`],
     ["expect", "profile plot drawn", `!!document.querySelector('#profilePlot .main-svg')`],
-    ["expect", "BrainWeb choice shown only when its data is present", `(async () => {
+    ["expect", "Colin27 is the phantom shown, with its credit; BrainWeb is offered only when its data is present", `(async () => {
       const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
+      const c27 = (await fetch("../data/colin27/colin27_labels_0.5mm.json")).ok;
+      for (let i = 0; i < 80 && c27 && document.body.dataset.phantom !== "colin27"; i++) await new Promise((r) => setTimeout(r, 100));
       await new Promise((r) => setTimeout(r, 300));
-      return document.getElementById("phantomSrc").hidden === !ok; })()`],
+      const s = document.getElementById("phantomSrc"), o = s.querySelector('[value="brainweb"]');
+      if (s.hidden !== !(ok || c27) || o.disabled !== !ok) return false;
+      return !c27 || (document.body.dataset.phantom === "colin27" && s.value === "colin27" && document.getElementById("bwCredit").hidden
+        && document.getElementById("c27Credit").checkVisibility() && document.getElementById("c27Credit").textContent.includes("Copyright (C) 1993")
+        && document.getElementById("c27Cite").textContent.includes("Holmes")); })()`],
     ["expect", "BrainWeb redraws the image with its credit (skipped without data)", `(async () => {
-      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      const s = document.getElementById("phantomSrc"); if (s.hidden || s.querySelector('[value="brainweb"]').disabled) return true;
       const lit = () => { const c = document.getElementById("rCanvas"); const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
         let n = 0; for (let i = 0; i < d.length; i += 4) n += d[i]; return n; };
       document.getElementById("fillAll").click(); const before = lit();
@@ -197,14 +209,18 @@ const PAGES = [
       await new Promise((r) => setTimeout(r, 300));
       return document.body.dataset.phantom === "generated" && !document.getElementById("bwCredit").checkVisibility() && !document.getElementById("bwCite").checkVisibility(); })()`],
     ["url", "?seq=SE&slices=3&phantom=brainweb"], ["click", "fillAll"],
-    ["expect", "?phantom=brainweb: BrainWeb with data; silently Generated, select hidden and no error without it", `(async () => {
+    ["expect", "?phantom=brainweb: BrainWeb with data; silently the default phantom and no error without it", `(async () => {
       const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
       for (let i = 0; i < 80 && ok && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
       await new Promise((r) => setTimeout(r, 300));
       const s = document.getElementById("phantomSrc");
       const thumbs = document.querySelectorAll("#strip canvas").length === 3;
       if (ok) return document.body.dataset.phantom === "brainweb" && s.value === "brainweb" && !document.getElementById("bwCredit").hidden && thumbs;
-      return s.hidden && s.value === "generated" && document.body.dataset.phantom !== "brainweb" && document.getElementById("bwCredit").hidden
+      const c27 = (await fetch("../data/colin27/colin27_labels_0.5mm.json")).ok;
+      for (let i = 0; i < 80 && c27 && document.body.dataset.phantom !== "colin27"; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
+      const def = c27 ? !s.hidden && s.value === "colin27" && document.body.dataset.phantom === "colin27" : s.hidden && s.value === "generated";
+      return def && document.body.dataset.phantom !== "brainweb" && document.getElementById("bwCredit").hidden
         && document.getElementById("bwStatus").hidden && !location.search.includes("phantom") && thumbs; })()`],
     ["expect", "no sequence error shown", `(${VISIBLE_ALERTS}) || true`],
     // dragging Slices across 1 shows the gap and order and hides the inversion, without a rebuild of the slider
@@ -308,12 +324,18 @@ const PAGES = [
   { name: "signal", path: "signal/", steps: [["cycle", "field"], ["cycle", "kind"], ["set", "tbw", 8]] },
   { name: "phantom", path: "phantom/", steps: [
     ["cycle", "mode"], ["cycle", "window"], ["set", "zpos", 20], ["click", "lesions"], ["cycle", "res"],
-    ["expect", "BrainWeb choice shown only when its data is present", `(async () => {
+    ["expect", "Colin27 is the phantom shown, with its credit; BrainWeb is offered only when its data is present", `(async () => {
       const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
+      const c27 = (await fetch("../data/colin27/colin27_labels_0.5mm.json")).ok;
+      for (let i = 0; i < 80 && c27 && document.body.dataset.phantom !== "colin27"; i++) await new Promise((r) => setTimeout(r, 100));
       await new Promise((r) => setTimeout(r, 300));
-      return document.getElementById("phantomSrc").hidden === !ok; })()`],
+      const s = document.getElementById("phantomSrc"), o = s.querySelector('[value="brainweb"]');
+      if (s.hidden !== !(ok || c27) || o.disabled !== !ok) return false;
+      return !c27 || (document.body.dataset.phantom === "colin27" && s.value === "colin27" && document.getElementById("bwCredit").hidden
+        && document.getElementById("c27Credit").checkVisibility() && document.getElementById("c27Credit").textContent.includes("Copyright (C) 1993")
+        && document.getElementById("c27Cite").textContent.includes("Holmes")); })()`],
     ["expect", "BrainWeb draws with its credit (skipped without data)", `(async () => {
-      const s = document.getElementById("phantomSrc"); if (s.hidden) return true;
+      const s = document.getElementById("phantomSrc"); if (s.hidden || s.querySelector('[value="brainweb"]').disabled) return true;
       s.value = "brainweb"; s.dispatchEvent(new Event("input", { bubbles: true }));
       for (let i = 0; i < 50 && document.body.dataset.phantom !== "brainweb"; i++) await new Promise((r) => setTimeout(r, 100));
       return document.body.dataset.phantom === "brainweb" && document.getElementById("bwStatus").textContent === ""
@@ -328,6 +350,7 @@ const PAGES = [
       for (let i = 0; i < 50 && document.body.dataset.phantom !== "generated"; i++) await new Promise((r) => setTimeout(r, 100));
       await new Promise((r) => setTimeout(r, 300));
       return document.body.dataset.phantom === "generated" && !document.getElementById("bwCite").checkVisibility()
+        && !document.getElementById("c27Credit").checkVisibility() && !document.getElementById("seed").disabled
         && document.querySelector("h1").innerText === "Procedural head phantom" && document.body.innerText.includes("not a segmentation of a real person"); })()`],
     ["set", "xpos", 5], ["set", "ypos", 0], ["set", "zpos", 14],
     ["expect", "linked slice lines mark the other two slices on each view", `(async () => {

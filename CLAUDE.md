@@ -29,7 +29,8 @@ node tools/smoke.mjs --baseline                  # run, then save the screenshot
 
 `bloch/` Bloch-equation simulator (`bloch.js` engine, `program.js` TR/repetition programs, `labframe.js`, `ui.js`,
 `hints.js`) · `coil/` Biot-Savart fields and B1+ maps · `signal/` Fourier, sampling, RF slice profile · `tuning/` coil tuning
-and matching · `phantom/` procedural 3D head phantom and viewer, optional BrainWeb · `contrast/` contrast simulator and
+and matching · `phantom/` 3D head phantom and viewer: Colin27 tissue classes (default, `data/colin27/`, keep its LICENSE with it), the
+procedural phantom, optional BrainWeb · `contrast/` contrast simulator and
 multi-slice protocol page · `kspace/` k-space explorer (`scan.js` shots and rows, `settings.js`, `strip.js`, `ui.js`) ·
 `shared/` stylesheet, plot helpers, FFT, `sequence.js` (event-list pulse sequences), `ktraj.js` (k-space paths),
 `seqdiagram.js` (to-scale diagram), `crosstalk.js`, `hint.js` (hover, focus and tap explanations) · `tools/` smoke test and

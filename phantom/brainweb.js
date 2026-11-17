@@ -1,6 +1,8 @@
-// BrainWeb anatomy phantom: label mapping, downsampling, lookup, and the optional data loader.
+// Stored-anatomy phantoms (Colin27, and BrainWeb when its local data is present): label mapping, downsampling, lookup
+// and the data loader.
 // Volumes are in our orientation (+x patient left, +y anterior, +z superior), index = i + nx*(j + ny*k).
 import { LABELS, EXAMPLE_LESIONS_MNI, createPhantom } from "./phantom.js";
+import { COLIN27_DIR, COLIN27_FILE } from "./colin27.js";
 
 const { AIR, WM, GM, CSF, FAT, BONE, LESION, MUSCLE } = LABELS;
 
@@ -34,7 +36,8 @@ export function downsampleMajority(src, dims, factor = 2) {
   return { data, dims: [ox, oy, oz] };
 }
 
-export function brainwebPhantom(volume, meta, { lesions = false } = {}) {
+// A phantom that looks up a stored label volume (nearest voxel). The example lesions replace white matter only.
+export function atlasPhantom(volume, meta, { lesions = false, source = "brainweb" } = {}) {
   const [nx, ny, nz] = meta.dims;
   const { voxelMm, origin } = meta;
   // MNI (0,0,0) sits at our (0,17,4); MNI-style lesion coordinates already use our x sense. True size.
@@ -43,28 +46,36 @@ export function brainwebPhantom(volume, meta, { lesions = false } = {}) {
     : [];
   const inLesion = (x, y, z) => list.some(([cx, cy, cz, a, b, c]) =>
     ((x - cx) / a) ** 2 + ((y - cy) / b) ** 2 + ((z - cz) / c) ** 2 < 1);
+  const inv = 1 / voxelMm, [ox, oy, oz] = origin;
 
   function labelAt(x, y, z) {
-    const i = Math.round((x - origin[0]) / voxelMm);
-    const j = Math.round((y - origin[1]) / voxelMm);
-    const k = Math.round((z - origin[2]) / voxelMm);
+    const i = Math.round((x - ox) * inv);
+    const j = Math.round((y - oy) * inv);
+    const k = Math.round((z - oz) * inv);
     if (i < 0 || j < 0 || k < 0 || i >= nx || j >= ny || k >= nz) return AIR;
     const label = volume[i + nx * (j + ny * k)];
     return label === WM && list.length && inLesion(x, y, z) ? LESION : label;
   }
-  return { labelAt, options: { source: "brainweb", lesions } };
+  return { labelAt, options: { source, lesions } };
 }
+export const brainwebPhantom = (volume, meta, opts = {}) => atlasPhantom(volume, meta, { ...opts, source: "brainweb" });
 
-// ---- Loader. The data is git-ignored (not redistributable yet); pages offer BrainWeb only if it loads. ----
+// ---- Loader. Colin27 ships with the site. BrainWeb's data is git-ignored (not redistributable yet); pages offer it
+// only if it loads. ----
 export const BRAINWEB_DIR = "data/brainweb/";
 export const BRAINWEB_FILE = "subject04_labels_1mm";
+export const ATLASES = {
+  colin27: { dir: COLIN27_DIR, file: COLIN27_FILE, title: "Colin27" },
+  brainweb: { dir: BRAINWEB_DIR, file: BRAINWEB_FILE, title: "BrainWeb" },
+};
 
-const fileUrl = (rootUrl, ext) => `${rootUrl}${BRAINWEB_DIR}${BRAINWEB_FILE}${ext}`;
+const fileUrl = (name, rootUrl, ext) => `${rootUrl}${ATLASES[name].dir}${ATLASES[name].file}${ext}`;
 
-// True only when the sidecar loads as JSON. Never throws.
-export async function brainwebAvailable(rootUrl, fetchFn = fetch) {
+// True only when the atlas's sidecar loads as JSON. Never throws.
+export async function atlasAvailable(name, rootUrl, fetchFn = fetch) {
   try {
-    const res = await fetchFn(fileUrl(rootUrl, ".json"));
+    if (!ATLASES[name]) return false;
+    const res = await fetchFn(fileUrl(name, rootUrl, ".json"));
     if (!res.ok) return false;
     await res.json();
     return true;
@@ -72,37 +83,41 @@ export async function brainwebAvailable(rootUrl, fetchFn = fetch) {
     return false;
   }
 }
+export const brainwebAvailable = (rootUrl, fetchFn = fetch) => atlasAvailable("brainweb", rootUrl, fetchFn);
 
-const loads = new Map(); // rootUrl -> Promise<{ volume, meta }>: one download per page life
+const loads = new Map(); // name + rootUrl -> Promise<{ volume, meta }>: one download per page life
 
-async function fetchBrainweb(rootUrl, fetchFn) {
-  const metaRes = await fetchFn(fileUrl(rootUrl, ".json"));
-  if (!metaRes.ok) throw new Error(`BrainWeb sidecar: HTTP ${metaRes.status}`);
+async function fetchAtlas(name, rootUrl, fetchFn) {
+  const title = ATLASES[name].title;
+  const metaRes = await fetchFn(fileUrl(name, rootUrl, ".json"));
+  if (!metaRes.ok) throw new Error(`${title} sidecar: HTTP ${metaRes.status}`);
   const meta = await metaRes.json();
-  const volRes = await fetchFn(fileUrl(rootUrl, ".u8.gz"));
-  if (!volRes.ok) throw new Error(`BrainWeb volume: HTTP ${volRes.status}`);
+  const volRes = await fetchFn(fileUrl(name, rootUrl, ".u8.gz"));
+  if (!volRes.ok) throw new Error(`${title} volume: HTTP ${volRes.status}`);
   const stream = volRes.body.pipeThrough(new DecompressionStream("gzip"));
   const volume = new Uint8Array(await new Response(stream).arrayBuffer());
   const expected = meta.dims[0] * meta.dims[1] * meta.dims[2];
-  if (volume.length !== expected) throw new Error(`BrainWeb volume: ${volume.length} bytes, expected ${expected}`);
+  if (volume.length !== expected) throw new Error(`${title} volume: ${volume.length} bytes, expected ${expected}`);
   return { volume, meta };
 }
 
-// Memoised per rootUrl; a failed load is forgotten so the next call retries.
-export function loadBrainweb(rootUrl, fetchFn = fetch) {
-  let p = loads.get(rootUrl);
+// Memoised per atlas and rootUrl; a failed load is forgotten so the next call retries.
+export function loadAtlas(name, rootUrl, fetchFn = fetch) {
+  const key = `${name}|${rootUrl}`;
+  let p = loads.get(key);
   if (!p) {
-    p = fetchBrainweb(rootUrl, fetchFn);
-    loads.set(rootUrl, p);
-    p.catch(() => { if (loads.get(rootUrl) === p) loads.delete(rootUrl); });
+    p = fetchAtlas(name, rootUrl, fetchFn);
+    loads.set(key, p);
+    p.catch(() => { if (loads.get(key) === p) loads.delete(key); });
   }
   return p;
 }
+export const loadBrainweb = (rootUrl, fetchFn = fetch) => loadAtlas("brainweb", rootUrl, fetchFn);
 
 export async function makePhantom(name, { rootUrl, lesions = false, seed = 1, sulcalDepthMm = 14, fetchFn } = {}) {
-  if (name === "brainweb") {
-    const { volume, meta } = await loadBrainweb(rootUrl, fetchFn);
-    return brainwebPhantom(volume, meta, { lesions });
+  if (ATLASES[name]) {
+    const { volume, meta } = await loadAtlas(name, rootUrl, fetchFn);
+    return atlasPhantom(volume, meta, { lesions, source: name });
   }
   return createPhantom({ seed, sulcalDepthMm, lesions });
 }

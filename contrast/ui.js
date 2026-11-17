@@ -6,7 +6,7 @@ import { meterFraction, formatTime, inPlanePixel, percentChange, formatPercent, 
 import { sweepSpec, sweep } from "./curves.js";
 import { draw, layout, axisStyle, textScale } from "../shared/plot.js";
 import { createPhantom } from "../phantom/phantom.js";
-import { brainwebAvailable, makePhantom } from "../phantom/brainweb.js";
+import { atlasAvailable, makePhantom, ATLASES } from "../phantom/brainweb.js";
 import { drawPulseSequence, psdParams } from "./psd.js";
 import { psdToSvg } from "./psd_svg.js";
 import {
@@ -402,42 +402,59 @@ $("autoWl").addEventListener("change", scheduleImages);
 for (const id of ["wlWindow", "wlLevel"]) $(id).addEventListener("input", () => {
   $("autoWl").checked = false; wl.window = Number($("wlWindow").value); wl.level = Number($("wlLevel").value); scheduleImages();
 });
-// The phantom may arrive asynchronously (BrainWeb loads a file, cached after the first time). A result is used only
+// The phantom may arrive asynchronously (Colin27 and BrainWeb load a file, cached after the first time). A result is used only
 // if it is still the latest choice; the credit follows the phantom drawn, not the select.
 function setBwStatus(text) { $("bwStatus").textContent = text; $("bwStatus").hidden = !text; }
 function choosePhantom() {
   const source = $("phantomSrc").value, lesions = $("lesions").checked, k = `${source}|${lesions}`;
   if (k === phantomKey) { requested = k; setBwStatus(""); return; } // back to what is drawn: drop any load in flight
   requested = k;
-  if (source === "brainweb") setBwStatus("Loading BrainWeb anatomy…");
+  if (ATLASES[source]) setBwStatus(`Loading ${ATLASES[source].title} anatomy…`);
   makePhantom(source, { rootUrl: "../", seed: 1, sulcalDepthMm: 14, lesions }).then((ph) => {
     if (k !== requested) return;
     phantom = ph; shown = source; phantomKey = k;
     for (const key of Object.keys(sampleCache)) delete sampleCache[key];
     document.body.dataset.phantom = source;
     $("bwCredit").hidden = source !== "brainweb"; $("bwCite").hidden = source !== "brainweb";
+    $("c27Credit").hidden = source !== "colin27"; $("c27Cite").hidden = source !== "colin27";
     setBwStatus("");
+    phantomSettled = true;
     scheduleImages();
   }, () => {
     if (k !== requested) return;
     requested = "";
     $("phantomSrc").value = "generated";
     choosePhantom();
-    setBwStatus("BrainWeb anatomy could not be loaded");
+    settlePhantom();
+    setBwStatus(`${ATLASES[source]?.title ?? "The"} anatomy could not be loaded`);
   });
 }
 $("lesions").addEventListener("change", choosePhantom);
 $("phantomSrc").addEventListener("change", choosePhantom);
-// Offer BrainWeb only if its data file is present; otherwise the page stays exactly as it is.
-brainwebAvailable("../").then((ok) => {
-  if (!ok) return;
+// Colin27's real anatomy is the phantom shown when its data file loads (?phantom=generated keeps the generated one);
+// until then, and without the file, the generated phantom is drawn. BrainWeb is offered only if its local data is present.
+$("phantomSrc").value = "generated";
+const wantedPhantom = new URLSearchParams(location.search).get("phantom");
+atlasAvailable("colin27", "../").then((ok) => {
+  if (!ok) { $("phantomSrc").querySelector('[value="colin27"]').remove(); settlePhantom(); return; }
   $("phantomSrcBox").hidden = $("phantomSrc").hidden = false;
-  if (new URLSearchParams(location.search).get("phantom") === "brainweb") { $("phantomSrc").value = "brainweb"; choosePhantom(); }
+  if (wantedPhantom !== "generated" && wantedPhantom !== "brainweb") { $("phantomSrc").value = "colin27"; choosePhantom(); }
+  else settlePhantom();
+});
+atlasAvailable("brainweb", "../").then((ok) => {
+  if (!ok) return;
+  const o = $("phantomSrc").querySelector('[value="brainweb"]'); o.hidden = o.disabled = false;
+  $("phantomSrcBox").hidden = $("phantomSrc").hidden = false;
+  if (wantedPhantom === "brainweb") { $("phantomSrc").value = "brainweb"; choosePhantom(); }
 });
 
-let imagePending = false;
+// The first images wait until the page knows which phantom it will show, so the slower generated phantom is not drawn
+// only to be replaced a moment later. A timer ends the wait if the data is slow to arrive.
+let imagePending = false, phantomSettled = false;
+function settlePhantom() { if (!phantomSettled) { phantomSettled = true; scheduleImages(); } }
+setTimeout(settlePhantom, 4000);
 function scheduleImages() {
-  if (imagePending) return;
+  if (imagePending || !phantomSettled) return;
   imagePending = true;
   requestAnimationFrame(() => { imagePending = false; renderImages(); });
 }
@@ -459,7 +476,7 @@ function drawStackLines(plane, v, cu) {
 $("showStack").addEventListener("change", scheduleImages);
 
 function updateExplorerLink() {
-  $("kExplorer").href = explorerUrl("../kspace/", shown === "brainweb" ? { ...p, phantom: "brainweb" } : p, timing);
+  $("kExplorer").href = explorerUrl("../kspace/", { ...p, phantom: shown }, timing);
 }
 
 function renderImages() {

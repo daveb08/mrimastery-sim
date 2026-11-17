@@ -8,7 +8,10 @@
 <style>
   .bwonly { display: none; }
   body[data-phantom="brainweb"] .bwonly { display: inline; }
-  body[data-phantom="brainweb"] .gen { display: none; }
+  body[data-phantom="brainweb"] .gen, body[data-phantom="colin27"] .gen { display: none; }
+  .c27only { display: none; }
+  body[data-phantom="colin27"] span.c27only { display: inline; }
+  body[data-phantom="colin27"] p.c27only { display: block; }
   .views { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   @media (max-width: 1000px) { .views { grid-template-columns: 1fr; } }
   canvas { width: 100%; aspect-ratio: 1; background: #000; border-radius: 4px; display: block; }
@@ -26,15 +29,16 @@
 <body>
 <main>
   <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
-  <h1><span class="gen">Procedural head phantom</span><span class="bwonly">Head phantom</span></h1>
-  <p class="sub"><span class="bwonly">A labeled head and neck from BrainWeb's simulated brain database. The contrast simulator and k-space explorer image this phantom.</span><span class="gen">A generated, labeled head and neck with no stored data, placed from standard-atlas landmarks. The contrast simulator and k-space explorer image this phantom.<span id="bwHint" hidden> Choose BrainWeb for a real head's anatomy.</span></span></p>
+  <h1><span class="gen">Procedural head phantom</span><span class="bwonly">Head phantom</span><span class="c27only">Head phantom</span></h1>
+  <p class="sub"><span class="c27only">A labeled head from the tissue classes of one normal adult (Colin27, Montreal Neurological Institute). The contrast simulator and k-space explorer image this phantom.</span><span class="bwonly">A labeled head and neck from BrainWeb's simulated brain database. The contrast simulator and k-space explorer image this phantom.</span><span class="gen">A generated, labeled head and neck with no stored data, placed from standard-atlas landmarks. The contrast simulator and k-space explorer image this phantom.<span id="bwHint" hidden> Choose BrainWeb for a real head's anatomy.</span></span></p>
 
   <div class="panel">
     <div class="controls">
       <div id="phantomSrcBox" hidden><label for="phantomSrc">Phantom</label>
         <select id="phantomSrc" hidden>
+          <option value="colin27">Colin27 (real anatomy)</option>
           <option value="generated">Generated</option>
-          <option value="brainweb">BrainWeb</option>
+          <option value="brainweb" hidden disabled>BrainWeb</option>
         </select></div>
       <div><label for="mode">Display</label>
         <select id="mode">
@@ -63,7 +67,13 @@
         <input id="xpos" type="range" min="-70" max="70" step="1" value="5"></div>
     </div>
     <p class="caption" id="bwStatus" role="status" hidden></p>
-    <p class="caption" id="bwCredit" hidden>Anatomy: <a href="https://brainweb.bic.mni.mcgill.ca/brainweb/" target="_blank" rel="noopener">BrainWeb (McGill), subject 04</a>. BrainWeb covers the head down to about the skull base.</p>
+    <p class="caption" id="c27Credit" hidden>Anatomy: <a href="https://nist.mni.mcgill.ca/colin-27-average-brain-2008/" target="_blank" rel="noopener">Colin 27 Average Brain, high-resolution version 2008</a>: the tissue classes of one normal adult's head, covering the head down to about the skull base. Copyright (C) 1993&ndash;2009 Louis Collins, McConnell Brain Imaging Centre, Montreal Neurological Institute, McGill University. Only tissue membership is stored; the simulator computes the signal.</p>
+    <details id="c27Cite" hidden><summary>Cite Colin27</summary>
+    <ul class="caption" style="margin:4px 0 0;padding-left:18px">
+    <li>C.J. Holmes, R. Hoge, D.L. Collins, R. Woods, A.W. Toga, A.C. Evans: Enhancement of MR images using registration for signal averaging. Journal of Computer Assisted Tomography 22(2):324-333, 1998.</li>
+    <li>B. Aubert-Broche, A.C. Evans, D.L. Collins: A new improved version of the realistic digital brain phantom. NeuroImage 32(1):138-145, 2006.</li>
+    </ul></details>
+<p class="caption" id="bwCredit" hidden>Anatomy: <a href="https://brainweb.bic.mni.mcgill.ca/brainweb/" target="_blank" rel="noopener">BrainWeb (McGill), subject 04</a>. BrainWeb covers the head down to about the skull base.</p>
     <details id="bwCite" hidden><summary>Cite BrainWeb</summary>
     <ul class="caption" style="margin:4px 0 0;padding-left:18px">
     <li>C.A. Cocosco, V. Kollokian, R.K.-S. Kwan, A.C. Evans: BrainWeb: Online Interface to a 3D MRI Simulated Brain Database. NeuroImage 5(4) part 2/4, S425, 1997.</li>
@@ -80,6 +90,16 @@
     <div class="panel"><div class="viewhead"><span>Sagittal</span><span>anterior &larr; &rarr; posterior</span></div><div class="frame" id="frame_sagittal"><canvas id="sagittal" width="256" height="256"></canvas><i class="xh v"></i><i class="xh h"></i></div></div>
   </div>
   <p class="caption" id="stats"></p>
+  <p class="caption c27only">Real anatomy: every plane samples one stored 3-D volume of tissue classes, made by the
+    Montreal Neurological Institute from repeated scans of one normal adult (0.5 mm voxels).
+    The simulator stores which tissue each voxel holds, not image intensities: the display modes compute the signal.
+    <b>Approximations:</b> the source's skin and muscle, dura and vessels are shown with the muscle / soft-tissue values
+    (blood flow is not modelled), and marrow and connective tissue with the fat values. The deep grey nuclei and much of the
+    brainstem are in the grey-matter class, as the source's classifier assigned them; individual nuclei are not labelled
+    separately. The volume ends near the skull base: there is no neck below the upper cervical cord. This is a teaching phantom, not a validated anatomical
+    reference. Tissue values are the contrast simulator's 3.0 T table, plus illustrative muscle, lesion and bone rows; the
+    skull's cortical bone is treated as signal void. Weighted images are ideal spin-echo signal equations, not a full
+    simulation.</p>
   <p class="caption gen">Stylised anatomy, not a segmentation of a real person, with structures placed from approximate
     standard-atlas (MNI) coordinates scaled to an average adult.
     <b>Brain:</b>
