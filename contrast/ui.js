@@ -208,7 +208,7 @@ function wireTabs(pairs) {
   }
 }
 wireTabs([["tabBtnContrast", "paneContrast"], ["tabBtnGeometry", "paneGeometry"], ["tabBtnSignal", "paneSignal"]]);
-wireTabs([["tabBtnBars", "tabBars"], ["tabBtnCurves", "tabCurves"]]);
+wireTabs([["tabBtnBars", "tabBars"], ["tabBtnCurves", "tabCurves"], ["tabBtnCnr", "tabCnr"]]);
 
 // ---- rendering ----
 function meterHtml(kind, big, sub, current) {
@@ -296,7 +296,9 @@ function renderPlots(m) {
           margin: { l: 52, r: 10, t: 34, b: 42 },
           shapes: [{ type: "line", x0: now, x1: now, yref: "paper", y0: 0, y1: 1, line: { color: "#fff", dash: "dash", width: 1 } }] }));
     });
-    // CNR under each signal sweep, on the same horizontal axis. Lines differ by dash as well as colour.
+  }
+  if (!$("tabCnr").hidden) { // the same two sweeps as the signal curves. Lines differ by dash as well as colour.
+    const { first, second } = sweepSpec(p.seq, p);
     [["plotCnr1", first], ["plotCnr2", second]].forEach(([id, spec]) => {
       const { x, y, peak } = cnrSweep(p, m, spec.key, spec.max);
       const now = spec.key === "TR" && p.seq === "bSSFP" ? p.TR : p[spec.key];

@@ -118,7 +118,8 @@
       <div class="panel plots" aria-label="Plots">
       <div class="tabs" role="tablist" aria-label="Plots">
         <button role="tab" id="tabBtnBars" aria-selected="true" aria-controls="tabBars">Signal &amp; SNR</button>
-        <button role="tab" id="tabBtnCurves" aria-selected="false" aria-controls="tabCurves">Signal &amp; CNR curves</button>
+        <button role="tab" id="tabBtnCurves" aria-selected="false" aria-controls="tabCurves">Signal curves</button>
+        <button role="tab" id="tabBtnCnr" aria-selected="false" aria-controls="tabCnr">CNR curves</button>
       </div>
       <div id="tabBars" role="tabpanel" class="stack2">
         <div id="plotSignal" class="plot short"></div>
@@ -126,8 +127,10 @@
       </div>
       <div id="tabCurves" role="tabpanel" class="stack2" hidden>
         <div id="plotCurve1" class="plot short"></div>
-        <div id="plotCnr1" class="plot short"></div>
         <div id="plotCurve2" class="plot short"></div>
+      </div>
+      <div id="tabCnr" role="tabpanel" class="stack2" hidden>
+        <div id="plotCnr1" class="plot short"></div>
         <div id="plotCnr2" class="plot short"></div>
         <p class="caption" id="cnrNote">CNR is the difference in SNR between two tissues at the current voxel size, bandwidth and averages. It takes no account of scan time: a longer TR can raise CNR and still be the worse choice per minute.</p>
       </div>

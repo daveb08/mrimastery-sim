@@ -44,7 +44,7 @@ const PAGES = [
     ["cycle", "seq"], ["cycle", "field"], ["cycle", "preset"],
     ["click", "tabBtnKspace"], ["click", "kPlay"], ["wait", 1200], ["click", "kPlay"], ["click", "kReset"],
     ["click", "tabBtnImages"],
-    ["click", "tabBtnGeometry"], ["click", "tabBtnSignal"], ["click", "tabBtnBars"], ["click", "tabBtnCurves"],
+    ["click", "tabBtnGeometry"], ["click", "tabBtnSignal"], ["click", "tabBtnBars"], ["click", "tabBtnCurves"], ["click", "tabBtnCnr"],
     ["click", "tabBtnContrast"],
     ["expect", "BrainWeb choice shown only when its data is present", `(async () => {
       const ok = (await fetch("../data/brainweb/subject04_labels_1mm.json")).ok;
