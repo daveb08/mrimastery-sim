@@ -3,7 +3,7 @@ import {
   PARTIAL_FOURIER, PARTIAL_FOURIER_SEQUENCES, PROTOCOL_PRESETS, TISSUES_BASE, GRE_MIN_TE_MS,
 } from "./physics.js";
 import { meterFraction, formatTime, inPlanePixel, percentChange, formatPercent, meterValues, METERS } from "./meters.js";
-import { sweepSpec, sweep } from "./curves.js";
+import { sweepSpec, sweep, cnrSweep, CNR_PAIRS } from "./curves.js";
 import { draw, layout, axisStyle, textScale } from "../shared/plot.js";
 import { createPhantom } from "../phantom/phantom.js";
 import { brainwebAvailable, makePhantom } from "../phantom/brainweb.js";
@@ -268,6 +268,7 @@ function renderNotes(m) {
     + `Noise floor ${m.noiseFloor.toFixed(5)}.`;
 }
 
+const CNR_STYLE = [{ color: "#f2f2f2", dash: "solid" }, { color: "#5fd0c5", dash: "dash" }, { color: "#e3a1ee", dash: "dot" }];
 // Titles sit at the left, clear of the Plotly modebar at the top right.
 const TITLE = (text) => ({ text, font: { size: 12 }, x: 0.01, xanchor: "left" });
 
@@ -294,6 +295,21 @@ function renderPlots(m) {
           yaxis: axisStyle({ title: "Relative signal", rangemode: "tozero" }), uirevision: undefined,
           margin: { l: 52, r: 10, t: 34, b: 42 },
           shapes: [{ type: "line", x0: now, x1: now, yref: "paper", y0: 0, y1: 1, line: { color: "#fff", dash: "dash", width: 1 } }] }));
+    });
+    // CNR under each signal sweep, on the same horizontal axis. Lines differ by dash as well as colour.
+    [["plotCnr1", first], ["plotCnr2", second]].forEach(([id, spec]) => {
+      const { x, y, peak } = cnrSweep(p, m, spec.key, spec.max);
+      const now = spec.key === "TR" && p.seq === "bSSFP" ? p.TR : p[spec.key];
+      const unit = spec.label.includes("°") ? "°" : " ms";
+      const traces = CNR_PAIRS.map((c, i) => ({ type: "scatter", mode: "lines", x, y: y[c.key], name: c.label,
+        line: { color: CNR_STYLE[i].color, dash: CNR_STYLE[i].dash, width: 2 } }));
+      if (peak) traces.push({ type: "scatter", mode: "markers+text", x: [peak.x], y: [peak.y], name: "WM–GM peak", showlegend: false,
+        marker: { color: CNR_STYLE[0].color, size: 8, symbol: "diamond" }, text: [`peak ${peak.x.toFixed(0)}${unit}`],
+        textposition: "top center", textfont: { size: 11, color: CNR_STYLE[0].color }, cliponaxis: false,
+        hovertemplate: `WM–GM peak: %{y:.1f} at %{x:.0f}${unit}<extra></extra>` });
+      draw(id, traces, layout({ title: TITLE(`CNR vs ${spec.label}`), xaxis: axisStyle({ title: spec.label }),
+        yaxis: axisStyle({ title: "CNR", rangemode: "tozero" }), uirevision: undefined, margin: { l: 52, r: 10, t: 34, b: 42 },
+        shapes: [{ type: "line", x0: now, x1: now, yref: "paper", y0: 0, y1: 1, line: { color: "#fff", dash: "dash", width: 1 } }] }));
     });
   }
 }
