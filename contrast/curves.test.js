@@ -35,7 +35,7 @@ test("a CNR sweep passes through the model's three CNR numbers at the current se
   const { x, y } = cnrSweep(p, m, "TE", 200, 120); // step 200 / 120, so TE 100 is a grid point
   const i = x.findIndex((v) => Math.abs(v - 100) < 1e-9);
   assert.ok(i >= 0);
-  const tol = 0.02 / m.noiseFloor; // the model rounds each signal to two decimals before dividing by the noise
+  const tol = 1e-9; // the curve and the page's numbers are the same calculation
   for (const { key } of CNR_PAIRS) assert.ok(Math.abs(y[key][i] - m.cnr[key]) <= tol, `${key}: ${y[key][i]} vs ${m.cnr[key]}`);
   assert.deepEqual(CNR_PAIRS.map((c) => c.key), ["wmGm", "wmCsf", "gmCsf"]);
 });

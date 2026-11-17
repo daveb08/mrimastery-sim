@@ -33,8 +33,7 @@ export const CNR_PAIRS = [
 
 // CNR against one parameter, in the model's own CNR units: signal difference x voxel-volume scale / noise. TR, TE, TI and
 // flip angle do not change the noise, so one scale serves the whole sweep. Cross-talk factors are held at their current
-// values. The model rounds each signal to two decimals before dividing by the noise; this does not, so the curve can sit
-// a little off the number on the page (by at most 0.02 / noise).
+// values, so the curve passes exactly through the CNR numbers on the page.
 // peak is the highest point of the WM-GM curve, or null when that is at either end of the sweep (still rising or falling).
 export function cnrSweep(p, model, key, max, n = 120) {
   const { x, y: s } = sweep(p.seq, p, key, max, n);

@@ -38,13 +38,26 @@ test(`the Signal -> Noise -> SNR chain matches the recorded reference (${golden.
     const tag = `${g.seq} ${g.field}`;
     for (const t of P.TISSUE_NAMES) {
       near(m.baseSignals[t], g.baseSignals[t], 1e-11, 1e-14, `${tag} base ${t}`);
-      assert.equal(m.signals[t], g.signals[t], `${tag} signal ${t} (rounded)`);
+      near(m.signals[t], g.signals[t], 1e-11, 1e-14, `${tag} signal ${t}`);
       near(m.snrs[t], g.snrs[t], 1e-11, 1e-12, `${tag} snr ${t}`);
     }
     near(m.noiseFloor, g.noiseFloor, 1e-12, 0, `${tag} noise`);
     near(m.voxelVol, g.voxelVol, 1e-12, 0, `${tag} voxel`);
     near(m.volScale, g.volScale, 1e-12, 0, `${tag} volScale`);
     near(m.scanSec, g.scanSec, 1e-12, 0, `${tag} scan time`);
+  }
+});
+
+test("signals, SNR and CNR are not rounded: signal = base signal x volume scale x sqrt(partial Fourier)", () => {
+  for (const [seq, over] of [["FSE", { TE: 100 }], ["GRE", {}], ["FLAIR", { pfFraction: 0.75 }], ["MPRAGE", {}]]) {
+    const p = { ...P.defaultParams(seq, "3.0T"), ...over }, m = P.computeModel(p);
+    for (const t of P.TISSUE_NAMES) {
+      const want = m.baseSignals[t] * m.volScale * Math.sqrt(p.pfFraction);
+      near(m.signals[t], want, 1e-12, 1e-15, `${seq} signal ${t}`);
+      near(m.snrs[t], want / m.noiseFloor, 1e-12, 1e-12, `${seq} snr ${t}`);
+    }
+    const d = Math.abs(m.baseSignals.WM - m.baseSignals.GM) * m.volScale * Math.sqrt(p.pfFraction) / m.noiseFloor;
+    near(m.cnr.wmGm, d, 1e-9, 1e-12, `${seq} CNR WM-GM`);
   }
 });
 
@@ -79,8 +92,6 @@ test("noise reference and reference voxel", () => {
 test("round-half-even matches Python's round()", () => {
   const cases = [[0.5, 0], [1.5, 2], [2.5, 2], [3.5, 4], [-0.5, -0], [-1.5, -2], [2.4, 2], [2.6, 3]];
   for (const [x, want] of cases) assert.equal(P.roundHalfEven(x) + 0, want + 0, `${x}`); // +0 folds -0 into 0
-  assert.equal(P.round2(0.123456), 0.12);
-  assert.equal(P.round2(1.005), 1); // binary 1.00499999...: same as Python
 });
 
 // ---- model properties ----

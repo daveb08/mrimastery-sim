@@ -49,8 +49,6 @@ export function roundHalfEven(x) {
   if (d > 0.5) return f + 1;
   return f % 2 === 0 ? f : f + 1;
 }
-// Python's round(x, 2).
-export const round2 = (x) => Number(x.toFixed(2));
 
 // ---- signal equations (0-1 scale; TR, TE, TI in ms) ----
 export function fseSignal(TR, TE, T1, T2, PD, fatSat = false, isFat = false) {
@@ -206,7 +204,7 @@ export function computeModel(p, { scanFactor = 1, crossTalk = null } = {}) {
   const voxelVol = (p.fovRead / p.freqMatrix) * (p.fovPhase / p.phaseMatrix) * sliceForVol;
   const volScale = voxelVol / refVox;
   const signals = {};
-  for (const name of TISSUE_NAMES) signals[name] = round2(baseSignals[name] * volScale * Math.sqrt(p.pfFraction));
+  for (const name of TISSUE_NAMES) signals[name] = baseSignals[name] * volScale * Math.sqrt(p.pfFraction);
 
   // Step 2: noise depends on bandwidth, field strength and how many read-outs are averaged into the image: NEX times the
   // phase-encode lines (times the partitions in 3-D). The frequency matrix does not enter: at a fixed bandwidth per pixel the
