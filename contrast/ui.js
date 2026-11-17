@@ -11,11 +11,12 @@ import { drawPulseSequence, psdParams } from "./psd.js";
 import { psdToSvg } from "./psd_svg.js";
 import {
   PLANES, CENTER, POS_RANGE, normalAxis, patientToScreen, screenToPatient, clampPos, sampleSlice, renderPlane, autoWindowLevel,
-  composeSignal, labelSignals, addGhost, toRgba,
+  composeSignal, labelSignals, addGhost, toRgba, echoTrainLabelWeights, echoTrainComplex,
 } from "./image.js";
 import {
   fillMask, partialFourierMask, partialFourierRows, combineMasks, kspaceOf, reconstruct, logMagnitude, toInferno, autoWindowLevelObject,
 } from "./kspace.js";
+import { echoTrainSummary } from "./echotrain.js";
 import { acquisitionPlan, maskAt, progressLabel, stepProgress, trajectory } from "./acquisition.js";
 import { explorerUrl } from "../kspace/settings.js";
 import { trStripLayout } from "./trstrip.js";
@@ -239,11 +240,18 @@ function renderMeters(m) {
 }
 
 function renderChips(m) {
-  const t = m.cnr;
-  $("chips").innerHTML = [
+  const t = m.cnr, train = echoTrainSummary(p, m);
+  const chips = [
     ["CNR WM–GM", t.wmGm.toFixed(1)], ["WM–CSF", t.wmCsf.toFixed(1)], ["GM–CSF", t.gmCsf.toFixed(1)],
     [m.keyMetric.label, m.keyMetric.value],
-  ].map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("");
+  ];
+  if (train && p.ETL > 1) {
+    const b = train.blur.WM, d = train.detail.WM;
+    chips.push(["Echo-train blur WM", b > 1.005 ? `×${b.toFixed(1)}` : "none",
+      `Each echo of the train fills different k-space lines with a different T2 decay. Fine white-matter detail keeps ${(d * 100).toFixed(0)}% `
+      + "of its single-echo signal along the phase direction; large areas are unchanged. A longer train or a shorter T2 blurs more."]);
+  }
+  $("chips").innerHTML = chips.map(([k, v, title]) => `<span${title ? ` title="${title}"` : ""}>${k} <b>${v}</b></span>`).join("");
 }
 
 function renderMessages(m) {
@@ -255,6 +263,7 @@ function renderMessages(m) {
 function renderNotes(m) {
   const t = m.timing, parts = [];
   if (t.espMs !== undefined) parts.push(`Echo spacing ${t.espMs.toFixed(1)} ms`);
+  if (t.espMs !== undefined && p.ETL > 1 && p.seq !== "EPI (single-shot)") parts.push(`echo train ${(p.ETL * t.espMs).toFixed(0)} ms`);
   if (t.minTR !== undefined) parts.push(`minimum TR ${Math.trunc(t.minTR)} ms`);
   if (t.minTE !== undefined) parts.push(`minimum TE ${t.minTE.toFixed(0)} ms`);
   if (t.fixedTE !== undefined) parts.push(`TE = ${t.fixedTE.toFixed(1)} ms`);
@@ -505,6 +514,7 @@ function renderImages() {
   }
   $("viewNote").textContent = `${p.freqMatrix} × ${p.phaseMatrix} matrix over ${p.fovRead} × ${p.fovPhase} mm, ${p.seq === "MPRAGE" ? "1" : p.sliceMm} mm slices. `
     + "Click or drag an image to move the other two slices. Muscle and lesion signals use illustrative tissue values. "
+    + (echoTrainSummary(p, model) && p.ETL > 1 ? "The echo train blurs fine detail along the phase direction (up and down in each image). " : "")
     + `Rendered in ${(performance.now() - t0).toFixed(0)} ms.`;
   renderKspace();
 }
@@ -544,11 +554,18 @@ let kCache = { key: "", K: null };
 function currentKspace() {
   const { sampled, key: sKey } = sampleCache.axial, { nx, ny } = sampled;
   const lut = labelSignals(model, p);
-  const key = [sKey, Array.from(lut).join(","), p.seq, p.ghostPct].join("|");
+  const train = echoTrainLabelWeights(p, model, ny); // each tissue's lines weighted by the T2 decay of the echo that fills them
+  const key = [sKey, Array.from(lut).join(","), p.seq, p.ghostPct,
+    train ? [p.ETL, model.timing.effIdx, model.timing.espMs, p.pfFraction].join(",") : ""].join("|");
   if (kCache.key !== key) {
-    let v = composeSignal(sampled, lut);
-    if (p.seq === "EPI (single-shot)") v = addGhost(v, nx, ny, (p.ghostPct ?? 0) / 100);
-    kCache = { key, K: kspaceOf(v, nx, ny) };
+    if (train) {
+      const c = echoTrainComplex(sampled, lut, train);
+      kCache = { key, K: kspaceOf(c.re, nx, ny, c.im) };
+    } else {
+      let v = composeSignal(sampled, lut);
+      if (p.seq === "EPI (single-shot)") v = addGhost(v, nx, ny, (p.ghostPct ?? 0) / 100);
+      kCache = { key, K: kspaceOf(v, nx, ny) };
+    }
   }
   return { K: kCache.K, nx, ny };
 }

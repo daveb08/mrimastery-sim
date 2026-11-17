@@ -1,10 +1,12 @@
 // DOM-free image formation for the contrast simulator: sample the labelled phantom at the acquired matrix and
 // field of view (slab partial volume, in-plane partial volume, phase-direction wrap-around), map tissues to signal,
-// add the N/2 ghost, partial-Fourier zero filling and Rician noise, then window/level to grey. Screen-up is always the phase-encode direction.
+// weight the k-space lines of an echo train by their T2 decay, add the N/2 ghost, partial-Fourier zero filling and Rician noise, then window/level to grey. Screen-up is always the phase-encode direction.
 import { tissueSignal, optimalWindowLevel } from "./physics.js";
 import { LABELS } from "../phantom/phantom.js";
 import { unitNoise } from "./noise.js";
 import { applyPartialFourier } from "./kspace.js";
+import { fftAny, ifftAny } from "../shared/fft.js";
+import { ECHO_TRAIN_SEQUENCES, rowWeights } from "./echotrain.js";
 
 export { unitNoise };
 
@@ -106,6 +108,74 @@ export function composeSignal(sampled, lut) {
   return out;
 }
 
+// T2 per label (index = LABELS value), for the echo-train weighting. AIR and BONE have no signal and stay 0.
+export function labelT2(model) {
+  const out = new Float32Array(8);
+  out[LABELS.WM] = model.tissues.WM.T2; out[LABELS.GM] = model.tissues.GM.T2;
+  out[LABELS.CSF] = model.tissues.CSF.T2; out[LABELS.FAT] = model.tissues.Fat.T2;
+  out[LABELS.MUSCLE] = EXTRA_TISSUES.muscle.T2; out[LABELS.LESION] = EXTRA_TISSUES.lesion.T2;
+  return out;
+}
+
+// k-space row weights per label for the current echo train, or null when there is none (one echo, or another sequence).
+export function echoTrainLabelWeights(p, model, ny) {
+  if (!ECHO_TRAIN_SEQUENCES.includes(p.seq) || !(p.ETL > 1)) return null;
+  const t2 = labelT2(model), out = {};
+  for (let L = 0; L < t2.length; L++) {
+    if (t2[L] > 0) out[L] = rowWeights(ny, p.pfFraction, p.ETL, model.timing.effIdx ?? 0, model.timing.espMs, t2[L]);
+  }
+  return out;
+}
+
+// The image with each tissue's k-space lines weighted along the phase direction (screen-up): weights[label] is one weight
+// per shifted k-space row. Returns the complex image; a label without weights is left as it is.
+export function echoTrainComplex(sampled, lut, weights) {
+  const { nx, ny, groups } = sampled, n = nx * ny, half = Math.floor(ny / 2);
+  const per = new Map(); // label -> its own signal image
+  for (const layers of groups) {
+    const w = 1 / layers.length;
+    for (const layer of layers) for (let i = 0; i < n; i++) {
+      const L = layer[i], s = lut[L];
+      if (!s) continue;
+      let img = per.get(L);
+      if (!img) { img = new Float64Array(n); per.set(L, img); }
+      img[i] += s * w;
+    }
+  }
+  const outRe = new Float64Array(n), outIm = new Float64Array(n);
+  const kRe = new Float64Array(n), kIm = new Float64Array(n); // weighted lines of every weighted label, summed
+  const re = new Float64Array(ny), im = new Float64Array(ny);
+  let weighted = false;
+  for (const [L, img] of per) {
+    const wt = weights[L];
+    if (!wt) { for (let i = 0; i < n; i++) outRe[i] += img[i]; continue; }
+    weighted = true;
+    for (let i = 0; i < nx; i++) {
+      let any = false;
+      for (let j = 0; j < ny; j++) { re[j] = img[j * nx + i]; im[j] = 0; if (re[j] !== 0) any = true; }
+      if (!any) continue;
+      fftAny(re, im);
+      for (let r = 0; r < ny; r++) { const k = (r - half + ny) % ny; kRe[k * nx + i] += re[k] * wt[r]; kIm[k * nx + i] += im[k] * wt[r]; }
+    }
+  }
+  if (weighted) {
+    for (let i = 0; i < nx; i++) {
+      for (let k = 0; k < ny; k++) { re[k] = kRe[k * nx + i]; im[k] = kIm[k * nx + i]; }
+      ifftAny(re, im);
+      for (let j = 0; j < ny; j++) { outRe[j * nx + i] += re[j]; outIm[j * nx + i] += im[j]; }
+    }
+  }
+  return { re: outRe, im: outIm };
+}
+
+// Magnitude of the echo-train image.
+export function composeEchoTrain(sampled, lut, weights) {
+  const { re, im } = echoTrainComplex(sampled, lut, weights);
+  const out = new Float32Array(re.length);
+  for (let i = 0; i < out.length; i++) out[i] = Math.hypot(re[i], im[i]);
+  return out;
+}
+
 // Nyquist (N/2) ghost of single-shot EPI: a copy shifted by half the phase FOV, at `fraction` of the amplitude.
 export function addGhost(values, nx, ny, fraction) {
   if (!(fraction > 0)) return values;
@@ -147,7 +217,8 @@ export function toRgba(values, window, level) {
 
 // Full pipeline for one plane from a cached sampling.
 export function renderPlane(sampled, model, p, { window, level, noiseSeed }) {
-  let v = composeSignal(sampled, labelSignals(model, p));
+  const lut = labelSignals(model, p), train = echoTrainLabelWeights(p, model, sampled.ny);
+  let v = train ? composeEchoTrain(sampled, lut, train) : composeSignal(sampled, lut);
   if (p.seq === "EPI (single-shot)") v = addGhost(v, sampled.nx, sampled.ny, (p.ghostPct ?? 0) / 100);
   v = applyPartialFourier(v, sampled.nx, sampled.ny, p.pfFraction);
   v = addRicianNoise(v, model.noiseFloor, noiseSeed);

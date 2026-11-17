@@ -95,8 +95,9 @@ export function partialFourierMask(nx, ny, pf) {
 }
 
 // ---- transforms ----
-export function kspaceOf(values, nx, ny) {
-  const re = Float64Array.from(values), im = new Float64Array(values.length);
+// imag is optional: the imaginary part of a complex image (an echo-train image is complex before its magnitude is taken).
+export function kspaceOf(values, nx, ny, imag = null) {
+  const re = Float64Array.from(values), im = imag ? Float64Array.from(imag) : new Float64Array(values.length);
   fft2(re, im, nx, ny);
   return { re: fftshift2(re, nx, ny), im: fftshift2(im, nx, ny) };
 }
