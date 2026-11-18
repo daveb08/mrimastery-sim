@@ -1,7 +1,7 @@
 # MRI Mastery simulators (mrimastery-sim)
 
 Free, browser-based MRI physics simulators: static HTML and ES-module JavaScript, no build step, no framework.
-Plotly 2.35.2 (pinned, from jsDelivr) draws the plots. Live at https://sim.mrimastery.com (GitHub Pages, domain in
+Plotly 2.35.2 (pinned, from jsDelivr) draws the plots. Live at https://mrimastery.com (GitHub Pages, domain in
 `CNAME`), published from `main`. This repo replaces the old Streamlit app (`daveb08/mri-simulator`, archived on GitHub
 2026-11-15; its code, including the AI "Explain contrast" feature, is in that repo's history). `README.md` has the page
 table and the BrainWeb details; `docs/roadmap.md` is the agreed order of future work. Nothing on the roadmap starts without
