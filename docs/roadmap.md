@@ -68,3 +68,7 @@ artifacts).
     hosted site offers only the generated phantom.
   - Related to the OpenNeuro item above: BrainWeb is the simpler first source of a real-anatomy phantom (the labels
     are provided, no segmentation needed).
+- **B1(t) on the Bloch signal plot** — added 2026-11-17. Draw the RF envelope B1(t), with its sign, as a line on the
+  Bloch page's signal plot (beside Mx, My, Mz), so a sinc's negative side lobes are visible: B1 points along −x during
+  them, and the flip angle "so far" goes negative before the main lobe. Prompted by the owner asking why B1 flips from
+  −x to +x early in a sinc pulse. The Pulse shape hint now explains the side lobes in words.
