@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://mrimastery.com/</loc></url>
-  <url><loc>https://mrimastery.com/bloch/</loc></url>
-  <url><loc>https://mrimastery.com/signal/</loc></url>
-  <url><loc>https://mrimastery.com/coil/</loc></url>
-  <url><loc>https://mrimastery.com/tuning/</loc></url>
-  <url><loc>https://mrimastery.com/contrast/</loc></url>
-  <url><loc>https://mrimastery.com/kspace/</loc></url>
-  <url><loc>https://mrimastery.com/phantom/</loc></url>
-  <url><loc>https://mrimastery.com/guide/</loc></url>
+  <url><loc>https://mriphysicsbench.com/</loc></url>
+  <url><loc>https://mriphysicsbench.com/bloch/</loc></url>
+  <url><loc>https://mriphysicsbench.com/signal/</loc></url>
+  <url><loc>https://mriphysicsbench.com/coil/</loc></url>
+  <url><loc>https://mriphysicsbench.com/tuning/</loc></url>
+  <url><loc>https://mriphysicsbench.com/contrast/</loc></url>
+  <url><loc>https://mriphysicsbench.com/kspace/</loc></url>
+  <url><loc>https://mriphysicsbench.com/phantom/</loc></url>
+  <url><loc>https://mriphysicsbench.com/guide/</loc></url>
 </urlset>

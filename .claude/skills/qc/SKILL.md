@@ -1,6 +1,6 @@
 ---
 name: qc
-description: Quality check for the MRI Mastery simulators. Runs every unit test and the headless-Chrome page smoke test (tools/smoke.mjs), compares screenshots against the saved baseline, and reports pass/fail. Use when the user types /qc, /qc full or /qc baseline, or asks to check the simulators before a commit or push.
+description: Quality check for the MRI Physics Bench simulators. Runs every unit test and the headless-Chrome page smoke test (tools/smoke.mjs), compares screenshots against the saved baseline, and reports pass/fail. Use when the user types /qc, /qc full or /qc baseline, or asks to check the simulators before a commit or push.
 ---
 
 # /qc: quality check for the simulators

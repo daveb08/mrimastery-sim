@@ -1,4 +1,4 @@
-# MRI Mastery simulators
+# MRI Physics Bench simulators
 
 Free, browser-based MRI physics simulators. Static HTML/JS; no build step, no framework.
 Plotly (pinned, from jsDelivr) draws the plots.
