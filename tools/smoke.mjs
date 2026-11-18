@@ -469,19 +469,23 @@ async function launch() {
 
 // ---- running one page --------------------------------------------------------------------------------------------
 async function runPage(cdp, base, page, outDir) {
-  const problems = [], warnings = [];
+  const problems = [], warnings = [], urls = new Map();
+  // Visitor analytics (Cloudflare's beacon) is not part of the page and is blocked or unreachable on test machines.
+  const external = (url) => /^https?:\/\/([^/]*\.)?cloudflareinsights\.com\//.test(url ?? "");
   const record = (m) => {
-    if (m.method === "Runtime.exceptionThrown") {
+    if (m.method === "Network.requestWillBeSent") {
+      urls.set(m.params.requestId, m.params.request.url);
+    } else if (m.method === "Runtime.exceptionThrown") {
       const d = m.params.exceptionDetails;
       problems.push(`JS error: ${(d.exception?.description ?? d.text).split("\n")[0]}`);
     } else if (m.method === "Runtime.consoleAPICalled" && m.params.type === "error") {
       problems.push(`console error: ${m.params.args.map((a) => a.value ?? a.description).join(" ")}`);
-    } else if (m.method === "Network.responseReceived" && m.params.response.status >= 400 && !m.params.response.url.endsWith("favicon.ico")
+    } else if (m.method === "Network.responseReceived" && m.params.response.status >= 400 && !m.params.response.url.endsWith("favicon.ico") && !external(m.params.response.url)
       // The BrainWeb file is git-ignored until permission to redistribute it is granted, so pages probe for it and a 404 is expected.
       && !(m.params.response.status === 404 && m.params.response.url.includes("/data/brainweb/"))) {
       problems.push(`HTTP ${m.params.response.status}: ${m.params.response.url}`);
-    } else if (m.method === "Network.loadingFailed" && !m.params.canceled) {
-      problems.push(`failed to load (${m.params.errorText}): ${m.params.requestId}`);
+    } else if (m.method === "Network.loadingFailed" && !m.params.canceled && !external(urls.get(m.params.requestId))) {
+      problems.push(`failed to load (${m.params.errorText}): ${urls.get(m.params.requestId) ?? m.params.requestId}`);
     }
   };
   let active = true;
