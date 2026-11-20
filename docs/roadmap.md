@@ -72,3 +72,16 @@ artifacts).
   Bloch page's signal plot (beside Mx, My, Mz), so a sinc's negative side lobes are visible: B1 points along −x during
   them, and the flip angle "so far" goes negative before the main lobe. Prompted by the owner asking why B1 flips from
   −x to +x early in a sinc pulse. The Pulse shape hint now explains the side lobes in words.
+- **SAR (specific absorption rate) estimate** — added 2026-11-20; planning started, not designed. The owner's idea:
+  while a sequence plays, students see an estimate of SAR for the tissue in view, and can also look up SAR for other
+  tissues, including ones the phantom does not image.
+  - Found so far: nothing computes SAR yet. The Bloch page has each pulse's exact B1(t), TR and repetitions; the contrast
+    page has scanner-like protocols (field, flip angles, echo-train length, slices, TR), which are what drive SAR on a
+    scanner; the coil and tuning pages use one tissue conductivity (0.5 S/m, `tuning/tuning.js`).
+  - "Other tissues" needs no images: local SAR depends on a tissue's electrical conductivity and density (and the local
+    E field), not on T1/T2, so it can come from a table of published conductivities at each field's Larmor frequency.
+  - Two kinds of SAR to choose between: the single whole-body or head average a scanner displays (from RF power and
+    patient weight) and per-tissue local SAR (real physics, not shown on scanners).
+  - Open question to resume with: what should a student understand or be able to do after using it? That decides the
+    page (Bloch, contrast, or both) and which kind of SAR to show. Related: the paused B1 + E field panel for the Bloch
+    page.
