@@ -275,7 +275,7 @@ const N = 128, NC = 256; // k-space matrix; the contrast slide is drawn at 256 s
 // it cannot load, the generated phantom stands in, as on the simulator pages.
 let phantom = null, colin = null;
 const slices = {};
-const slice = (n = N) => colin?.[n] ?? (slices[n] ??= sliceLabels(phantom ??= createPhantom({ seed: 1, lesions: true }), "axial", 24, n, 250, [0, 8]));
+const slice = (n = N) => colin?.[n] ?? (slices[n] ??= sliceLabels(phantom ??= createPhantom({ seed: 1, lesions: false }), "axial", 24, n, 250, [0, 8]));
 async function loadColin() {
   try {
     const res = await fetch("data/colin27/home-axial-slice.u8.gz");
@@ -295,7 +295,7 @@ async function loadColin() {
 const NOTES = {
   t1: "T1-weighted: fat and white matter are bright and CSF is dark, because short-T1 tissues recover most in a short TR.",
   t2: "T2-weighted: CSF is bright, because its long T2 keeps most of its signal at TE 100 ms.",
-  flair: "FLAIR: the inversion time nulls CSF, so the ventricles go dark while the added example lesions stay bright.",
+  flair: "FLAIR: the inversion time nulls CSF, so the ventricles go dark while brain tissue keeps its signal.",
 };
 function paint(canvas, img, max = 1) {
   const n = canvas.width, ctx = canvas.getContext("2d"), data = ctx.createImageData(n, n);
