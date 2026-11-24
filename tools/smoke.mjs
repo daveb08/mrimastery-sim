@@ -57,6 +57,7 @@ const PAGES = [
       return (document.getElementById("slide-contrast").classList.contains("on") && document.getElementById("spause").hidden
         && lit > 2000) || "lit pixels: " + lit;
     })()`],
+    ["expect", "the contrast slide shows the real Colin27 slice, not the stand-in", `document.getElementById("show").dataset.anatomy === "colin27"`],
     ["click", "wt-flair"],
     ["expect", "FLAIR is selected", `document.getElementById("show").dataset.weighting === "flair"`],
     ["click", "tab-kspace"], ["wait", 2500],

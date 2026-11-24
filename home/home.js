@@ -271,13 +271,31 @@ function tick(now) {
 
 /* contrast slide: one phantom slice, cycling T1-weighted, T2-weighted and FLAIR */
 const N = 128, NC = 256; // k-space matrix; the contrast slide is drawn at 256 so it is not blocky
-let phantom = null;
+// The slice comes from the Colin27 head (real anatomy), cut out by tools/prepare-home-slice.mjs. Until it arrives, or if
+// it cannot load, the generated phantom stands in, as on the simulator pages.
+let phantom = null, colin = null;
 const slices = {};
-const slice = (n = N) => slices[n] ??= sliceLabels(phantom ??= createPhantom({ seed: 1, lesions: true }), "axial", 24, n, 250, [0, 8]);
+const slice = (n = N) => colin?.[n] ?? (slices[n] ??= sliceLabels(phantom ??= createPhantom({ seed: 1, lesions: true }), "axial", 24, n, 250, [0, 8]));
+async function loadColin() {
+  try {
+    const res = await fetch("data/colin27/home-axial-slice.u8.gz");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const b = new Uint8Array(await new Response(res.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+    if (b.length !== NC * NC + N * N) throw new Error("unexpected size " + b.length);
+    colin = { [NC]: b.subarray(0, NC * NC), [N]: b.subarray(NC * NC) };
+    kData = null;
+    $("show").dataset.anatomy = "colin27";
+    if (SLIDES[current] === "contrast") setWeighting(wIdx);
+    if (SLIDES[current] === "kspace") startKspace();
+  } catch (err) {
+    $("show").dataset.anatomy = "generated";
+    $("anat").textContent = "Showing the generated head phantom (the real-anatomy slice could not load).";
+  }
+}
 const NOTES = {
   t1: "T1-weighted: fat and white matter are bright and CSF is dark, because short-T1 tissues recover most in a short TR.",
   t2: "T2-weighted: CSF is bright, because its long T2 keeps most of its signal at TE 100 ms.",
-  flair: "FLAIR: the inversion time nulls CSF, so the ventricles go dark while the example lesions stay bright.",
+  flair: "FLAIR: the inversion time nulls CSF, so the ventricles go dark while the added example lesions stay bright.",
 };
 function paint(canvas, img, max = 1) {
   const n = canvas.width, ctx = canvas.getContext("2d"), data = ctx.createImageData(n, n);
@@ -292,7 +310,7 @@ $("wts").innerHTML = WEIGHTINGS.map((w, j) => `<button class="wt" type="button" 
 function setWeighting(j) {
   wIdx = j;
   const w = WEIGHTINGS[j];
-  paint($("cimg"), imageFromLabels(slice(NC), labelLut(w)));
+  paint($("cimg"), imageFromLabels(slice(NC), labelLut(w, { scale: "brain" })));
   $("wnote").textContent = NOTES[w.id];
   document.querySelectorAll(".wt").forEach((b, k) => b.classList.toggle("on", k === j));
   $("show").dataset.weighting = w.id;
@@ -309,7 +327,7 @@ let kTimer = 0, kData = null;
 function startKspace() {
   clearInterval(kTimer);
   if (!kData) {
-    const k = kspaceOf(imageFromLabels(slice(), labelLut(WEIGHTINGS[1])), N);
+    const k = kspaceOf(imageFromLabels(slice(), labelLut(WEIGHTINGS[1], { scale: "brain" })), N);
     const mag = new Float64Array(N * N);
     let max = 0;
     for (let p = 0; p < N * N; p++) { mag[p] = Math.log1p(Math.hypot(k.re[p], k.im[p])); max = Math.max(max, mag[p]); }
@@ -338,5 +356,5 @@ function startKspace() {
 
 showSlide(0);
 // build the phantom slices while the browser is idle, so the first switch to Contrast or K-space does not stall
-(window.requestIdleCallback ?? ((f) => setTimeout(f, 1500)))(() => { slice(NC); slice(N); });
+loadColin();
 if (auto) requestAnimationFrame((t) => { last = t; tick(t); });

@@ -16,8 +16,14 @@ export const WEIGHTINGS = [
   { id: "flair", name: "FLAIR", detail: "TR 9000, TI 2500, TE 100", TR: 9000, TI: 2500, TE: 100 },
 ];
 
-/** Signal per label (index = LABELS value), scaled so the brightest tissue is 1. Air and bone stay 0. */
-export function labelLut(w, field = "1.5T") {
+const BRAIN = [LABELS.WM, LABELS.GM, LABELS.CSF, LABELS.LESION];
+
+/**
+ * Signal per label (index = LABELS value). Air and bone stay 0. `scale` "all" makes the brightest tissue 1; "brain"
+ * makes the brightest brain tissue 1 (fat and scalp may go above 1 and are drawn white), like the phantom viewer's
+ * "Brain tissue" window, so grey-white contrast shows.
+ */
+export function labelLut(w, { field = "1.5T", scale = "all" } = {}) {
   const t = tissuesAt(field);
   const tis = { [LABELS.WM]: t.WM, [LABELS.GM]: t.GM, [LABELS.CSF]: t.CSF, [LABELS.FAT]: t.Fat,
     [LABELS.MUSCLE]: EXTRA_TISSUES.muscle, [LABELS.LESION]: EXTRA_TISSUES.lesion };
@@ -25,7 +31,7 @@ export function labelLut(w, field = "1.5T") {
   for (const [label, x] of Object.entries(tis)) {
     out[label] = w.TI != null ? flairSignal(w.TR, w.TI, w.TE, x.T1, x.T2, x.PD) : fseSignal(w.TR, w.TE, x.T1, x.T2, x.PD);
   }
-  const max = Math.max(...out);
+  const max = scale === "brain" ? Math.max(...BRAIN.map((l) => out[l])) : Math.max(...out);
   for (let i = 0; i < out.length; i++) out[i] /= max;
   return out;
 }

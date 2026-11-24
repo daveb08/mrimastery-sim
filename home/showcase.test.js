@@ -33,6 +33,12 @@ test("each lookup is scaled to a maximum of 1, and air and bone give no signal",
   }
 });
 
+test("the brain window scales the brightest brain tissue to 1 and lets fat go brighter on T1", () => {
+  const L = labelLut(WEIGHTINGS[0], { scale: "brain" });
+  assert.ok(Math.abs(Math.max(L[LABELS.WM], L[LABELS.GM], L[LABELS.CSF], L[LABELS.LESION]) - 1) < 1e-12);
+  assert.ok(L[LABELS.FAT] > 1);
+});
+
 test("imageFromLabels maps each pixel's label through the lookup", () => {
   const img = imageFromLabels(Uint8Array.from([0, 1, 3, 5]), Float32Array.from([0, 0.5, 0, 0.9, 0, 0, 0, 0]));
   [0, 0.5, 0.9, 0].forEach((v, i) => assert.ok(Math.abs(img[i] - v) < 1e-6, `pixel ${i}`));

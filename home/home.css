@@ -150,6 +150,8 @@ footer .cta{justify-content:center;margin-top:32px}
 .kpair figure{margin:0}
 .kpair figcaption{font-size:.85rem;color:var(--muted);margin-top:6px}
 .sfoot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px 16px;margin-top:auto}
+.anat{font-size:.78rem;color:var(--muted);padding:8px 18px 0;line-height:1.4}
+.anat a{color:var(--muted)}
 .klines{font-size:.88rem;color:var(--muted);font-variant-numeric:tabular-nums}
 @media(max-width:600px){.wts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.wt{padding:6px 8px}.stabs{gap:0 14px;padding:4px 12px}.stab{font-size:.9rem}.spause{min-height:32px;padding:0 10px}}
 @media(prefers-reduced-motion:reduce){.slide{transition:none}}

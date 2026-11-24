@@ -1,0 +1,17 @@
+{
+  "plane": "axial",
+  "positionMm": 22,
+  "fovMm": 250,
+  "center": [
+    0,
+    8
+  ],
+  "sizes": [
+    256,
+    128
+  ],
+  "lesions": true,
+  "layout": "label bytes (phantom LABELS values), row-major, the 256 x 256 slice then the 128 x 128 slice",
+  "derivedFrom": "colin27_labels_0.5mm.u8.gz",
+  "made": "tools/prepare-home-slice.mjs"
+}
