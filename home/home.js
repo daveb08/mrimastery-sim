@@ -4,6 +4,8 @@
  */
 import { MODS, TOUR, PATHS, SESS } from "./tour-data.js";
 import { magnetization, windowMs, clampBench, niceStep } from "./bench.js";
+import { WEIGHTINGS, labelLut, imageFromLabels, kspaceOf, centerOutRows, reconFromRows } from "./showcase.js";
+import { createPhantom, sliceLabels } from "../phantom/phantom.js";
 
 const $ = (id) => document.getElementById(id);
 const MOD = (id) => MODS.find((m) => m.id === id);
@@ -103,7 +105,6 @@ $("ps").addEventListener("change", (e) => {
 });
 $("play").addEventListener("click", play);
 syncControls(); S.t = win() * 0.08; draw();
-setTimeout(play, 600);
 
 /* ---- tour sketches -------------------------------------------------------------------------------------------- */
 function sketch(id) {
@@ -174,7 +175,7 @@ $("stop").addEventListener("click", (e) => {
   if (p) { path = p.dataset.p; i = 1; renderTour(); return; }
   if (e.target.closest("#showbench")) {
     const b = TOUR[order()[i]].bench;
-    setBench(b); play();
+    showSlide(0, true); setBench(b); play();
     $("bn").textContent = b.n;
     if (innerWidth < 1000) scrollTo($("bh"));
   }
@@ -194,7 +195,7 @@ $("sl").addEventListener("click", (e) => {
   const t = e.target.closest("[data-try]"), a = e.target.closest("[data-ans]");
   if (t) {
     const [id, k] = t.dataset.try.split("|");
-    setBench(SESS.find((s) => s.id === id).s[+k].set); play();
+    showSlide(0, true); setBench(SESS.find((s) => s.id === id).s[+k].set); play();
     scrollTo($("bh"));
   }
   if (a) {
@@ -212,3 +213,130 @@ $("modules").addEventListener("click", (e) => {
   const j = order().indexOf(b.dataset.stop);
   if (j >= 0) { go(j); scrollTo($("tour")); }
 });
+
+/* ---- rotating showcase: Bloch bench, contrast, k-space ------------------------------------------------------------
+ * Rotates every ROTATE_MS. Pauses while the pointer or keyboard focus is in the panel, and while the panel is off
+ * screen or the tab is hidden. Stops for good when the visitor picks a tab, presses Pause or uses any control, and
+ * never rotates under prefers-reduced-motion. */
+const ROTATE_MS = 9000;
+const SLIDES = ["bloch", "contrast", "kspace"];
+const show = $("show");
+let current = 0, auto = !reduced, hovering = false, onScreen = true, elapsed = 0, last = performance.now();
+
+function showSlide(k, stop = false) {
+  if (stop) stopAuto();
+  current = k; elapsed = 0;
+  SLIDES.forEach((id, j) => {
+    const on = j === k, tab = $("tab-" + id), slide = $("slide-" + id);
+    tab.classList.toggle("on", on); tab.setAttribute("aria-selected", String(on)); tab.tabIndex = on ? 0 : -1;
+    slide.classList.toggle("on", on); slide.inert = !on;
+  });
+  if (SLIDES[k] === "bloch") { draw(); if (!stop) play(); }
+  if (SLIDES[k] === "contrast") startContrast();
+  if (SLIDES[k] === "kspace") startKspace();
+}
+function stopAuto() {
+  if (!auto) return;
+  auto = false;
+  $("spause").hidden = true;
+  show.style.setProperty("--p", 1);
+}
+$("spause").addEventListener("click", stopAuto);
+show.querySelector(".stabs").addEventListener("click", (e) => { const t = e.target.closest("[data-slide]"); if (t) showSlide(+t.dataset.slide, true); });
+show.querySelector(".stabs").addEventListener("keydown", (e) => {
+  const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+  if (!d) return;
+  const k = (current + d + SLIDES.length) % SLIDES.length;
+  showSlide(k, true); $("tab-" + SLIDES[k]).focus();
+});
+for (const ev of ["input", "change"]) show.addEventListener(ev, stopAuto);
+show.addEventListener("click", (e) => { if (e.target.closest("#play, .wt, a")) stopAuto(); });
+show.addEventListener("pointerenter", () => { hovering = true; });
+show.addEventListener("pointerleave", () => { hovering = false; });
+show.addEventListener("focusin", () => { hovering = true; });
+show.addEventListener("focusout", () => { hovering = false; });
+const showObserver = new IntersectionObserver(([en]) => { onScreen = en.isIntersecting; }, { threshold: 0.15 });
+showObserver.observe(show);
+if (reduced) $("spause").hidden = true;
+
+function tick(now) {
+  const dt = now - last; last = now;
+  if (auto && !hovering && onScreen && !document.hidden) {
+    elapsed += dt;
+    if (elapsed >= ROTATE_MS) showSlide((current + 1) % SLIDES.length);
+  }
+  if (auto) show.style.setProperty("--p", Math.min(1, elapsed / ROTATE_MS).toFixed(3));
+  if (auto) requestAnimationFrame(tick);
+}
+
+/* contrast slide: one phantom slice, cycling T1-weighted, T2-weighted and FLAIR */
+const N = 128, NC = 256; // k-space matrix; the contrast slide is drawn at 256 so it is not blocky
+let phantom = null;
+const slices = {};
+const slice = (n = N) => slices[n] ??= sliceLabels(phantom ??= createPhantom({ seed: 1, lesions: true }), "axial", 24, n, 250, [0, 8]);
+const NOTES = {
+  t1: "T1-weighted: fat and white matter are bright and CSF is dark, because short-T1 tissues recover most in a short TR.",
+  t2: "T2-weighted: CSF is bright, because its long T2 keeps most of its signal at TE 100 ms.",
+  flair: "FLAIR: the inversion time nulls CSF, so the ventricles go dark while the example lesions stay bright.",
+};
+function paint(canvas, img, max = 1) {
+  const n = canvas.width, ctx = canvas.getContext("2d"), data = ctx.createImageData(n, n);
+  for (let p = 0; p < n * n; p++) {
+    const v = Math.max(0, Math.min(255, Math.round((img[p] / max) * 255)));
+    data.data[4 * p] = data.data[4 * p + 1] = data.data[4 * p + 2] = v; data.data[4 * p + 3] = 255;
+  }
+  ctx.putImageData(data, 0, 0);
+}
+let wIdx = 0, wTimer = 0;
+$("wts").innerHTML = WEIGHTINGS.map((w, j) => `<button class="wt" type="button" data-w="${j}" id="wt-${w.id}">${w.name}<small>${w.detail}</small></button>`).join("");
+function setWeighting(j) {
+  wIdx = j;
+  const w = WEIGHTINGS[j];
+  paint($("cimg"), imageFromLabels(slice(NC), labelLut(w)));
+  $("wnote").textContent = NOTES[w.id];
+  document.querySelectorAll(".wt").forEach((b, k) => b.classList.toggle("on", k === j));
+  $("show").dataset.weighting = w.id;
+}
+function startContrast() {
+  clearInterval(wTimer);
+  setWeighting(0);
+  if (!reduced) wTimer = setInterval(() => { if (SLIDES[current] !== "contrast") return clearInterval(wTimer); setWeighting((wIdx + 1) % WEIGHTINGS.length); }, ROTATE_MS / 3);
+}
+$("wts").addEventListener("click", (e) => { const b = e.target.closest("[data-w]"); if (!b) return; clearInterval(wTimer); setWeighting(+b.dataset.w); });
+
+/* k-space slide: fill the T2-weighted slice's k-space centre-out and rebuild the image from the lines so far */
+let kTimer = 0, kData = null;
+function startKspace() {
+  clearInterval(kTimer);
+  if (!kData) {
+    const k = kspaceOf(imageFromLabels(slice(), labelLut(WEIGHTINGS[1])), N);
+    const mag = new Float64Array(N * N);
+    let max = 0;
+    for (let p = 0; p < N * N; p++) { mag[p] = Math.log1p(Math.hypot(k.re[p], k.im[p])); max = Math.max(max, mag[p]); }
+    kData = { k, mag, max, rows: centerOutRows(N) };
+  }
+  let filled = reduced ? N : 0;
+  const step = () => {
+    const rows = kData.rows.slice(0, filled), shown = new Float64Array(N * N);
+    for (const j of rows) for (let i = 0; i < N; i++) shown[j * N + i] = kData.mag[j * N + i];
+    paint($("kk"), shown, kData.max);
+    if (filled < N) { const ctx = $("kk").getContext("2d"); ctx.fillStyle = "#4D8DFF"; ctx.fillRect(0, kData.rows[filled], N, 1); }
+    const img = filled ? reconFromRows(kData.k, N, rows) : new Float64Array(N * N);
+    paint($("ki"), img, 1);
+    $("klines").textContent = `${filled} of ${N} lines`;
+    $("show").dataset.klines = filled;
+  };
+  step();
+  if (reduced) return;
+  // most of the image arrives in the first lines, so go slowly at the start and faster later
+  kTimer = setInterval(() => {
+    if (SLIDES[current] !== "kspace" || filled >= N) return clearInterval(kTimer);
+    filled = Math.min(N, filled + (filled < 16 ? 1 : filled < 48 ? 2 : 4));
+    step();
+  }, 120);
+}
+
+showSlide(0);
+// build the phantom slices while the browser is idle, so the first switch to Contrast or K-space does not stall
+(window.requestIdleCallback ?? ((f) => setTimeout(f, 1500)))(() => { slice(NC); slice(N); });
+if (auto) requestAnimationFrame((t) => { last = t; tick(t); });

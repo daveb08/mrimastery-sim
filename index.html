@@ -41,9 +41,18 @@
     </div>
   </div>
   <div class="bench">
-    <section class="panel" aria-labelledby="bh">
-      <div class="phead"><h2 id="bh">Bloch bench</h2><span>Lab frame, precession slowed so you can follow it</span></div>
-      <div class="fig" id="fig"><svg id="sv" role="img" aria-label="Magnetization vector after an RF pulse, with Mz and Mxy over time"></svg></div>
+    <section class="panel show" id="show" aria-label="Simulator showcase">
+      <div class="phead stabs" role="tablist" aria-label="Showcase">
+        <button class="stab on" type="button" role="tab" id="tab-bloch" aria-controls="slide-bloch" aria-selected="true" data-slide="0">Bloch bench</button>
+        <button class="stab" type="button" role="tab" id="tab-contrast" aria-controls="slide-contrast" aria-selected="false" data-slide="1">Contrast</button>
+        <button class="stab" type="button" role="tab" id="tab-kspace" aria-controls="slide-kspace" aria-selected="false" data-slide="2">K-space</button>
+        <button class="spause" type="button" id="spause" aria-label="Pause the slideshow">Pause</button>
+      </div>
+      <div class="slides">
+        <div class="slide on" id="slide-bloch" role="tabpanel" aria-labelledby="tab-bloch">
+          <h2 class="vh" id="bh">Bloch bench</h2>
+          <p class="scap">Lab frame, precession slowed so you can follow it. Change the pulse and the tissue, then play it.</p>
+          <div class="fig" id="fig"><svg id="sv" role="img" aria-label="Magnetization vector after an RF pulse, with Mz and Mxy over time"></svg></div>
       <div class="read">
         <div>Time<b id="rt">0 ms</b></div><div>Mz<b id="rz">1.00</b></div><div>Mxy<b id="rxy">0.00</b></div>
       </div>
@@ -60,6 +69,24 @@
             <option value="4000,2000">CSF</option>
           </select>
           <button class="pill" id="play" type="button">Pulse and play</button>
+        </div>
+      </div>
+        </div>
+        <div class="slide" id="slide-contrast" role="tabpanel" aria-labelledby="tab-contrast" inert>
+          <p class="scap">One slice of the head phantom at 1.5 T, imaged three ways with the Contrast Simulator's own signal equations.</p>
+          <div class="imgwrap"><canvas id="cimg" width="256" height="256" aria-label="Axial slice of the head phantom"></canvas></div>
+          <div class="wts" id="wts"></div>
+          <p class="wnote" id="wnote"></p>
+          <div class="sfoot"><a class="pill line" href="contrast/">Open the Contrast Simulator</a></div>
+        </div>
+        <div class="slide" id="slide-kspace" role="tabpanel" aria-labelledby="tab-kspace" inert>
+          <p class="scap">K-space fills one phase-encode line at a time, from the centre out. The image is rebuilt from the lines taken so far.</p>
+          <div class="kpair">
+            <figure><canvas id="kk" width="128" height="128" aria-label="K-space filling line by line"></canvas><figcaption>K-space</figcaption></figure>
+            <figure><canvas id="ki" width="128" height="128" aria-label="Image from the lines so far"></canvas><figcaption>Image so far</figcaption></figure>
+          </div>
+          <p class="wnote" id="knote">Centre lines first: contrast and overall signal arrive early, edges and detail last.</p>
+          <div class="sfoot"><span class="klines" id="klines">0 of 128 lines</span><a class="pill line" href="kspace/">Open the K-space Explorer</a></div>
         </div>
       </div>
     </section>

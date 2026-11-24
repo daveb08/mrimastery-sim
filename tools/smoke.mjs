@@ -48,6 +48,20 @@ const PAGES = [
       for (const h of links) { const r = await fetch(h); if (!r.ok) bad.push(h); }
       return bad.length ? "broken: " + bad.join(", ") : true;
     })()`],
+    ["expect", "the showcase is rotating, with one slide shown", `!document.getElementById("spause").hidden
+      && document.querySelectorAll('.stab[aria-selected="true"]').length === 1 && document.querySelectorAll(".slide.on").length === 1`],
+    ["click", "tab-contrast"],
+    ["expect", "picking Contrast shows a phantom image and stops the rotation", `(() => {
+      const c = document.getElementById("cimg"), d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+      let lit = 0; for (let p = 0; p < d.length; p += 4) if (d[p] > 40) lit++;
+      return (document.getElementById("slide-contrast").classList.contains("on") && document.getElementById("spause").hidden
+        && lit > 2000) || "lit pixels: " + lit;
+    })()`],
+    ["click", "wt-flair"],
+    ["expect", "FLAIR is selected", `document.getElementById("show").dataset.weighting === "flair"`],
+    ["click", "tab-kspace"], ["wait", 2500],
+    ["expect", "k-space fills line by line", `+document.getElementById("show").dataset.klines > 10`],
+    ["click", "tab-bloch"],
     ["expect", "the bench draws and the tour opens at its first stop", `document.querySelectorAll("#sv line").length > 4
       && document.getElementById("stop").dataset.stop === "intro" && document.getElementById("prev").disabled`],
     ["click", "path-registry"],

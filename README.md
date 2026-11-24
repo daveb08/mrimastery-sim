@@ -5,7 +5,7 @@ Plotly (pinned, from jsDelivr) draws the plots.
 
 | Path | Simulator |
 |---|---|
-| `/` | Home page: Bloch bench, site tour, guided sessions and links to each simulator (`home/`: `tour-data.js` content, `bench.js` physics, `home.js` drawing) |
+| `/` | Home page: rotating showcase (Bloch bench, contrast, k-space), site tour, guided sessions and links to each simulator (`home/`: `tour-data.js` content, `bench.js` and `showcase.js` physics, `home.js` drawing) |
 | `bloch/` | Bloch-equation magnetization simulator (3D vector, spin echo, inversion recovery; rotating and lab frame views) |
 | `signal/` | Fourier transforms, sampling/aliasing, RF pulse and slice profile |
 | `coil/` | Biot-Savart coil fields, B1+ and flip-angle maps (coil geometry to excitation) |
