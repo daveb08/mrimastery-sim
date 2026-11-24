@@ -16,3 +16,6 @@ Publications listed with the source:
   signal averaging. Journal of Computer Assisted Tomography 22(2):324-333, 1998.
 - B. Aubert-Broche, A.C. Evans, D.L. Collins: A new improved version of the realistic digital brain phantom.
   NeuroImage 32(1):138-145, 2006.
+
+home-axial-slice.u8.gz in this folder (one axial slice of the labels above, for the home page's showcase, unaltered) is made from
+colin27_labels_0.5mm.u8.gz by tools/prepare-home-slice.mjs; the same notice applies.

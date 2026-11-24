@@ -35,10 +35,19 @@
   .viewhead { display: flex; justify-content: space-between; font-size: .9rem; margin-bottom: 6px; color: var(--muted); }
 </style>
 <script src="../shared/text-size.js"></script>
+<link rel="stylesheet" href="../shared/brand.css">
 </head>
 <body>
+<header class="site-top"><div class="site-top-in">
+  <a class="site-brand" href="../"><svg viewBox="0 0 40 32" aria-hidden="true"><path d="M4 26 L20 26 L32 6" fill="none" stroke="#4D8DFF" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26 L20 4" fill="none" stroke="#C4CCDA" stroke-width="2.1" stroke-linecap="round"/></svg>MRI Physics Bench <small>by David Bennett, Ph.D.</small></a>
+  <nav aria-label="Site">
+    <a href="../#modules">All simulators</a>
+    <a class="site-opt" href="../guide/">Quick guide</a>
+    <a class="site-opt" href="https://davidbennettphd.com">davidbennettphd.com</a>
+    <a class="site-pill" href="../#tour">Take the tour</a>
+  </nav>
+</div></header>
 <main>
-  <nav class="crumb"><a href="../">&larr; All simulators</a></nav>
   <h1><span class="gen">Procedural head phantom</span><span class="bwonly">Head phantom</span><span class="c27only">Head phantom</span></h1>
   <p class="sub"><span class="c27only">A labeled head from the tissue classes of one normal adult (Colin27, Montreal Neurological Institute). The contrast simulator and k-space explorer image this phantom.</span><span class="bwonly">A labeled head and neck from BrainWeb's simulated brain database. The contrast simulator and k-space explorer image this phantom.</span><span class="gen">A generated, labeled head and neck with no stored data, placed from standard-atlas landmarks. The contrast simulator and k-space explorer image this phantom.<span id="bwHint" hidden> Choose BrainWeb for a real head's anatomy.</span></span></p>
 
@@ -129,7 +138,7 @@
     fat planes. Tissue values are the contrast simulator's 3.0 T table (so WM and GM share T2 = 80 ms and T2-weighted contrast comes from PD and T2* is not used here), plus illustrative muscle, lesion and bone rows; the skull's cortical bone is
     treated as signal void. Weighted images are ideal spin-echo signal equations, not a full simulation.</p>
 </main>
-<footer class="site-foot">MRI Physics Bench is free and built by <a href="https://davidbennettphd.com" rel="author">David Bennett, PhD</a>, MRI physicist and physics educator. Visits are counted anonymously with Cloudflare Web Analytics; no cookies.</footer>
+<footer class="site-foot"><span class="site-foot-links"><a href="../">MRI Physics Bench home</a> · <a href="../#tour">Take the tour</a></span>MRI Physics Bench is free and built by <a href="https://davidbennettphd.com" rel="author">David Bennett, PhD</a>, MRI physicist and physics educator. Visits are counted anonymously with Cloudflare Web Analytics; no cookies.</footer>
 <script type="module" src="ui.js"></script>
 <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "229a572cb7644dedbb333b9e00e8141d"}'></script><!-- End Cloudflare Web Analytics -->
 </body>

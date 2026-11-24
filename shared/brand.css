@@ -1,0 +1,45 @@
+/*
+ * Site-wide brand: the Manrope font, the slim header and the footer shared by the home page and every simulator page.
+ * Matches davidbennettphd.com (black bar, Manrope, electric blue #4D8DFF). Self-contained: it does not rely on the
+ * simulator pages' own variables, so it looks the same everywhere. Manrope is served from shared/fonts (SIL OFL 1.1,
+ * licence in shared/fonts/Manrope-OFL.txt).
+ */
+@font-face {
+  font-family: "Manrope";
+  src: url("fonts/manrope-latin-wght.woff2") format("woff2-variations"), url("fonts/manrope-latin-wght.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+.site-top { background: #000; border-bottom: 1px solid #23252B; color: #F5F6F7;
+  font: 500 15px/1.4 Manrope, "Helvetica Neue", Arial, system-ui, sans-serif; }
+.site-top.fixed { position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+  background: color-mix(in srgb, #000 72%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.site-top-in { max-width: 1280px; margin: 0 auto; padding: 8px max(20px, env(safe-area-inset-left)); min-height: 56px;
+  display: flex; align-items: center; gap: 6px 24px; flex-wrap: wrap; }
+.site-top.fixed .site-top-in { min-height: 64px; }
+/* simulator pages span up to 2560px with 24px sides; line the header up with them */
+.site-top:not(.fixed) .site-top-in { max-width: 2560px; padding-left: 24px; padding-right: 24px; }
+.site-brand { display: inline-flex; align-items: center; gap: 10px; margin-right: auto; color: #F5F6F7; text-decoration: none;
+  font-weight: 600; font-size: 17px; letter-spacing: -.03em; white-space: nowrap; }
+.site-brand svg { width: 32px; height: 26px; flex: none; }
+.site-brand small { font-weight: 500; font-size: 13px; color: #9499A3; letter-spacing: 0; }
+.site-top nav { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 22px; }
+.site-top nav a { color: #9499A3; text-decoration: none; font-size: 14px; padding: 10px 0; white-space: nowrap; }
+.site-top nav a:hover, .site-top nav a[aria-current="page"] { color: #F5F6F7; }
+.site-top nav a.site-pill { color: #000; background: #F5F6F7; border-radius: 4px; padding: 0 16px; min-height: 38px;
+  display: inline-flex; align-items: center; font-weight: 500; }
+.site-top nav a.site-pill:hover { background: #fff; }
+.site-top a:focus-visible { outline: 2px solid #4D8DFF; outline-offset: 3px; border-radius: 4px; }
+@media (max-width: 760px) {
+  .site-brand small, .site-top nav a.site-opt { display: none; }
+  .site-top nav { gap: 2px 16px; }
+}
+@media (max-width: 420px) { .site-top nav a.site-mid { display: none; } }
+@media print { .site-top { display: none; } }
+
+/* footer on simulator pages (the home page has its own) */
+.site-foot { font-family: Manrope, "Helvetica Neue", Arial, system-ui, sans-serif; }
+.site-foot .site-foot-links { display: block; margin-bottom: 4px; }
+.site-foot a { color: #4D8DFF; }
