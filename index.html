@@ -4,63 +4,124 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRI Physics Bench: Free Interactive MRI Physics Simulators</title>
-<meta name="description" content="Free, browser-based MRI physics simulators for students, technologists and residents: Bloch equations, k-space, contrast, signal processing, RF coils and coil tuning. No sign-in.">
+<meta name="description" content="Free, browser-based MRI physics simulators for students, technologists and residents: Bloch equations, k-space, contrast, signal processing, RF coils and coil tuning, with a guided tour. No sign-in.">
 <link rel="canonical" href="https://mriphysicsbench.com/">
 <meta name="author" content="David Bennett, PhD">
+<meta name="theme-color" content="#000000">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MRI Physics Bench">
 <meta property="og:title" content="MRI Physics Bench: Free Interactive MRI Physics Simulators">
-<meta property="og:description" content="Free, browser-based MRI physics simulators for students, technologists and residents: Bloch equations, k-space, contrast, signal processing, RF coils and coil tuning. No sign-in.">
+<meta property="og:description" content="Free, browser-based MRI physics simulators for students, technologists and residents: Bloch equations, k-space, contrast, signal processing, RF coils and coil tuning, with a guided tour. No sign-in.">
 <meta property="og:url" content="https://mriphysicsbench.com/">
 <meta property="og:image" content="https://mriphysicsbench.com/shared/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="shared/style.css">
-<style>
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 18px; }
-  .card { display: block; text-decoration: none; color: var(--text); }
-  .card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
-  .card h2 { margin: 0 0 6px; font-size: 1.1rem; color: var(--accent); }
-  .card p { margin: 0; color: var(--muted); font-size: .9rem; }
-</style>
-<script src="shared/text-size.js"></script>
+<link rel="preload" href="shared/fonts/manrope-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="shared/brand.css">
+<link rel="stylesheet" href="home/home.css">
 </head>
 <body>
-<main>
-  <h1>MRI Physics Bench</h1>
-  <p class="sub">Free, interactive MRI physics. Everything runs in your browser.</p>
-  <p class="panel" style="margin-top:14px;font-size:.9rem;color:var(--muted)"><strong style="color:var(--text)">Early release.</strong> These simulators have not been fully quality-checked and are for learning only, not clinical use. New here? Read the <a href="guide/">quick guide</a> (<a href="guide/MRI-Mastery-Quick-Guide.pdf">PDF</a>).</p>
-  <div class="cards">
-    <a class="panel card" href="bloch/">
-      <h2>Bloch Simulator</h2>
-      <p>Watch the magnetization vector respond to RF pulses, off-resonance, T1 and T2. Spin echo and inversion recovery in 3D.</p>
-    </a>
-    <a class="panel card" href="signal/">
-      <h2>Signal Processing</h2>
-      <p>Fourier transforms, sampling and aliasing, and how RF pulse shape sets the slice profile.</p>
-    </a>
-    <a class="panel card" href="coil/">
-      <h2>Coil Fields &amp; RF Excitation</h2>
-      <p>Biot-Savart fields of loops and Helmholtz pairs, B1+ and flip-angle maps, and how coil geometry sets excitation.</p>
-    </a>
-    <a class="panel card" href="tuning/">
-      <h2>Coil Tuning &amp; Matching (preview)</h2>
-      <p>Tune and match a loop coil to the Larmor frequency on a live S11 plot and Smith chart, then watch a patient detune it and lower its Q.</p>
-    </a>
-    <a class="panel card" href="contrast/">
-      <h2>MRI Contrast Simulator (in progress)</h2>
-      <p>Pick a sequence and field strength, then watch SNR, resolution and scan time trade off, with phantom images and pulse-sequence diagrams.</p>
-    </a>
-    <a class="panel card" href="kspace/">
-      <h2>K-space Explorer</h2>
-      <p>A pulse sequence built from real gradients, drawn to scale. Play it and watch each gradient move through k-space while the image builds up.</p>
-    </a>
-    <a class="panel card" href="phantom/">
-      <h2>Head Phantom (preview)</h2>
-      <p>The generated, labeled head that will feed the contrast simulator. Judge the anatomy and its T1, T2, PD and FLAIR appearance.</p>
-    </a>
+<header class="site-top fixed"><div class="site-top-in">
+  <a class="site-brand" href="./"><svg viewBox="0 0 40 32" aria-hidden="true"><path d="M4 26 L20 26 L32 6" fill="none" stroke="#4D8DFF" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26 L20 4" fill="none" stroke="#C4CCDA" stroke-width="2.1" stroke-linecap="round"/></svg>MRI Physics Bench <small>by David Bennett, Ph.D.</small></a>
+  <nav aria-label="Main">
+    <a class="site-mid" href="#sessions">Guided sessions</a>
+    <a class="site-opt" href="#modules">Simulators</a>
+    <a class="site-opt" href="guide/">Quick guide</a>
+    <a class="site-opt" href="https://davidbennettphd.com">davidbennettphd.com</a>
+    <a class="site-pill" href="#tour">Take the tour</a>
+  </nav>
+</div></header>
+
+<header class="hero" id="bench-top"><div class="wrap">
+  <p class="label">Free MRI physics simulators</p>
+  <div class="head">
+    <h1>Learn MRI physics by running the experiment</h1>
+    <div>
+      <p class="lede">Seven browser simulators for MRI technologists, residents and graduate students. New here? Take the tour: pick what you're studying and it walks you through each simulator, what it shows and what to try first.</p>
+      <div class="cta"><a class="pill" href="#tour">Take the tour</a><a class="pill line" href="#sessions">Guided sessions</a></div>
+    </div>
   </div>
+  <div class="bench">
+    <section class="panel" aria-labelledby="bh">
+      <div class="phead"><h2 id="bh">Bloch bench</h2><span>Lab frame, precession slowed so you can follow it</span></div>
+      <div class="fig" id="fig"><svg id="sv" role="img" aria-label="Magnetization vector after an RF pulse, with Mz and Mxy over time"></svg></div>
+      <div class="read">
+        <div>Time<b id="rt">0 ms</b></div><div>Mz<b id="rz">1.00</b></div><div>Mxy<b id="rxy">0.00</b></div>
+      </div>
+      <div class="ctl">
+        <div><label for="fa">Flip angle <output id="fao">90°</output></label><input type="range" id="fa" min="5" max="180" step="5" value="90"></div>
+        <div><label for="t1">T1 <output id="t1o">780 ms</output></label><input type="range" id="t1" min="200" max="4500" step="10" value="780"></div>
+        <div><label for="t2">T2 <output id="t2o">90 ms</output></label><input type="range" id="t2" min="20" max="2500" step="5" value="90"></div>
+        <div class="row">
+          <select id="ps" aria-label="Tissue preset">
+            <option value="">Tissue preset (about, 1.5 T)</option>
+            <option value="780,90">White matter</option>
+            <option value="1100,100">Gray matter</option>
+            <option value="260,80">Fat</option>
+            <option value="4000,2000">CSF</option>
+          </select>
+          <button class="pill" id="play" type="button">Pulse and play</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel tour" id="tour" aria-labelledby="gh">
+      <div class="phead"><h2 id="gh">Site tour</h2><span id="tc">Stop 1 of 8</span></div>
+      <div class="dots" id="dots" aria-label="Tour stops"></div>
+      <div class="stop" id="stop" aria-live="polite"><p>The tour needs JavaScript. You can still open each simulator from the list below.</p></div>
+      <div class="benchnote" id="bn"></div>
+      <div class="nav2"><button class="back" id="prev" type="button">Back</button><span id="nx"></span><button id="next" type="button">Next</button></div>
+    </section>
+  </div>
+</div></header>
+
+<main>
+<section class="sec light" id="sessions"><div class="wrap">
+  <div class="sec-head">
+    <h2>Guided sessions</h2>
+    <p class="lede">Short lab sequences that cross the simulators in a sensible order. Each step asks for a prediction first. Make your guess, try it, then open the answer.</p>
+  </div>
+  <div class="sessions" id="sl"></div>
+</div></section>
+
+<section class="sec" id="modules"><div class="wrap">
+  <div class="sec-head">
+    <h2>The simulators</h2>
+    <p class="lede">Seven simulators, all free, all in the browser. Laptops and tablets give the best view. New here? Read the <a href="guide/">quick guide</a> (<a href="guide/MRI-Physics-Bench-Quick-Guide.pdf">PDF</a>).</p>
+  </div>
+  <div class="grid">
+    <div class="mcard"><a href="bloch/"><h3>Bloch Simulator</h3><p>Watch the magnetization vector respond to RF pulses, off-resonance, T1 and T2. Spin echo and inversion recovery in 3D.</p></a><button class="tb" type="button" data-stop="bloch">See it in the tour</button></div>
+    <div class="mcard"><a href="signal/"><h3>Signal Processing</h3><p>Fourier transforms, sampling and aliasing, and how RF pulse shape sets the slice profile.</p></a><button class="tb" type="button" data-stop="signal">See it in the tour</button></div>
+    <div class="mcard"><a href="coil/"><h3>Coil Fields &amp; RF Excitation</h3><p>Biot-Savart fields of loops and Helmholtz pairs, B1+ and flip-angle maps, and how coil geometry sets excitation.</p></a><button class="tb" type="button" data-stop="coil">See it in the tour</button></div>
+    <div class="mcard"><a href="tuning/"><h3>Coil Tuning &amp; Matching</h3><p>Tune and match a loop coil to the Larmor frequency on a live S11 plot and Smith chart, then watch a patient detune it and lower its Q.</p></a><span class="tag">Preview</span><br><button class="tb" type="button" data-stop="tuning">See it in the tour</button></div>
+    <div class="mcard"><a href="contrast/"><h3>MRI Contrast Simulator</h3><p>Pick a sequence and field strength, then watch SNR, resolution and scan time trade off, with phantom images and pulse-sequence diagrams.</p></a><span class="tag">In progress</span><br><button class="tb" type="button" data-stop="contrast">See it in the tour</button></div>
+    <div class="mcard"><a href="kspace/"><h3>K-space Explorer</h3><p>A pulse sequence built from real gradients, drawn to scale. Play it and watch each gradient move through k-space while the image builds up.</p></a><button class="tb" type="button" data-stop="kspace">See it in the tour</button></div>
+    <div class="mcard"><a href="phantom/"><h3>Head Phantom</h3><p>A 3D head with real anatomy (the Colin27 brain) in a three-plane viewer. See how it looks on T1, T2, PD and FLAIR.</p></a><span class="tag">Preview</span><br><button class="tb" type="button" data-stop="phantom">See it in the tour</button></div>
+  </div>
+</div></section>
+
+<section class="sec" style="padding-top:0"><div class="wrap">
+  <div class="sec-head">
+    <h2>Why it's built this way</h2>
+    <p class="lede">Built by an MRI physicist who teaches, to make the hard parts of MRI physics something you can see and change.</p>
+  </div>
+  <div class="how">
+    <div><h3>Change it, watch it</h3><p>Every simulator is live. Move a parameter and the physics responds, so cause and effect are on the screen together.</p></div>
+    <div><h3>Predict first</h3><p>The guided sessions ask for your guess before you run anything. Committing to a guess and checking it is how the physics sticks.</p></div>
+    <div><h3>Free, in the browser</h3><p>Nothing to install and no account. Open a simulator on a laptop or tablet and start.</p></div>
+  </div>
+  <p class="warn"><b>Early release.</b> These simulators have not been fully quality-checked and are for learning only, not clinical use. Check anything important against your course materials.</p>
+</div></section>
 </main>
-<footer class="site-foot">MRI Physics Bench is free and built by <a href="https://davidbennettphd.com" rel="author">David Bennett, PhD</a>, MRI physicist and physics educator. Visits are counted anonymously with Cloudflare Web Analytics; no cookies.</footer>
+
+<footer><div class="wrap">
+  <h2>Physics that finally clicks.</h2>
+  <div class="cta"><a class="pill" href="#tour">Take the tour</a><a class="pill line" href="https://davidbennettphd.com" rel="author">About David Bennett, Ph.D.</a></div>
+  <div class="foot">
+    <span>MRI Physics Bench is free and built by <a href="https://davidbennettphd.com" rel="author">David Bennett, PhD</a>, MRI physicist and physics educator.</span>
+    <span>Visits are counted anonymously with Cloudflare Web Analytics; no cookies.</span>
+  </div>
+</div></footer>
+<script type="module" src="home/home.js"></script>
 <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "229a572cb7644dedbb333b9e00e8141d"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
 </html>
