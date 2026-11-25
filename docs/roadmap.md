@@ -85,3 +85,9 @@ artifacts).
   - Open question to resume with: what should a student understand or be able to do after using it? That decides the
     page (Bloch, contrast, or both) and which kind of SAR to show. Related: the paused B1 + E field panel for the Bloch
     page.
+- **Bloch 3D view: keep the camera when switching from Orbital rotation to Pan** — added 2026-11-25. Reported by the
+  owner: after reorienting the view with the "orbital rotation" tool, choosing the "pan" tool snaps the planes back to
+  the default view and the chosen orientation is lost. Not investigated yet. Where to look first: `draw()` in
+  `shared/plot.js` (it redraws with `Plotly.react` and re-applies the live camera through `withLiveCameras`) and the
+  `uirevision` settings on the Bloch scene (`bloch/ui.js`); switching tools changes the drag mode, which may trigger a
+  redraw that drops the camera. Fix with a page check that rotates the view, switches tool and compares the camera.
