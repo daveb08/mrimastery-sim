@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T1 vs T2 in MRI, and How FLAIR Makes Fluid Disappear | MRI Physics Bench</title>
+<meta name="description" content="T1 recovery vs T2 decay explained, why fluid is dark on T1-weighted and bright on T2-weighted MRI, and how FLAIR picks the inversion time that nulls CSF. With a free interactive simulator.">
+<link rel="canonical" href="https://mriphysicsbench.com/explainers/t1-vs-t2-flair/">
+<meta name="author" content="David Bennett, PhD">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="MRI Physics Bench">
+<meta property="og:title" content="T1 vs T2 in MRI, and How FLAIR Makes Fluid Disappear | MRI Physics Bench">
+<meta property="og:description" content="T1 recovery vs T2 decay explained, why fluid is dark on T1-weighted and bright on T2-weighted MRI, and how FLAIR picks the inversion time that nulls CSF. With a free interactive simulator.">
+<meta property="og:url" content="https://mriphysicsbench.com/explainers/t1-vs-t2-flair/">
+<meta property="og:image" content="https://mriphysicsbench.com/shared/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "T1 vs T2 in MRI, and How FLAIR Makes Fluid Disappear", "description": "T1 recovery vs T2 decay explained, why fluid is dark on T1-weighted and bright on T2-weighted MRI, and how FLAIR picks the inversion time that nulls CSF. With a free interactive simulator.", "datePublished": "2026-11-25", "dateModified": "2026-11-25", "mainEntityOfPage": "https://mriphysicsbench.com/explainers/t1-vs-t2-flair/", "image": "https://mriphysicsbench.com/shared/og-image.png", "author": {"@type": "Person", "name": "David Bennett", "honorificSuffix": "PhD", "url": "https://davidbennettphd.com"}, "publisher": {"@type": "Organization", "name": "MRI Physics Bench", "url": "https://mriphysicsbench.com/"}, "about": ["T1 relaxation", "T2 relaxation", "FLAIR", "Inversion recovery", "MRI contrast"]}</script>
+<style>
+  :root { color-scheme: light; }
+  body { font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1c2430; background: #fff; margin: 0; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 20px 40px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 22px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #d5dbe3; }
+  h3 { font-size: 1rem; margin: 14px 0 2px; }
+  p, li { margin: 4px 0; }
+  ul, ol { padding-left: 22px; margin: 4px 0; }
+  .sub { color: #5a6675; margin: 0 0 12px; }
+  .note { background: #fff6e0; border: 1px solid #e8c875; border-radius: 6px; padding: 8px 12px; margin: 12px 0; }
+  .tip { color: #38506b; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  td, th { text-align: left; vertical-align: top; padding: 5px 8px; border-bottom: 1px solid #e3e8ee; }
+  th { background: #f2f5f9; }
+  td:first-child { font-weight: 600; }
+  a { color: #1456a8; }
+  @media print { main { padding: 0; } h2 { break-after: avoid; } tr, .note { break-inside: avoid; } }
+  .site-foot { max-width: 760px; margin: 0 auto; padding: 14px 20px 28px; border-top: 1px solid #d5dbe3; color: #5a6675; font-size: .85rem; }
+  @media print { .site-foot { padding: 8px 0 0; } }
+  .formula { font: 1.05rem/1.6 "Cambria Math", "STIX Two Math", Georgia, serif; background: #f6f8fb; border-left: 3px solid #4D8DFF; padding: 8px 14px; margin: 10px 0; }
+  .try { background: #eef5ff; border: 1px solid #c4d8f5; border-radius: 6px; padding: 8px 12px; margin: 12px 0; }
+  .short { font-size: 1.02rem; }
+  .crumb { font-size: .85rem; color: #5a6675; margin: 0 0 8px; }
+  .alist { list-style: none; padding: 0; }
+  .alist li { padding: 12px 0; border-bottom: 1px solid #e3e8ee; }
+  .alist a { font-weight: 600; font-size: 1.05rem; }
+</style>
+<link rel="stylesheet" href="../../shared/brand.css">
+</head>
+<body>
+<header class="site-top"><div class="site-top-in">
+  <a class="site-brand" href="../../"><svg viewBox="0 0 40 32" aria-hidden="true"><path d="M4 26 L20 26 L32 6" fill="none" stroke="#4D8DFF" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26 L20 4" fill="none" stroke="#C4CCDA" stroke-width="2.1" stroke-linecap="round"/></svg>MRI Physics Bench <small>by David Bennett, Ph.D.</small></a>
+  <nav aria-label="Site">
+    <a href="../../#modules">All simulators</a>
+    <a class="site-opt" href="../../guide/">Quick guide</a>
+    <a class="site-opt" href="../../explainers/">Explainers</a>
+    <a class="site-opt" href="https://davidbennettphd.com">davidbennettphd.com</a>
+    <a class="site-pill" href="../../#tour">Take the tour</a>
+  </nav>
+</div></header>
+<main>
+  <p class="crumb"><a href="../">Explainers</a></p>
+  <h1>T1 vs T2 in MRI, and How FLAIR Makes Fluid Disappear</h1>
+  <p class="sub">David Bennett, PhD · November 25, 2026</p>
+
+  <p class="short"><strong>The short answer:</strong> T1 is how quickly magnetization recovers along the main (longitudinal) axis after an RF pulse. T2 is how quickly it decays in the transverse plane, where the signal is measured. They are separate processes running at different speeds. On a T1-weighted image fluid is dark; on a T2-weighted image fluid is bright. FLAIR is a T2-weighted image with one extra trick: an inversion pulse timed so that fluid has no signal left to give.</p>
+
+  <h2>Two clocks, started by one pulse</h2>
+  <p>A 90&deg; RF pulse tips the magnetization from the longitudinal axis into the transverse plane. From that moment, two things happen at once:</p>
+  <ul>
+    <li><strong>T1 recovery:</strong> the longitudinal magnetization grows back toward its full value. T1 is the time constant of longitudinal recovery. Starting from zero longitudinal magnetization, recovery reaches about 63% of the equilibrium value after one T1.</li>
+    <li><strong>T2 decay:</strong> the transverse magnetization, the part that makes the signal, fades as the spins fall out of phase. T2 is the time constant of intrinsic transverse relaxation. After one T2, the transverse magnetization magnitude has decreased to about 37% of its initial value, excluding additional dephasing from field inhomogeneity.</li>
+  </ul>
+  <p>The most common misconception is that these are one process seen from two angles, so that the signal fading in the transverse plane must reappear along the main axis at the same rate. It doesn't. The spins can lose their phase coherence long before the longitudinal magnetization has recovered, which is why T2 is always shorter than T1, and usually much shorter.</p>
+  <p>The Contrast Simulator's values at 3.0&nbsp;T make the point:</p>
+  <table>
+    <tr><th>Tissue</th><th>T1 (ms)</th><th>T2 (ms)</th></tr>
+    <tr><td>White matter</td><td>832</td><td>80</td></tr>
+    <tr><td>Gray matter</td><td>1331</td><td>110</td></tr>
+    <tr><td>CSF</td><td>4000</td><td>2000</td></tr>
+  </table>
+  <p>In white matter, the transverse signal is essentially gone within a few hundred milliseconds, while the longitudinal magnetization is still only partly recovered. Two clocks, started together, running at very different speeds. They were never synchronized, and they have no intention of starting now.</p>
+  <p>You can see this in action in the <a href="../../bloch/">Bloch Simulator</a>, which shows the magnetization vector relaxing in 3D.</p>
+
+  <h2>T1-weighted vs T2-weighted: choosing which clock to read</h2>
+  <p>Every tissue has both a T1 and a T2. "Weighting" is about which difference the scan lets through, and that is set mostly by TR and TE:</p>
+  <ul>
+    <li><strong>TR</strong> (repetition time) controls how much longitudinal recovery happens between pulses, so it brings out T1 differences.</li>
+    <li><strong>TE</strong> (echo time) controls how long the transverse signal decays before it is read, so it brings out T2 differences.</li>
+  </ul>
+  <table>
+    <tr><th>Weighting</th><th>TR</th><th>TE</th><th>What you see</th></tr>
+    <tr><td>T1-weighted</td><td>Short (500 ms)</td><td>Short (15 ms)</td><td>White matter brightest, CSF dark</td></tr>
+    <tr><td>T2-weighted</td><td>Long (4000 ms)</td><td>Long (100 ms)</td><td>CSF brightest, white matter darkest</td></tr>
+  </table>
+  <p>Why CSF flips: its T1 is so long that a short TR catches it barely recovered, so it is dark on T1-weighted images. Its T2 is so long that it still has plenty of transverse signal at a long TE, while the brain tissue's signal has already faded, so it is bright on T2-weighted images.</p>
+  <div class="try"><strong>Try it:</strong> in the <a href="../../contrast/">Contrast Simulator</a>, choose <strong>FSE</strong> at <strong>3.0&nbsp;T</strong>.
+    <ol>
+      <li>Set <strong>TR 500 ms, TE 15 ms</strong>, with a short echo train (<strong>ETL 2&ndash;4</strong>). This gives a T1-weighted image: fluid dark, white matter bright.</li>
+      <li>Now set <strong>TR 4000 ms, TE 100 ms</strong>. This gives a T2-weighted image, and the ventricles light up.</li>
+      <li>Change one setting at a time and watch which tissue moves. That is the fastest way to stop memorizing the rule and start predicting it.</li>
+    </ol>
+  </div>
+
+  <h2>FLAIR: making fluid disappear on purpose</h2>
+  <p>On a T2-weighted image, bright CSF can hide lesions sitting right next to it, such as plaques along the ventricles. FLAIR (fluid-attenuated inversion recovery) keeps the T2 weighting but switches the fluid off.</p>
+  <p>It starts with a 180&deg; inversion pulse, which flips the longitudinal magnetization from +M<sub>0</sub> to &minus;M<sub>0</sub>. From there it recovers back toward +M<sub>0</sub>, and on the way it has to pass through zero. If the excitation pulse arrives at exactly that moment, the tissue has nothing to tip over and gives no signal. The wait between the inversion and the excitation is the inversion time, <strong>TI</strong>.</p>
+  <p>When the magnetization starts fully recovered, the null comes at:</p>
+  <p class="formula">TI<sub>null</sub> = T<sub>1</sub> &middot; ln 2 &asymp; 0.69 T<sub>1</sub></p>
+  <p>For CSF with a T1 of 4000 ms, that is about <strong>2773 ms</strong>.</p>
+  <p>There is a catch. That rule assumes the magnetization recovers fully between repetitions, which needs TR several times longer than T1. With CSF's T1 of 4000 ms, even a long FLAIR TR of 9000 ms is not quite enough, so each inversion starts from slightly less than M<sub>0</sub> and reaches zero sooner. The full version is:</p>
+  <p class="formula">TI<sub>null</sub> = T<sub>1</sub> &middot; ln [ 2 / (1 + e<sup>&minus;TR/T<sub>1</sub></sup>) ]</p>
+  <p>At TR 9000 ms this gives about <strong>2372 ms</strong>, roughly 400 ms earlier than the textbook value. As TR grows much longer than T1, the exponential term vanishes and the formula returns to T1&nbsp;ln&nbsp;2.</p>
+  <div class="try"><strong>Try it:</strong> in the <a href="../../contrast/">Contrast Simulator</a>, choose <strong>FLAIR</strong> at <strong>3.0&nbsp;T</strong> with <strong>TR 9000 ms</strong>. The panel shows the <strong>CSF null TI</strong>: 2372 ms.
+    <ol>
+      <li>Set <strong>TI to about 2400 ms</strong>. The ventricles go dark while gray and white matter keep their T2-weighted look.</li>
+      <li>Set <strong>TI to 2750 ms</strong>, the full-recovery answer. CSF picks up a little signal again.</li>
+      <li>Raise <strong>TR to 10,000 ms</strong> and watch the null TI move up toward 2773 ms.</li>
+    </ol>
+  </div>
+
+  <h2>Registry check</h2>
+  <p><strong>Q: In a FLAIR sequence, which fluid is typically attenuated?</strong></p>
+  <p>Cerebrospinal fluid (CSF). The inversion time is chosen so that CSF's longitudinal magnetization is passing through zero when the excitation pulse arrives, leaving the rest of the image T2-weighted.</p>
+  <p><strong>Bonus: if FLAIR nulls fluid, which inversion recovery sequence nulls fat?</strong> STIR (short tau inversion recovery). Fat has a short T1, so its null comes early, which is the "short tau". You can try it in the <a href="../../contrast/">Contrast Simulator</a> too.</p>
+
+  <div class="note">The simulators are a teaching model with simplified physics and idealised tissue values. Real scanners and vendors differ, so treat the numbers as illustrative. Found an error? Please tell me through the <a href="https://davidbennettphd.com/#contact">contact form on davidbennettphd.com</a>.</div>
+</main>
+<footer class="site-foot"><span class="site-foot-links"><a href="../../">MRI Physics Bench home</a> · <a href="../../#tour">Take the tour</a></span>MRI Physics Bench is free and built by <a href="https://davidbennettphd.com" rel="author">David Bennett, PhD</a>, MRI physicist and physics educator. Visits are counted anonymously with Cloudflare Web Analytics; no cookies.</footer>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "229a572cb7644dedbb333b9e00e8141d"}'></script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>
