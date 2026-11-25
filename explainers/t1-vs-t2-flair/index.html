@@ -78,7 +78,7 @@
     <tr><td>CSF</td><td>4000</td><td>2000</td></tr>
   </table>
   <p>In white matter, the transverse signal is essentially gone within a few hundred milliseconds, while the longitudinal magnetization is still only partly recovered. Two clocks, started together, running at very different speeds. They were never synchronized, and they have no intention of starting now.</p>
-  <p>You can see this in action in the <a href="../../bloch/">Bloch Simulator</a>, which shows the magnetization vector relaxing in 3D.</p>
+  <p>You can see this in action in the <a href="../../bloch/" target="_blank" rel="noopener">Bloch Simulator</a>, which shows the magnetization vector relaxing in 3D.</p>
 
   <h2>T1-weighted vs T2-weighted: choosing which clock to read</h2>
   <p>Every tissue has both a T1 and a T2. "Weighting" is about which difference the scan lets through, and that is set mostly by TR and TE:</p>
@@ -92,7 +92,7 @@
     <tr><td>T2-weighted</td><td>Long (4000 ms)</td><td>Long (100 ms)</td><td>CSF brightest, white matter darkest</td></tr>
   </table>
   <p>Why CSF flips: its T1 is so long that a short TR catches it barely recovered, so it is dark on T1-weighted images. Its T2 is so long that it still has plenty of transverse signal at a long TE, while the brain tissue's signal has already faded, so it is bright on T2-weighted images.</p>
-  <div class="try"><strong>Try it:</strong> in the <a href="../../contrast/">Contrast Simulator</a>, choose <strong>FSE</strong> at <strong>3.0&nbsp;T</strong>.
+  <div class="try"><strong>Try it:</strong> in the <a href="../../contrast/" target="_blank" rel="noopener">Contrast Simulator</a>, choose <strong>FSE</strong> at <strong>3.0&nbsp;T</strong>.
     <ol>
       <li>Set <strong>TR 500 ms, TE 15 ms</strong>, with a short echo train (<strong>ETL 2&ndash;4</strong>). This gives a T1-weighted image: fluid dark, white matter bright.</li>
       <li>Now set <strong>TR 4000 ms, TE 100 ms</strong>. This gives a T2-weighted image, and the ventricles light up.</li>
@@ -109,7 +109,7 @@
   <p>There is a catch. That rule assumes the magnetization recovers fully between repetitions, which needs TR several times longer than T1. With CSF's T1 of 4000 ms, even a long FLAIR TR of 9000 ms is not quite enough, so each inversion starts from slightly less than M<sub>0</sub> and reaches zero sooner. The full version is:</p>
   <p class="formula">TI<sub>null</sub> = T<sub>1</sub> &middot; ln [ 2 / (1 + e<sup>&minus;TR/T<sub>1</sub></sup>) ]</p>
   <p>At TR 9000 ms this gives about <strong>2372 ms</strong>, roughly 400 ms earlier than the textbook value. As TR grows much longer than T1, the exponential term vanishes and the formula returns to T1&nbsp;ln&nbsp;2.</p>
-  <div class="try"><strong>Try it:</strong> in the <a href="../../contrast/">Contrast Simulator</a>, choose <strong>FLAIR</strong> at <strong>3.0&nbsp;T</strong> with <strong>TR 9000 ms</strong>. The panel shows the <strong>CSF null TI</strong>: 2372 ms.
+  <div class="try"><strong>Try it:</strong> in the <a href="../../contrast/" target="_blank" rel="noopener">Contrast Simulator</a>, choose <strong>FLAIR</strong> at <strong>3.0&nbsp;T</strong> with <strong>TR 9000 ms</strong>. The panel shows the <strong>CSF null TI</strong>: 2372 ms.
     <ol>
       <li>Set <strong>TI to about 2400 ms</strong>. The ventricles go dark while gray and white matter keep their T2-weighted look.</li>
       <li>Set <strong>TI to 2750 ms</strong>, the full-recovery answer. CSF picks up a little signal again.</li>
@@ -120,9 +120,9 @@
   <h2>Registry check</h2>
   <p><strong>Q: In a FLAIR sequence, which fluid is typically attenuated?</strong></p>
   <p>Cerebrospinal fluid (CSF). The inversion time is chosen so that CSF's longitudinal magnetization is passing through zero when the excitation pulse arrives, leaving the rest of the image T2-weighted.</p>
-  <p><strong>Bonus: if FLAIR nulls fluid, which inversion recovery sequence nulls fat?</strong> STIR (short tau inversion recovery). Fat has a short T1, so its null comes early, which is the "short tau". You can try it in the <a href="../../contrast/">Contrast Simulator</a> too.</p>
+  <p><strong>Bonus: if FLAIR nulls fluid, which inversion recovery sequence nulls fat?</strong> STIR (short tau inversion recovery). Fat has a short T1, so its null comes early, which is the "short tau". You can try it in the <a href="../../contrast/" target="_blank" rel="noopener">Contrast Simulator</a> too.</p>
 
-  <div class="note">The simulators are a teaching model with simplified physics and idealised tissue values. Real scanners and vendors differ, so treat the numbers as illustrative. Found an error? Please tell me through the <a href="https://davidbennettphd.com/#contact">contact form on davidbennettphd.com</a>.</div>
+  <div class="note">The simulators are a teaching model with simplified physics and idealised tissue values. Real scanners and vendors differ, so treat the numbers as illustrative. Found an error? Please tell me through the <a href="https://davidbennettphd.com/#contact" target="_blank" rel="noopener">contact form on davidbennettphd.com</a>.</div>
 </main>
 <footer class="site-foot"><span class="site-foot-links"><a href="../../">MRI Physics Bench home</a> · <a href="../../#tour">Take the tour</a></span>MRI Physics Bench is free and built by <a href="https://davidbennettphd.com" rel="author">David Bennett, PhD</a>, MRI physicist and physics educator. Visits are counted anonymously with Cloudflare Web Analytics; no cookies.</footer>
 <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "229a572cb7644dedbb333b9e00e8141d"}'></script><!-- End Cloudflare Web Analytics -->

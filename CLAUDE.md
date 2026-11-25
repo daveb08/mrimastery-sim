@@ -63,5 +63,6 @@ Units: ms, Hz, mT/m, mm. Add physics as pure functions with a test first.
   The spoiled-GRE test hard-codes a value from the contrast physics; update it if that equation changes.
 - k-space explorer: with several concatenations, slices are split into passes (pass k holds slices k, k + C, ...), passes
   run one after another, and slice order only sets the order within a pass.
+- Explainers (`explainers/`): links to the simulators and to the contact form open in a new tab (`target="_blank" rel="noopener"`), so readers keep their place in the article.
 - Ideas that are paused (not to be started unprompted) are kept in the owner's memory notes: resizable k-space panes, a fixed
   window and level for the reconstructed image, the sequence designer, the B1 + E field panel for the Bloch page.
