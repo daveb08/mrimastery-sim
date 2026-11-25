@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Fourier Transform, Explained (and Why MRI Can&#39;t Do Without It) | MRI Physics Bench</title>
+<meta name="description" content="The Fourier transform explained with a chord, not equations: what it does, three rules worth knowing, and why every MRI image depends on it. With free interactive simulators.">
+<link rel="canonical" href="https://mriphysicsbench.com/explainers/fourier-transform/">
+<meta name="author" content="David Bennett, PhD">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="MRI Physics Bench">
+<meta property="og:title" content="The Fourier Transform, Explained (and Why MRI Can&#39;t Do Without It) | MRI Physics Bench">
+<meta property="og:description" content="The Fourier transform explained with a chord, not equations: what it does, three rules worth knowing, and why every MRI image depends on it. With free interactive simulators.">
+<meta property="og:url" content="https://mriphysicsbench.com/explainers/fourier-transform/">
+<meta property="og:image" content="https://mriphysicsbench.com/shared/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "The Fourier Transform, Explained (and Why MRI Can't Do Without It)", "description": "The Fourier transform explained with a chord, not equations: what it does, three rules worth knowing, and why every MRI image depends on it. With free interactive simulators.", "datePublished": "2026-11-25", "dateModified": "2026-11-25", "mainEntityOfPage": "https://mriphysicsbench.com/explainers/fourier-transform/", "image": "https://mriphysicsbench.com/shared/og-image.png", "author": {"@type": "Person", "name": "David Bennett", "honorificSuffix": "PhD", "url": "https://davidbennettphd.com"}, "publisher": {"@type": "Organization", "name": "MRI Physics Bench", "url": "https://mriphysicsbench.com/"}, "about": ["Fourier transform", "k-space", "Nyquist sampling", "Aliasing", "MRI image reconstruction"]}</script>
+<style>
+  :root { color-scheme: light; }
+  body { font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1c2430; background: #fff; margin: 0; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 20px 40px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 22px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #d5dbe3; }
+  h3 { font-size: 1rem; margin: 14px 0 2px; }
+  p, li { margin: 4px 0; }
+  ul, ol { padding-left: 22px; margin: 4px 0; }
+  .sub { color: #5a6675; margin: 0 0 12px; }
+  .note { background: #fff6e0; border: 1px solid #e8c875; border-radius: 6px; padding: 8px 12px; margin: 12px 0; }
+  .tip { color: #38506b; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  td, th { text-align: left; vertical-align: top; padding: 5px 8px; border-bottom: 1px solid #e3e8ee; }
+  th { background: #f2f5f9; }
+  td:first-child { font-weight: 600; }
+  a { color: #1456a8; }
+  @media print { main { padding: 0; } h2 { break-after: avoid; } tr, .note { break-inside: avoid; } }
+  .site-foot { max-width: 760px; margin: 0 auto; padding: 14px 20px 28px; border-top: 1px solid #d5dbe3; color: #5a6675; font-size: .85rem; }
+  @media print { .site-foot { padding: 8px 0 0; } }
+  .formula { font: 1.05rem/1.6 "Cambria Math", "STIX Two Math", Georgia, serif; background: #f6f8fb; border-left: 3px solid #4D8DFF; padding: 8px 14px; margin: 10px 0; }
+  .try { background: #eef5ff; border: 1px solid #c4d8f5; border-radius: 6px; padding: 8px 12px; margin: 12px 0; }
+  .short { font-size: 1.02rem; }
+  .crumb { font-size: .85rem; color: #5a6675; margin: 0 0 8px; }
+  .alist { list-style: none; padding: 0; }
+  .alist li { padding: 12px 0; border-bottom: 1px solid #e3e8ee; }
+  .alist a { font-weight: 600; font-size: 1.05rem; }
+</style>
+<link rel="stylesheet" href="../../shared/brand.css">
+</head>
+<body>
+<header class="site-top"><div class="site-top-in">
+  <a class="site-brand" href="../../"><svg viewBox="0 0 40 32" aria-hidden="true"><path d="M4 26 L20 26 L32 6" fill="none" stroke="#4D8DFF" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 26 L20 4" fill="none" stroke="#C4CCDA" stroke-width="2.1" stroke-linecap="round"/></svg>MRI Physics Bench <small>by David Bennett, Ph.D.</small></a>
+  <nav aria-label="Site">
+    <a href="../../#modules">All simulators</a>
+    <a class="site-opt" href="../../guide/">Quick guide</a>
+    <a class="site-opt" href="../../explainers/">Explainers</a>
+    <a class="site-opt" href="https://davidbennettphd.com">davidbennettphd.com</a>
+    <a class="site-pill" href="../../#tour">Take the tour</a>
+  </nav>
+</div></header>
+<main>
+  <p class="crumb"><a href="../">Explainers</a></p>
+  <h1>The Fourier Transform, Explained (and Why MRI Can&#39;t Do Without It)</h1>
+  <p class="sub">David Bennett, PhD &middot; November 25, 2026</p>
+
+  <p class="short"><strong>The short answer:</strong> the Fourier transform takes a signal that changes over time and tells you which frequencies it is made of, and how much of each. It is a way of looking at the same information from a different side: time on one side, frequency on the other. MRI depends on it because the scanner records a mixture of frequencies, not a picture. A mathematical step called the inverse Fourier transform turns that recorded data into the image you see on the screen.</p>
+
+  <h2>Start with a chord, not an equation</h2>
+  <p>Play a chord on a piano, say C, E and G together. A microphone records one wiggly line: air pressure going up and down over time. Looking at that line, you could not easily say which keys were pressed.</p>
+  <p>A trained ear can. It hears the single sound and picks out three notes, each at its own pitch, each with its own loudness. That is what the Fourier transform does. It listens to a signal and writes out the recipe: which frequencies are in it, and how strong each one is.</p>
+  <p>Two things make the analogy useful:</p>
+  <ul>
+    <li><strong>Nothing is lost.</strong> The wiggly line and the list of notes are the same information, viewed two ways. Given the recipe, you can rebuild the sound exactly. Going back is called the inverse Fourier transform.</li>
+    <li><strong>Some things are easier to see on one side.</strong> A wrong note is hard to spot in the wiggly line and obvious in the list of notes. The graphic equalizer on a music app shows the frequency side of whatever is playing.</li>
+  </ul>
+  <p>If the Fourier transform confused you the first time you met it, you are in good company. Most of us met it as a page of integrals before anyone mentioned the chord.</p>
+
+  <h2>Three rules worth knowing (still no equations)</h2>
+  <ol>
+    <li><strong>Short in time means wide in frequency.</strong> A brief click contains a huge range of frequencies; a long, steady tone contains almost one. Squeeze a signal in time and its frequency spectrum spreads out, and the reverse.</li>
+    <li><strong>Shapes come in pairs.</strong> A rectangular pulse in time becomes a sinc shape (a central peak with ripples) in frequency, and a sinc becomes a rectangle. A bell-shaped Gaussian stays a Gaussian. This pairing is why MRI uses sinc-shaped RF pulses: they excite a slice with nearly rectangular edges.</li>
+    <li><strong>Sample too slowly and frequencies lie.</strong> To capture a frequency you need at least two samples per cycle, commonly referred to as the Nyquist rate. Sample slower than that and the frequency shows up somewhere it isn't, which is aliasing. In MRI images it appears as wrap-around.</li>
+  </ol>
+  <div class="try"><strong>Try it:</strong> open the <a href="../../signal/" target="_blank" rel="noopener">Signal Processing simulator</a>. Its top panel shows a signal on the left and its Fourier transform on the right.
+    <ol>
+      <li>Choose <strong>Rectangular</strong> and drag <strong>Signal width</strong> from about 0.30 s down to 0.05 s. The pulse narrows and its sinc-shaped spectrum spreads out (rule 1, and rule 2).</li>
+      <li>Switch to <strong>Gaussian</strong> and repeat. The spectrum stays a Gaussian, just wider or narrower.</li>
+      <li>Set <strong>Carrier frequency</strong> to <strong>40 Hz</strong>. The spectrum moves out to 40 Hz: the carrier shifts the whole pattern along the frequency axis, like the Larmor frequency does in MRI.</li>
+      <li>With <strong>Auto Nyquist</strong> off, lower <strong>Sampling rate</strong> to <strong>50 Hz</strong>, below twice the carrier. The peak now appears at the wrong frequency (10 Hz), and the simulator flags the aliasing (rule 3).</li>
+      <li>Go back to the top panel and select Sinc as the signal type: its spectrum is close to a rectangle. Then scroll down to the <strong>RF Pulse &amp; Slice Profile</strong> panel to see rule 2 at work in MRI: a sinc-shaped pulse excites a slice with sharp, nearly rectangular edges.</li>
+    </ol>
+  </div>
+
+  <h2>Why MRI can&#39;t do without it</h2>
+  <p>An MRI scanner never takes a photograph. The receiver coil picks up one combined signal from every part of the slice at once, like the microphone recording the whole chord.</p>
+  <p>To tell the parts apart, the scanner switches on magnetic field gradients. A gradient makes the field slightly stronger on one side than the other, so protons in different places precess at slightly different frequencies. Position becomes frequency: each location sings its own note, and the scanner hears them all together. Over many repetitions it records these mixtures in an organized grid called <strong>k-space</strong>.</p>
+  <p>The raw signal is, in a way, encrypted. It holds everything needed to make the image, but you could not look at it and recognize the anatomy. To decipher it, the system applies the <strong>inverse Fourier transform</strong>, which sorts the recorded mixture back into how much signal came from each location. The result is the image on the screen.</p>
+  <p>So every MRI image you have seen went through this step. In a sense, MRI is an exercise in listening to a very large chord and working out where each note came from.</p>
+
+  <h2>The misconception: one point in k-space is not one pixel</h2>
+  <p>Because k-space and the image are both grids, it is tempting to think each point in k-space maps to one pixel in the image. It doesn&#39;t. <strong>Every point in k-space contributes to the entire image.</strong></p>
+  <p>Back to the chord: each note in the recipe affects the whole sound, from start to finish, not one instant of it. In the same way, each k-space point adds one pattern of stripes across the whole image, at a particular spacing and angle. The image is the sum of all those patterns.</p>
+  <p>Where a point sits in k-space decides what kind of pattern it adds:</p>
+  <ul>
+    <li><strong>Near the center:</strong> broad, slowly varying patterns. They carry most of the signal, so they set the overall brightness and contrast.</li>
+    <li><strong>Toward the edges:</strong> fine, closely spaced patterns. They sharpen edges and add detail.</li>
+  </ul>
+  <div class="try"><strong>Try it:</strong> open the <a href="../../kspace/" target="_blank" rel="noopener">k-space explorer</a> and press <strong>Play</strong>, or step one TR at a time with <strong>TR &#9654;</strong>. The left panel fills k-space; the right panel shows the image made from the samples taken so far. Watch the image: each new line of k-space changes the whole picture at once, rather than filling in one strip of pixels.</div>
+
+  <h2>Registry check</h2>
+  <p><strong>Q: Which mathematical process converts k-space data into an MRI image?</strong></p>
+  <p>The Fourier transform; strictly, the inverse Fourier transform. Exam questions often just say "Fourier transform", so recognize both.</p>
+  <p><strong>Bonus: which part of k-space mainly controls image contrast, and which controls fine detail?</strong> The center controls contrast and overall signal; the periphery controls fine detail and sharpness.</p>
+
+  <div class="note">The simulators are a teaching model with simplified physics. Real scanners and vendors differ, so treat the numbers as illustrative. Found an error? Please tell me through the <a href="https://davidbennettphd.com/#contact" target="_blank" rel="noopener">contact form on davidbennettphd.com</a>.</div>
+</main>
+<footer class="site-foot"><span class="site-foot-links"><a href="../../">MRI Physics Bench home</a> · <a href="../../#tour">Take the tour</a></span>MRI Physics Bench is free and built by <a href="https://davidbennettphd.com" rel="author">David Bennett, PhD</a>, MRI physicist and physics educator. Visits are counted anonymously with Cloudflare Web Analytics; no cookies.</footer>
+<!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "229a572cb7644dedbb333b9e00e8141d"}'></script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>
